@@ -1,0 +1,2592 @@
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=JetBrains+Mono:wght@300;400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,700;1,6..72,400&family=Outfit:wght@300;400;600;700;900&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Press+Start+2P&family=Share+Tech+Mono&family=Silkscreen:wght@400;700&family=VT323&display=swap');
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-pixel: "Silkscreen", "Press Start 2P", monospace;
+  --font-retro: "Press Start 2P", monospace;
+  --font-serif: "Newsreader", "Playfair Display", Georgia, serif;
+  
+  --color-marine-950: #020617;
+  --color-marine-900: #080c1d;
+  --color-marine-800: #10162f;
+  --color-marine-500: #3b82f6;
+  --color-sand-50: #f8fafc;
+  --color-accent: #54d1c1; /* Marine Teal */
+}
+
+@layer base {
+  html, body {
+    @apply bg-marine-950 text-sand-50 font-sans antialiased overflow-x-hidden transition-colors duration-300;
+    max-width: 100vw;
+    width: 100%;
+  }
+
+  body {
+    background-image: 
+      radial-gradient(circle at 0% 0%, rgba(84, 209, 193, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  body::after {
+    content: "";
+    @apply fixed inset-0 pointer-events-none z-[-1] opacity-20;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight uppercase font-black italic;
+  }
+}
+
+/* Glassmorphism base primitives */
+.glass {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)];
+}
+
+.glass-dark {
+  @apply bg-black/60 backdrop-blur-2xl border border-white/5 shadow-2xl;
+}
+
+/* ========================================================
+   1. LIGHT THEME (Wit, lichtgrijs, donkere tekst, rustig)
+   ======================================================== */
+body.theme-light {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  --color-accent: #0284c7;
+  background-image: radial-gradient(circle at 50% 0%, rgba(2, 132, 199, 0.08) 0%, transparent 70%), linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%) !important;
+}
+body.theme-light::after { display: none; }
+body.theme-light .glass {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04) !important;
+  backdrop-filter: blur(16px) !important;
+}
+body.theme-light .glass-dark {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08) !important;
+}
+body.theme-light input,
+body.theme-light select,
+body.theme-light textarea {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+body.theme-light input::placeholder,
+body.theme-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* ========================================================
+   2. DARK THEME (Antraciet, diepzwart, veilige standaard)
+   ======================================================== */
+body.theme-dark {
+  background-color: #090a0f !important;
+  color: #f8fafc !important;
+  --color-accent: #38bdf8;
+  background-image: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.06) 0%, transparent 60%) !important;
+}
+body.theme-dark .glass {
+  background-color: rgba(18, 20, 29, 0.75) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45) !important;
+}
+body.theme-dark .glass-dark {
+  background-color: rgba(10, 11, 18, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* ========================================================
+   3. MATRIX THEME (Zwart, felgroen, monospace, digital rain)
+   ======================================================== */
+body.theme-matrix {
+  background-color: #020702 !important;
+  color: #00ff41 !important;
+  font-family: 'Share Tech Mono', 'JetBrains Mono', monospace !important;
+  --color-accent: #00ff41;
+  background-image: 
+    linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px) !important;
+  background-size: 20px 20px !important;
+}
+body.theme-matrix * {
+  font-family: 'Share Tech Mono', 'JetBrains Mono', monospace !important;
+}
+body.theme-matrix .glass {
+  background-color: rgba(2, 12, 4, 0.92) !important;
+  border: 1px solid #00ff41 !important;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.25), inset 0 0 10px rgba(0, 255, 65, 0.06) !important;
+  border-radius: 4px !important;
+  color: #00ff41 !important;
+}
+body.theme-matrix .glass-dark {
+  background-color: #020803 !important;
+  border: 1px solid #00ff41 !important;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3) !important;
+  border-radius: 4px !important;
+  color: #00ff41 !important;
+}
+body.theme-matrix h1, body.theme-matrix h2, body.theme-matrix h3, body.theme-matrix h4 {
+  font-family: 'Share Tech Mono', monospace !important;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.75) !important;
+  color: #00ff41 !important;
+}
+body.theme-matrix button {
+  border: 1px solid #00ff41 !important;
+  background-color: rgba(2, 18, 5, 0.8) !important;
+  color: #00ff41 !important;
+  border-radius: 3px !important;
+  text-shadow: 0 0 4px rgba(0, 255, 65, 0.6) !important;
+  transition: all 0.15s ease-in-out;
+}
+body.theme-matrix button:hover {
+  background-color: #00ff41 !important;
+  color: #020702 !important;
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.6) !important;
+}
+body.theme-matrix input,
+body.theme-matrix select,
+body.theme-matrix textarea {
+  background-color: #010903 !important;
+  border: 1px solid #00ff41 !important;
+  color: #00ff41 !important;
+  border-radius: 2px !important;
+  box-shadow: inset 0 0 8px rgba(0, 255, 65, 0.15) !important;
+}
+body.theme-matrix input::placeholder,
+body.theme-matrix textarea::placeholder {
+  color: rgba(0, 255, 65, 0.4) !important;
+}
+
+/* ========================================================
+   4. CYBERPUNK THEME (Donkerpaars, neon roze, cyaan, glow)
+   ======================================================== */
+body.theme-cyberpunk {
+  background-color: #0c0817 !important;
+  color: #fce7f3 !important;
+  --color-accent: #00f0ff;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(255, 0, 127, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(0, 240, 255, 0.18) 0%, transparent 45%),
+    linear-gradient(rgba(255, 0, 127, 0.04) 1px, transparent 1px) !important;
+  background-size: 100% 100%, 100% 100%, 100% 4px !important;
+}
+body.theme-cyberpunk .glass {
+  background-color: rgba(18, 12, 34, 0.85) !important;
+  border: 1px solid rgba(255, 0, 127, 0.45) !important;
+  box-shadow: 0 0 20px rgba(255, 0, 127, 0.25), inset 0 0 15px rgba(0, 240, 255, 0.12) !important;
+  border-radius: 10px !important;
+}
+body.theme-cyberpunk .glass-dark {
+  background-color: rgba(10, 6, 20, 0.95) !important;
+  border: 1px solid #00f0ff !important;
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.25) !important;
+  border-radius: 10px !important;
+}
+body.theme-cyberpunk h1, body.theme-cyberpunk h2, body.theme-cyberpunk h3 {
+  color: #ff007f !important;
+  text-shadow: 0 0 12px rgba(255, 0, 127, 0.7) !important;
+}
+body.theme-cyberpunk button {
+  border-color: rgba(0, 240, 255, 0.4) !important;
+}
+body.theme-cyberpunk button:hover {
+  border-color: #00f0ff !important;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.5) !important;
+}
+body.theme-cyberpunk input,
+body.theme-cyberpunk select,
+body.theme-cyberpunk textarea {
+  background-color: #110924 !important;
+  border: 1px solid rgba(0, 240, 255, 0.5) !important;
+  color: #00f0ff !important;
+  border-radius: 8px !important;
+}
+
+/* ========================================================
+   5. SYNTHWAVE THEME (80s Sunset, paars neon, retro gradient)
+   ======================================================== */
+body.theme-synthwave {
+  background-color: #120726 !important;
+  color: #fdf2f8 !important;
+  --color-accent: #ff2a85;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(255, 42, 133, 0.25) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(138, 43, 226, 0.2) 0%, transparent 50%),
+    linear-gradient(rgba(255, 42, 133, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 42, 133, 0.05) 1px, transparent 1px) !important;
+  background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px !important;
+}
+body.theme-synthwave .glass {
+  background-color: rgba(26, 12, 50, 0.8) !important;
+  border-color: rgba(255, 42, 133, 0.4) !important;
+  box-shadow: 0 8px 32px 0 rgba(255, 42, 133, 0.25) !important;
+}
+body.theme-synthwave h1, body.theme-synthwave h2 {
+  color: #ff2a85 !important;
+  text-shadow: 0 0 12px rgba(255, 42, 133, 0.8) !important;
+}
+
+/* ========================================================
+   6. TERMINAL THEME (Zwart scherm, amberkleurige tekst, CLI)
+   ======================================================== */
+body.theme-terminal {
+  background-color: #0d0b05 !important;
+  color: #ffb000 !important;
+  font-family: 'Courier Prime', 'JetBrains Mono', monospace !important;
+  --color-accent: #ffb000;
+  background-image: 
+    linear-gradient(rgba(255, 176, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 176, 0, 0.04) 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+}
+body.theme-terminal * {
+  font-family: 'Courier Prime', 'JetBrains Mono', monospace !important;
+}
+body.theme-terminal .glass {
+  background-color: #141006 !important;
+  border: 1px solid #ffb000 !important;
+  box-shadow: 0 0 12px rgba(255, 176, 0, 0.2) !important;
+  border-radius: 3px !important;
+}
+body.theme-terminal .glass-dark {
+  background-color: #0d0b05 !important;
+  border: 1px solid #ffb000 !important;
+  border-radius: 3px !important;
+}
+body.theme-terminal h1, body.theme-terminal h2, body.theme-terminal h3 {
+  font-family: 'Courier Prime', monospace !important;
+  color: #ffb000 !important;
+  text-shadow: 0 0 8px rgba(255, 176, 0, 0.6) !important;
+}
+body.theme-terminal button {
+  border: 1px solid #ffb000 !important;
+  background-color: #1b1406 !important;
+  color: #ffb000 !important;
+  border-radius: 2px !important;
+}
+body.theme-terminal button:hover {
+  background-color: #ffb000 !important;
+  color: #0d0b05 !important;
+  box-shadow: 0 0 12px rgba(255, 176, 0, 0.5) !important;
+}
+body.theme-terminal input,
+body.theme-terminal select,
+body.theme-terminal textarea {
+  background-color: #0a0803 !important;
+  border: 1px solid #ffb000 !important;
+  color: #ffb000 !important;
+  border-radius: 2px !important;
+}
+
+/* ========================================================
+   7. WINDOWS 95 THEME (Grijze 3D panelen, blauwe titelbalken)
+   ======================================================== */
+body.theme-win95 {
+  background-color: #008080 !important; /* Classic Windows 95 Desktop Teal */
+  color: #000000 !important;
+  font-family: Tahoma, 'Segoe UI', sans-serif !important;
+  --color-accent: #000080;
+  background-image: none !important;
+}
+body.theme-win95 * {
+  font-family: Tahoma, 'Segoe UI', sans-serif !important;
+}
+body.theme-win95 .glass {
+  background-color: #c0c0c0 !important;
+  border-top: 2px solid #ffffff !important;
+  border-left: 2px solid #ffffff !important;
+  border-right: 2px solid #404040 !important;
+  border-bottom: 2px solid #404040 !important;
+  border-radius: 0px !important;
+  box-shadow: 2px 2px 0px #000000 !important;
+  color: #000000 !important;
+  backdrop-filter: none !important;
+}
+body.theme-win95 .glass-dark {
+  background-color: #c0c0c0 !important;
+  color: #000000 !important;
+  border-top: 2px solid #ffffff !important;
+  border-left: 2px solid #ffffff !important;
+  border-right: 2px solid #404040 !important;
+  border-bottom: 2px solid #404040 !important;
+  border-radius: 0px !important;
+  box-shadow: 2px 2px 0px #000000 !important;
+}
+body.theme-win95 button,
+body.theme-win95 [role="button"] {
+  border-top: 2px solid #ffffff !important;
+  border-left: 2px solid #ffffff !important;
+  border-right: 2px solid #404040 !important;
+  border-bottom: 2px solid #404040 !important;
+  border-radius: 0px !important;
+  background-color: #c0c0c0 !important;
+  color: #000000 !important;
+  font-weight: bold !important;
+  box-shadow: 1px 1px 0px #000000 !important;
+}
+body.theme-win95 button:active,
+body.theme-win95 [role="button"]:active {
+  border-top: 2px solid #404040 !important;
+  border-left: 2px solid #404040 !important;
+  border-right: 2px solid #ffffff !important;
+  border-bottom: 2px solid #ffffff !important;
+  padding-top: 1px !important;
+  padding-left: 1px !important;
+}
+body.theme-win95 input,
+body.theme-win95 select,
+body.theme-win95 textarea {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-top: 2px solid #404040 !important;
+  border-left: 2px solid #404040 !important;
+  border-right: 2px solid #ffffff !important;
+  border-bottom: 2px solid #ffffff !important;
+  border-radius: 0px !important;
+}
+body.theme-win95 h1, body.theme-win95 h2, body.theme-win95 h3 {
+  color: #000080 !important;
+  font-style: normal !important;
+}
+body.theme-win95 .rounded-xl,
+body.theme-win95 .rounded-2xl,
+body.theme-win95 .rounded-3xl,
+body.theme-win95 .rounded-full {
+  border-radius: 0px !important;
+}
+
+/* ========================================================
+   8. MACINTOSH CLASSIC THEME (1984 Vintage, gebroken wit, dither)
+   ======================================================== */
+body.theme-macintosh {
+  background-color: #e5e5df !important;
+  color: #111111 !important;
+  font-family: 'Geneva', 'Chicago', sans-serif !important;
+  --color-accent: #000000;
+  background-image: radial-gradient(#999990 1.2px, transparent 1.2px) !important;
+  background-size: 8px 8px !important;
+}
+body.theme-macintosh .glass {
+  background-color: #f7f7f5 !important;
+  border: 2px solid #111111 !important;
+  border-radius: 6px !important;
+  box-shadow: 4px 4px 0px #111111 !important;
+  color: #111111 !important;
+}
+body.theme-macintosh button {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  border-radius: 4px !important;
+  font-weight: bold !important;
+}
+body.theme-macintosh button:active {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+body.theme-macintosh input,
+body.theme-macintosh select,
+body.theme-macintosh textarea {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  border-radius: 4px !important;
+}
+
+/* ========================================================
+   9. Y2K THEME (Zilver metallic, aqua, ronde transparante vormen)
+   ======================================================== */
+body.theme-y2k {
+  background-color: #0c1424 !important;
+  color: #e0f2fe !important;
+  --color-accent: #38bdf8;
+  background-image: 
+    radial-gradient(circle at 50% 10%, rgba(56, 189, 248, 0.28) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.18) 0%, transparent 40%) !important;
+}
+body.theme-y2k .glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(56, 189, 248, 0.1) 100%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.35) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 10px 30px rgba(56, 189, 248, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+body.theme-y2k button {
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.3) 0%, rgba(2, 132, 199, 0.3) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 20px !important;
+  color: #ffffff !important;
+}
+
+/* ========================================================
+   10. VAPORWAVE THEME (Pastel roze, paars, turquoise grid)
+   ======================================================== */
+body.theme-vaporwave {
+  background-color: #1a0b2e !important;
+  color: #fdf4ff !important;
+  --color-accent: #01cdfe;
+  background-image: 
+    radial-gradient(circle at 50% 30%, rgba(255, 113, 206, 0.3) 0%, transparent 60%),
+    linear-gradient(rgba(1, 205, 254, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(1, 205, 254, 0.1) 1px, transparent 1px) !important;
+  background-size: 100% 100%, 30px 30px, 30px 30px !important;
+}
+body.theme-vaporwave .glass {
+  background-color: rgba(43, 16, 75, 0.8) !important;
+  border: 1.5px solid rgba(255, 113, 206, 0.55) !important;
+  box-shadow: 0 0 25px rgba(255, 113, 206, 0.3), inset 0 0 15px rgba(1, 205, 254, 0.18) !important;
+}
+body.theme-vaporwave h1, body.theme-vaporwave h2 {
+  color: #ff71ce !important;
+  text-shadow: 0 0 12px rgba(255, 113, 206, 0.7) !important;
+}
+
+/* ========================================================
+   11. BRUTALIST THEME (Hard zwart wit, dikke 3px borders)
+   ======================================================== */
+body.theme-brutalist {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  --color-accent: #ff0055;
+  background-image: none !important;
+}
+body.theme-brutalist .glass {
+  background-color: #ffffff !important;
+  border: 3px solid #000000 !important;
+  border-radius: 0px !important;
+  box-shadow: 5px 5px 0px #000000 !important;
+  color: #000000 !important;
+  backdrop-filter: none !important;
+}
+body.theme-brutalist .glass-dark {
+  background-color: #ffde00 !important;
+  border: 3px solid #000000 !important;
+  border-radius: 0px !important;
+  box-shadow: 5px 5px 0px #000000 !important;
+  color: #000000 !important;
+}
+body.theme-brutalist button,
+body.theme-brutalist [role="button"] {
+  border: 2.5px solid #000000 !important;
+  border-radius: 0px !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  font-weight: 900 !important;
+  background-color: #ffde00 !important;
+  color: #000000 !important;
+  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+}
+body.theme-brutalist button:hover,
+body.theme-brutalist [role="button"]:hover {
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 5px 5px 0px #000000 !important;
+}
+body.theme-brutalist button:active,
+body.theme-brutalist [role="button"]:active {
+  transform: translate(1px, 1px) !important;
+  box-shadow: 1px 1px 0px #000000 !important;
+}
+body.theme-brutalist input,
+body.theme-brutalist select,
+body.theme-brutalist textarea {
+  border: 2.5px solid #000000 !important;
+  border-radius: 0px !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  font-weight: bold !important;
+}
+body.theme-brutalist .rounded-xl,
+body.theme-brutalist .rounded-2xl,
+body.theme-brutalist .rounded-3xl,
+body.theme-brutalist .rounded-full {
+  border-radius: 0px !important;
+}
+
+/* ========================================================
+   12. GLASS / OCEANIC THEME (Vloeiende blur, diepzee)
+   ======================================================== */
+body.theme-glass, body.theme-oceanic {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  --color-accent: #54d1c1;
+}
+
+/* ========================================================
+   13. BLUEPRINT THEME (Technisch blauw, witte lijnen & grid)
+   ======================================================== */
+body.theme-blueprint {
+  background-color: #0a2540 !important;
+  color: #ffffff !important;
+  font-family: 'Share Tech Mono', monospace !important;
+  --color-accent: #38bdf8;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) !important;
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px !important;
+}
+body.theme-blueprint * {
+  font-family: 'Share Tech Mono', monospace !important;
+}
+body.theme-blueprint .glass {
+  background-color: rgba(10, 37, 64, 0.92) !important;
+  border: 1px solid rgba(56, 189, 248, 0.5) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+}
+body.theme-blueprint button {
+  border: 1px solid #38bdf8 !important;
+  background-color: rgba(13, 59, 102, 0.8) !important;
+  color: #38bdf8 !important;
+  border-radius: 3px !important;
+}
+body.theme-blueprint button:hover {
+  background-color: #38bdf8 !important;
+  color: #0a2540 !important;
+}
+
+/* ========================================================
+   14. PAPER / EDITORIAL THEME (Warm papier, serif font)
+   ======================================================== */
+body.theme-paper {
+  background-color: #fbf9f4 !important;
+  color: #1c1917 !important;
+  font-family: 'Newsreader', 'Playfair Display', Georgia, serif !important;
+  --color-accent: #b45309;
+  background-image: radial-gradient(#d6d3d1 0.75px, transparent 0.75px) !important;
+  background-size: 12px 12px !important;
+}
+body.theme-paper h1, body.theme-paper h2, body.theme-paper h3, body.theme-paper h4 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  text-transform: none !important;
+  color: #1c1917 !important;
+}
+body.theme-paper .glass {
+  background-color: #ffffff !important;
+  border: 1px solid #e7e5e4 !important;
+  color: #1c1917 !important;
+  box-shadow: 0 4px 12px rgba(120, 113, 108, 0.08) !important;
+  border-radius: 10px !important;
+}
+body.theme-paper button {
+  border: 1px solid #d6d3d1 !important;
+  background-color: #f5f2eb !important;
+  color: #1c1917 !important;
+  border-radius: 8px !important;
+}
+body.theme-paper button:hover {
+  background-color: #e7e5e4 !important;
+}
+body.theme-paper input,
+body.theme-paper select,
+body.theme-paper textarea {
+  background-color: #ffffff !important;
+  border: 1px solid #d6d3d1 !important;
+  color: #1c1917 !important;
+  border-radius: 8px !important;
+}
+
+/* ========================================================
+   15. ARCADE THEME (Diepzwart, primaire neon, coin-op)
+   ======================================================== */
+body.theme-arcade {
+  background-color: #050505 !important;
+  color: #ffff00 !important;
+  font-family: 'Silkscreen', 'VT323', monospace !important;
+  font-size: 14px !important;
+  --color-accent: #ffff00;
+  background-image: 
+    radial-gradient(circle at 20% 20%, rgba(255, 0, 0, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(0, 255, 255, 0.15) 0%, transparent 40%) !important;
+}
+body.theme-arcade * {
+  font-family: 'Silkscreen', 'VT323', monospace !important;
+}
+body.theme-arcade .glass {
+  background-color: #0c0c0c !important;
+  border: 2px solid #ffff00 !important;
+  box-shadow: 0 0 15px rgba(255, 255, 0, 0.35) !important;
+  border-radius: 0px !important;
+}
+body.theme-arcade button {
+  border: 2px solid #ffff00 !important;
+  background-color: #1a1a00 !important;
+  color: #ffff00 !important;
+  border-radius: 0px !important;
+}
+body.theme-arcade button:hover {
+  background-color: #ffff00 !important;
+  color: #050505 !important;
+}
+
+/* ========================================================
+   16. NES / 8-BIT THEME (80s Pixel Art, scanlines)
+   ======================================================== */
+body.theme-nes8bit, body.theme-8bit {
+  font-family: 'Silkscreen', 'Press Start 2P', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  background-color: #050b14 !important;
+  background-image: 
+    linear-gradient(rgba(0, 255, 234, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 234, 0.05) 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+  --color-accent: #00ffcc;
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+  width: 100% !important;
+}
+body.theme-nes8bit *, body.theme-8bit * {
+  font-family: 'Silkscreen', 'Press Start 2P', monospace !important;
+}
+body.theme-nes8bit h1, body.theme-8bit h1 {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: clamp(1.25rem, 5vw, 2.75rem) !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.05em !important;
+  text-shadow: 2px 2px 0px #000, 3px 3px 0px rgba(0, 255, 204, 0.4) !important;
+}
+body.theme-nes8bit .glass, body.theme-8bit .glass {
+  background-color: #0b1528 !important;
+  border: 2px solid #00ffcc !important;
+  border-radius: 0px !important;
+  box-shadow: 3px 3px 0px #000000, 4px 4px 0px rgba(0, 255, 204, 0.3) !important;
+  backdrop-filter: none !important;
+}
+body.theme-nes8bit button, body.theme-8bit button,
+body.theme-nes8bit .rounded-xl, body.theme-8bit .rounded-xl,
+body.theme-nes8bit .rounded-2xl, body.theme-8bit .rounded-2xl,
+body.theme-nes8bit .rounded-3xl, body.theme-8bit .rounded-3xl,
+body.theme-nes8bit .rounded-full, body.theme-8bit .rounded-full {
+  border-radius: 0px !important;
+}
+
+/* ========================================================
+   17. HACKER THEME (Security console, groen & alarm-rood)
+   ======================================================== */
+body.theme-hacker {
+  background-color: #030804 !important;
+  color: #00ff66 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  --color-accent: #00ff66;
+  background-image: linear-gradient(rgba(0, 255, 102, 0.05) 1px, transparent 1px) !important;
+  background-size: 100% 3px !important;
+}
+body.theme-hacker * {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+body.theme-hacker .glass {
+  background-color: #061108 !important;
+  border: 1px solid #00ff66 !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.25) !important;
+}
+body.theme-hacker button {
+  border: 1px solid #00ff66 !important;
+  background-color: #06180a !important;
+  color: #00ff66 !important;
+  border-radius: 2px !important;
+}
+body.theme-hacker button:hover {
+  background-color: #00ff66 !important;
+  color: #030804 !important;
+}
+
+/* ========================================================
+   18. TRON THEME (Zwart, laser cyaan vectorlijnen, cyber grid)
+   ======================================================== */
+body.theme-tron {
+  background-color: #030712 !important;
+  color: #e0f2fe !important;
+  --color-accent: #00f0ff;
+  background-image: 
+    linear-gradient(rgba(0, 240, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.08) 1px, transparent 1px) !important;
+  background-size: 30px 30px !important;
+}
+body.theme-tron .glass {
+  background-color: rgba(3, 10, 25, 0.9) !important;
+  border: 1px solid #00f0ff !important;
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.3) !important;
+  border-radius: 4px !important;
+}
+body.theme-tron button {
+  border: 1px solid #00f0ff !important;
+  background-color: rgba(3, 20, 40, 0.8) !important;
+  color: #00f0ff !important;
+  border-radius: 3px !important;
+}
+body.theme-tron button:hover {
+  background-color: #00f0ff !important;
+  color: #030712 !important;
+}
+
+/* ========================================================
+   19. MONOCHROME THEME (Hyper Minimal, pure grijzen, strak)
+   ======================================================== */
+body.theme-monochrome, body.theme-nordic {
+  background-color: #09090b !important;
+  color: #fafafa !important;
+  --color-accent: #ffffff;
+  background-image: none !important;
+}
+body.theme-monochrome .glass, body.theme-nordic .glass {
+  background-color: rgba(24, 24, 27, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 12px !important;
+}
+body.theme-monochrome button, body.theme-nordic button {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+body.theme-monochrome button:hover, body.theme-nordic button:hover {
+  border-color: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #09090b !important;
+}
+
+/* ========================================================
+   20. DEVELOPER / SOLARIZED THEME (IDE Syntax, dark teal)
+   ======================================================== */
+body.theme-developer {
+  background-color: #002b36 !important;
+  color: #93a1a1 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  --color-accent: #2aa198;
+  background-image: radial-gradient(#073642 1.2px, transparent 1.2px) !important;
+  background-size: 16px 16px !important;
+}
+body.theme-developer * {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+body.theme-developer .glass {
+  background-color: #073642 !important;
+  border: 1px solid #586e75 !important;
+  color: #93a1a1 !important;
+  border-radius: 8px !important;
+}
+body.theme-developer h1, body.theme-developer h2, body.theme-developer h3 {
+  color: #cb4b16 !important;
+}
+body.theme-developer button {
+  border: 1px solid #2aa198 !important;
+  background-color: #002b36 !important;
+  color: #2aa198 !important;
+  border-radius: 6px !important;
+}
+body.theme-developer button:hover {
+  background-color: #2aa198 !important;
+  color: #002b36 !important;
+}
+
+/* Pixel font helpers */
+.font-pixel {
+  font-family: 'Silkscreen', 'Press Start 2P', monospace;
+}
+
+.font-retro {
+  font-family: 'Press Start 2P', monospace;
+}
+
+/* ========================================================
+   LIGHT & PAPER THEMES TEXT & CONTRAST CALIBRATION
+   ======================================================== */
+body.theme-light, body.theme-paper {
+  .text-white, [class*="text-white"] { color: #0f172a !important; }
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"] { color: #1e293b !important; }
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"] { color: #1e293b !important; }
+  .text-marine-400 { color: #0284c7 !important; }
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] { color: #334155 !important; }
+  
+  /* Preserve white text on dark/saturated buttons and badges */
+  button.bg-marine-500, button.bg-marine-600, button.bg-blue-600, 
+  button.bg-rose-500, button.bg-emerald-600, button.bg-amber-600,
+  .bg-marine-500 .text-white, .bg-blue-600 .text-white, .bg-rose-500 .text-white,
+  .bg-emerald-600 .text-white, .tab-active .text-white {
+    color: #ffffff !important;
+  }
+  
+  .border-white\/5, .border-white\/10, .border-white\/15, .border-white\/20, [class*="border-white/"] {
+    border-color: rgba(15, 23, 42, 0.15) !important;
+  }
+  
+  .bg-white\/5, .bg-white\/\[0\.02\], .bg-white\/\[0\.03\], .bg-white\/\[0\.04\], .bg-white\/10, [class*="bg-white/"] {
+    background-color: rgba(15, 23, 42, 0.05) !important;
+  }
+  
+  .bg-marine-950, .bg-marine-900, .bg-marine-950\/95, .bg-slate-950, .bg-slate-950\/95, .bg-slate-900 {
+    background-color: #ffffff !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .leaflet-popup-content-wrapper {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15) !important;
+  }
+}
+
+/* Specific Win95 Global Contrast Calibration */
+body.theme-win95 {
+  .text-white, [class*="text-white"] { color: #000000 !important; }
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"] { color: #000000 !important; }
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"] { color: #000000 !important; }
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] { color: #000000 !important; }
+  .text-accent, [class*="text-cyan-"], [class*="text-emerald-"], [class*="text-amber-"] { 
+    color: #000080 !important; 
+    font-weight: bold !important;
+  }
+  
+  .modal-dialog p, .modal-dialog span, .modal-dialog div, .modal-dialog label {
+    color: #000000 !important;
+  }
+  .modal-dialog .modal-header, .modal-dialog .modal-header * {
+    color: #ffffff !important;
+  }
+}
+
+/* Specific Macintosh Global Contrast Calibration */
+body.theme-macintosh {
+  .text-white, [class*="text-white"] { color: #111111 !important; }
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"] { color: #111111 !important; }
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"] { color: #111111 !important; }
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] { color: #111111 !important; }
+}
+
+/* Specific Brutalist Global Contrast Calibration */
+body.theme-brutalist {
+  .text-white, [class*="text-white"] { color: #000000 !important; }
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"] { color: #000000 !important; }
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"] { color: #000000 !important; }
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] { color: #000000 !important; }
+}
+
+/* Dark Theme Sticky Column & Contrast */
+body.theme-dark, body.theme-oceanic, body.theme-glass, body.theme-monochrome {
+  .forecast-sticky-col {
+    background-color: #080c1d !important;
+    color: #f8fafc !important;
+  }
+}
+
+/* ========================================================
+   THEME-SPECIFIC MODAL SYSTEM STYLES
+   ======================================================== */
+
+/* General modal fallback defaults */
+.modal-dialog {
+  transition: all 0.2s ease-out;
+}
+
+/* Light Theme Modals */
+body.theme-light {
+  .modal-backdrop {
+    background-color: rgba(15, 23, 42, 0.45) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+  .modal-dialog {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+    color: #0f172a !important;
+  }
+  .modal-dialog * {
+    color: #0f172a !important;
+  }
+  .modal-header {
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  .modal-title {
+    color: #0f172a !important;
+  }
+  .modal-subcard {
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #1e293b !important;
+  }
+  .modal-subcard * {
+    color: #1e293b !important;
+  }
+  .modal-close-btn {
+    background-color: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+  }
+  .modal-close-btn:hover {
+    background-color: #e2e8f0 !important;
+    color: #0f172a !important;
+  }
+  .modal-close-btn * {
+    color: #475569 !important;
+  }
+  .modal-btn-primary {
+    background-color: #0284c7 !important;
+    color: #ffffff !important;
+  }
+  .modal-btn-primary * {
+    color: #ffffff !important;
+  }
+  .modal-btn-secondary {
+    background-color: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+  }
+  .modal-input {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+  .modal-icon-box {
+    background-color: #f0fdf4 !important;
+    border: 1px solid #86efac !important;
+  }
+}
+
+/* Matrix Theme Modals */
+body.theme-matrix {
+  .modal-backdrop {
+    background-color: rgba(2, 7, 2, 0.88) !important;
+    backdrop-filter: blur(6px) !important;
+  }
+  .modal-dialog {
+    background-color: #020904 !important;
+    border: 1px solid #00ff41 !important;
+    box-shadow: 0 0 40px rgba(0, 255, 65, 0.35), inset 0 0 15px rgba(0, 255, 65, 0.15) !important;
+    border-radius: 4px !important;
+    color: #00ff41 !important;
+    font-family: 'Share Tech Mono', monospace !important;
+  }
+  .modal-dialog * {
+    color: #00ff41 !important;
+    font-family: 'Share Tech Mono', monospace !important;
+  }
+  .modal-header {
+    background-color: #041808 !important;
+    border-bottom: 1px solid #00ff41 !important;
+  }
+  .modal-title {
+    color: #00ff41 !important;
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.8) !important;
+  }
+  .modal-subcard {
+    background-color: #031306 !important;
+    border: 1px solid rgba(0, 255, 65, 0.4) !important;
+    border-radius: 2px !important;
+    color: #85ff9e !important;
+  }
+  .modal-close-btn {
+    background-color: #041808 !important;
+    border: 1px solid #00ff41 !important;
+    color: #00ff41 !important;
+    border-radius: 2px !important;
+  }
+  .modal-btn-primary {
+    background-color: #00ff41 !important;
+    color: #020904 !important;
+    border-radius: 2px !important;
+    font-weight: bold !important;
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.5) !important;
+  }
+  .modal-btn-primary * {
+    color: #020904 !important;
+  }
+  .modal-btn-secondary {
+    background-color: #031306 !important;
+    border: 1px solid #00ff41 !important;
+    color: #00ff41 !important;
+    border-radius: 2px !important;
+  }
+  .modal-input {
+    background-color: #020904 !important;
+    border: 1px solid #00ff41 !important;
+    color: #00ff41 !important;
+    border-radius: 2px !important;
+  }
+  .modal-icon-box {
+    background-color: #041808 !important;
+    border: 1px solid #00ff41 !important;
+    border-radius: 4px !important;
+  }
+}
+
+/* Cyberpunk Theme Modals */
+body.theme-cyberpunk {
+  .modal-backdrop {
+    background-color: rgba(13, 8, 25, 0.88) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+  .modal-dialog {
+    background-color: #0d0819 !important;
+    border: 2px solid #ff007f !important;
+    box-shadow: 0 0 40px rgba(255, 0, 127, 0.45), 0 0 15px rgba(0, 240, 255, 0.3), inset 0 0 20px rgba(0, 240, 255, 0.12) !important;
+    border-radius: 14px !important;
+    color: #ffffff !important;
+  }
+  .modal-header {
+    background: linear-gradient(90deg, rgba(255, 0, 127, 0.25), rgba(0, 240, 255, 0.2)) !important;
+    border-bottom: 1px solid #ff007f !important;
+  }
+  .modal-title {
+    color: #ff007f !important;
+    text-shadow: 0 0 12px rgba(255, 0, 127, 0.8) !important;
+  }
+  .modal-subcard {
+    background-color: rgba(26, 14, 48, 0.85) !important;
+    border: 1px solid rgba(0, 240, 255, 0.35) !important;
+    border-radius: 8px !important;
+    color: #f1f5f9 !important;
+  }
+  .modal-close-btn {
+    background-color: rgba(0, 240, 255, 0.1) !important;
+    border: 1px solid #00f0ff !important;
+    color: #00f0ff !important;
+    border-radius: 8px !important;
+  }
+  .modal-close-btn * {
+    color: #00f0ff !important;
+  }
+  .modal-btn-primary {
+    background: linear-gradient(135deg, #ff007f 0%, #a855f7 100%) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    box-shadow: 0 0 25px rgba(255, 0, 127, 0.6) !important;
+  }
+  .modal-btn-primary * {
+    color: #ffffff !important;
+  }
+  .modal-btn-secondary {
+    background-color: rgba(26, 14, 48, 0.8) !important;
+    border: 1px solid #00f0ff !important;
+    color: #00f0ff !important;
+    border-radius: 8px !important;
+  }
+  .modal-input {
+    background-color: #140b26 !important;
+    border: 1px solid #ff007f !important;
+    color: #00f0ff !important;
+    border-radius: 8px !important;
+  }
+  .modal-icon-box {
+    background-color: rgba(255, 0, 127, 0.15) !important;
+    border: 1px solid #ff007f !important;
+    border-radius: 12px !important;
+  }
+}
+
+/* Synthwave / Outrun Modals */
+body.theme-synthwave {
+  .modal-backdrop {
+    background-color: rgba(22, 8, 46, 0.88) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+  .modal-dialog {
+    background-color: #16082e !important;
+    border: 1px solid #ff2a85 !important;
+    box-shadow: 0 0 35px rgba(255, 42, 133, 0.4), inset 0 0 20px rgba(114, 9, 183, 0.25) !important;
+    border-radius: 20px !important;
+  }
+  .modal-header {
+    background: linear-gradient(90deg, rgba(255, 42, 133, 0.25), rgba(254, 202, 87, 0.15)) !important;
+    border-bottom: 1px solid rgba(255, 42, 133, 0.4) !important;
+  }
+  .modal-title {
+    color: #ff2a85 !important;
+    text-shadow: 0 0 10px rgba(255, 42, 133, 0.8) !important;
+  }
+  .modal-subcard {
+    background-color: rgba(36, 12, 69, 0.7) !important;
+    border: 1px solid rgba(255, 42, 133, 0.3) !important;
+    border-radius: 14px !important;
+    color: #ffffff !important;
+  }
+  .modal-btn-primary {
+    background: linear-gradient(90deg, #ff2a85, #ff7e5f) !important;
+    color: #ffffff !important;
+    border-radius: 14px !important;
+    box-shadow: 0 0 20px rgba(255, 42, 133, 0.5) !important;
+  }
+  .modal-btn-primary * {
+    color: #ffffff !important;
+  }
+}
+
+/* Windows 95 Theme Modals */
+body.theme-win95 {
+  .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: none !important;
+  }
+  .modal-dialog {
+    background-color: #c0c0c0 !important;
+    border: 2px solid !important;
+    border-color: #ffffff #404040 #404040 #ffffff !important;
+    box-shadow: 3px 3px 0px #000000 !important;
+    border-radius: 0px !important;
+    color: #000000 !important;
+    font-family: Tahoma, 'MS Sans Serif', sans-serif !important;
+  }
+  .modal-dialog * {
+    font-family: Tahoma, 'MS Sans Serif', sans-serif !important;
+    color: #000000 !important;
+  }
+  .modal-dialog p, .modal-dialog span, .modal-dialog label, .modal-dialog div, .modal-dialog li, .modal-dialog h1, .modal-dialog h2, .modal-dialog h3, .modal-dialog h4, .modal-dialog h5 {
+    color: #000000 !important;
+  }
+  .modal-header {
+    background-color: #000080 !important;
+    color: #ffffff !important;
+    padding: 6px 12px !important;
+    border-bottom: none !important;
+    border-radius: 0px !important;
+  }
+  .modal-header, .modal-header * {
+    color: #ffffff !important;
+  }
+  .modal-title {
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    font-style: normal !important;
+    text-transform: none !important;
+  }
+  .modal-subcard {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid !important;
+    border-color: #404040 #ffffff #ffffff #404040 !important;
+    border-radius: 0px !important;
+  }
+  .modal-subcard, .modal-subcard * {
+    color: #000000 !important;
+  }
+  .modal-body {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+  }
+  .modal-body, .modal-body * {
+    color: #000000 !important;
+  }
+  .modal-dialog .text-accent,
+  .modal-dialog [class*="text-cyan-"],
+  .modal-dialog [class*="text-emerald-"],
+  .modal-dialog [class*="text-amber-"],
+  .modal-dialog [class*="text-marine-"] {
+    color: #000080 !important;
+    font-weight: bold !important;
+  }
+  .modal-dialog [class*="bg-accent"],
+  .modal-dialog [class*="bg-cyan"],
+  .modal-dialog [class*="bg-emerald"],
+  .modal-dialog [class*="bg-marine"] {
+    background-color: #e0e0e0 !important;
+    border: 1px solid #808080 !important;
+    color: #000000 !important;
+  }
+  .modal-close-btn {
+    background-color: #c0c0c0 !important;
+    border: 2px solid !important;
+    border-color: #ffffff #404040 #404040 #ffffff !important;
+    color: #000000 !important;
+    border-radius: 0px !important;
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    font-weight: bold !important;
+    padding: 0 !important;
+    box-shadow: 1px 1px 0px #000000 !important;
+  }
+  .modal-close-btn * {
+    color: #000000 !important;
+  }
+  .modal-close-btn:active {
+    border-color: #404040 #ffffff #ffffff #404040 !important;
+  }
+  .modal-btn-primary {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+    border: 2px solid !important;
+    border-color: #ffffff #404040 #404040 #ffffff !important;
+    border-radius: 0px !important;
+    font-weight: bold !important;
+    font-style: normal !important;
+    text-transform: none !important;
+    box-shadow: 1px 1px 0px #000000 !important;
+  }
+  .modal-btn-primary * {
+    color: #000000 !important;
+  }
+  .modal-btn-primary:active {
+    border-color: #404040 #ffffff #ffffff #404040 !important;
+    background-color: #000080 !important;
+    color: #ffffff !important;
+  }
+  .modal-btn-secondary {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+    border: 2px solid !important;
+    border-color: #ffffff #404040 #404040 #ffffff !important;
+    border-radius: 0px !important;
+    font-weight: bold !important;
+    font-style: normal !important;
+  }
+  .modal-btn-secondary * {
+    color: #000000 !important;
+  }
+  .modal-input {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid !important;
+    border-color: #404040 #ffffff #ffffff #404040 !important;
+    border-radius: 0px !important;
+  }
+  .modal-icon-box {
+    background-color: #c0c0c0 !important;
+    border: 2px solid !important;
+    border-color: #404040 #ffffff #ffffff #404040 !important;
+    border-radius: 0px !important;
+  }
+  .modal-icon-box * {
+    color: #000080 !important;
+  }
+}
+
+/* Macintosh 1984 Theme Modals */
+body.theme-macintosh {
+  .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+  }
+  .modal-dialog {
+    background-color: #f5f5f0 !important;
+    border: 2px solid #000000 !important;
+    box-shadow: 6px 6px 0px #000000 !important;
+    border-radius: 8px !important;
+    color: #000000 !important;
+  }
+  .modal-dialog * {
+    color: #000000 !important;
+  }
+  .modal-header {
+    background-color: #e5e5df !important;
+    border-bottom: 2px solid #000000 !important;
+    color: #000000 !important;
+  }
+  .modal-title {
+    color: #000000 !important;
+    font-style: normal !important;
+  }
+  .modal-subcard {
+    background-color: #ffffff !important;
+    border: 1.5px solid #000000 !important;
+    border-radius: 6px !important;
+    color: #000000 !important;
+  }
+  .modal-close-btn {
+    background-color: #ffffff !important;
+    border: 2px solid #000000 !important;
+    color: #000000 !important;
+    border-radius: 4px !important;
+  }
+  .modal-btn-primary {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    border: 2px solid #000000 !important;
+    border-radius: 6px !important;
+  }
+  .modal-btn-primary * {
+    color: #ffffff !important;
+  }
+  .modal-btn-secondary {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #000000 !important;
+    border-radius: 6px !important;
+  }
+  .modal-input {
+    background-color: #ffffff !important;
+    border: 2px solid #000000 !important;
+    color: #000000 !important;
+    border-radius: 6px !important;
+  }
+}
+
+/* Neo-Brutalist Modals */
+body.theme-brutalist {
+  .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+  }
+  .modal-dialog {
+    background-color: #ffffff !important;
+    border: 3.5px solid #000000 !important;
+    box-shadow: 8px 8px 0px #000000 !important;
+    border-radius: 0px !important;
+    color: #000000 !important;
+  }
+  .modal-dialog * {
+    color: #000000 !important;
+  }
+  .modal-header {
+    background-color: #ffde00 !important;
+    border-bottom: 3.5px solid #000000 !important;
+    color: #000000 !important;
+  }
+  .modal-title {
+    color: #000000 !important;
+    font-weight: 900 !important;
+    font-style: normal !important;
+  }
+  .modal-subcard {
+    background-color: #f4f4f5 !important;
+    border: 2px solid #000000 !important;
+    border-radius: 0px !important;
+    color: #000000 !important;
+  }
+  .modal-close-btn {
+    background-color: #ff0055 !important;
+    border: 2px solid #000000 !important;
+    color: #ffffff !important;
+    border-radius: 0px !important;
+    box-shadow: 2px 2px 0px #000000 !important;
+  }
+  .modal-close-btn * {
+    color: #ffffff !important;
+  }
+  .modal-btn-primary {
+    background-color: #ffde00 !important;
+    color: #000000 !important;
+    border: 3px solid #000000 !important;
+    border-radius: 0px !important;
+    font-weight: 900 !important;
+    box-shadow: 4px 4px 0px #000000 !important;
+  }
+  .modal-btn-secondary {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #000000 !important;
+    border-radius: 0px !important;
+    font-weight: 800 !important;
+    box-shadow: 3px 3px 0px #000000 !important;
+  }
+  .modal-input {
+    background-color: #ffffff !important;
+    border: 2px solid #000000 !important;
+    border-radius: 0px !important;
+    color: #000000 !important;
+  }
+  .modal-icon-box {
+    background-color: #ffde00 !important;
+    border: 2px solid #000000 !important;
+    border-radius: 0px !important;
+  }
+}
+
+/* 8-Bit NES Theme Modals */
+body.theme-nes8bit, body.theme-8bit, body.theme-arcade {
+  .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.85) !important;
+  }
+  .modal-dialog {
+    background-color: #070d18 !important;
+    border: 3px solid #00ffcc !important;
+    box-shadow: 6px 6px 0px #000000, 0 0 20px rgba(0, 255, 204, 0.3) !important;
+    border-radius: 0px !important;
+    color: #ffffff !important;
+    font-family: 'Silkscreen', 'Press Start 2P', monospace !important;
+  }
+  .modal-dialog * {
+    font-family: 'Silkscreen', 'Press Start 2P', monospace !important;
+  }
+  .modal-header {
+    background-color: #0f1c30 !important;
+    border-bottom: 3px solid #00ffcc !important;
+  }
+  .modal-title {
+    color: #00ffcc !important;
+    font-style: normal !important;
+    text-shadow: 2px 2px 0px #000000 !important;
+  }
+  .modal-subcard {
+    background-color: #0b1528 !important;
+    border: 2px solid rgba(0, 255, 204, 0.4) !important;
+    border-radius: 0px !important;
+    color: #ffffff !important;
+  }
+  .modal-subcard * {
+    color: #ffffff !important;
+  }
+  .modal-close-btn {
+    background-color: #ff0055 !important;
+    border: 2px solid #00ffcc !important;
+    color: #ffffff !important;
+    border-radius: 0px !important;
+    box-shadow: 2px 2px 0px #000000 !important;
+  }
+  .modal-close-btn * {
+    color: #ffffff !important;
+  }
+  .modal-btn-primary {
+    background-color: #00ffcc !important;
+    color: #070d18 !important;
+    border: 2px solid #ffffff !important;
+    border-radius: 0px !important;
+    box-shadow: 3px 3px 0px #000000 !important;
+  }
+  .modal-btn-primary * {
+    color: #070d18 !important;
+  }
+  .modal-btn-secondary {
+    background-color: #0f1c30 !important;
+    color: #00ffcc !important;
+    border: 2px solid #00ffcc !important;
+    border-radius: 0px !important;
+  }
+  .modal-input {
+    background-color: #070d18 !important;
+    border: 2px solid #00ffcc !important;
+    color: #00ffcc !important;
+    border-radius: 0px !important;
+  }
+  .modal-icon-box {
+    background-color: #0f1c30 !important;
+    border: 2px solid #00ffcc !important;
+    border-radius: 0px !important;
+  }
+}
+
+/* Blueprint Theme Modals */
+body.theme-blueprint {
+  .modal-backdrop {
+    background-color: rgba(10, 37, 64, 0.85) !important;
+  }
+  .modal-dialog {
+    background-color: #0a2540 !important;
+    border: 1px solid #38bdf8 !important;
+    box-shadow: 0 0 35px rgba(56, 189, 248, 0.3) !important;
+    border-radius: 6px !important;
+    background-image: linear-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(56, 189, 248, 0.08) 1px, transparent 1px) !important;
+    background-size: 20px 20px !important;
+    color: #e0f2fe !important;
+  }
+  .modal-header {
+    background-color: #0d3b66 !important;
+    border-bottom: 1px solid #38bdf8 !important;
+  }
+  .modal-title {
+    color: #38bdf8 !important;
+    font-family: monospace !important;
+  }
+  .modal-subcard {
+    background-color: rgba(13, 59, 102, 0.85) !important;
+    border: 1px dashed rgba(56, 189, 248, 0.5) !important;
+    border-radius: 4px !important;
+    color: #e0f2fe !important;
+  }
+  .modal-subcard * {
+    color: #e0f2fe !important;
+  }
+  .modal-btn-primary {
+    background-color: #38bdf8 !important;
+    color: #0a2540 !important;
+    border-radius: 4px !important;
+    font-family: monospace !important;
+    font-weight: bold !important;
+  }
+  .modal-btn-primary * {
+    color: #0a2540 !important;
+  }
+}
+
+/* Paper / Editorial Theme Modals */
+body.theme-paper {
+  .modal-backdrop {
+    background-color: rgba(41, 37, 36, 0.45) !important;
+  }
+  .modal-dialog {
+    background-color: #fbf9f4 !important;
+    border: 1px solid #d6d3d1 !important;
+    box-shadow: 0 25px 50px -12px rgba(120, 113, 108, 0.35) !important;
+    border-radius: 16px !important;
+    color: #1c1917 !important;
+  }
+  .modal-dialog * {
+    color: #1c1917 !important;
+  }
+  .modal-header {
+    background-color: #f5f2eb !important;
+    border-bottom: 1px solid #e7e5e4 !important;
+  }
+  .modal-title {
+    color: #1c1917 !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
+    font-style: normal !important;
+    font-weight: 700 !important;
+  }
+  .modal-subcard {
+    background-color: #ffffff !important;
+    border: 1px solid #e7e5e4 !important;
+    border-radius: 10px !important;
+    color: #292524 !important;
+  }
+  .modal-subcard * {
+    color: #292524 !important;
+  }
+  .modal-close-btn {
+    background-color: #f5f2eb !important;
+    border: 1px solid #d6d3d1 !important;
+    color: #57534e !important;
+  }
+  .modal-close-btn * {
+    color: #57534e !important;
+  }
+  .modal-btn-primary {
+    background-color: #b45309 !important;
+    color: #ffffff !important;
+    border-radius: 10px !important;
+  }
+  .modal-btn-primary * {
+    color: #ffffff !important;
+  }
+  .modal-btn-secondary {
+    background-color: #f5f2eb !important;
+    border: 1px solid #d6d3d1 !important;
+    color: #44403c !important;
+    border-radius: 10px !important;
+  }
+  .modal-input {
+    background-color: #ffffff !important;
+    border: 1px solid #d6d3d1 !important;
+    color: #1c1917 !important;
+  }
+}
+
+/* Terminal CRT Modals */
+body.theme-terminal {
+  .modal-backdrop {
+    background-color: rgba(13, 11, 5, 0.88) !important;
+  }
+  .modal-dialog {
+    background-color: #0d0b05 !important;
+    border: 1px solid #ffb000 !important;
+    box-shadow: 0 0 30px rgba(255, 176, 0, 0.35), inset 0 0 10px rgba(255, 176, 0, 0.1) !important;
+    border-radius: 4px !important;
+    color: #ffb000 !important;
+    font-family: 'Share Tech Mono', monospace !important;
+  }
+  .modal-dialog * {
+    color: #ffb000 !important;
+    font-family: 'Share Tech Mono', monospace !important;
+  }
+  .modal-header {
+    background-color: #1a1407 !important;
+    border-bottom: 1px solid #ffb000 !important;
+  }
+  .modal-title {
+    color: #ffb000 !important;
+    text-shadow: 0 0 8px rgba(255, 176, 0, 0.6) !important;
+  }
+  .modal-subcard {
+    background-color: #140e04 !important;
+    border: 1px solid rgba(255, 176, 0, 0.4) !important;
+    border-radius: 2px !important;
+    color: #ffd266 !important;
+  }
+  .modal-btn-primary {
+    background-color: #ffb000 !important;
+    color: #0d0b05 !important;
+    border-radius: 2px !important;
+    font-weight: bold !important;
+  }
+  .modal-btn-primary * {
+    color: #0d0b05 !important;
+  }
+}
+
+/* Tron Legacy Modals */
+body.theme-tron {
+  .modal-backdrop {
+    background-color: rgba(3, 7, 18, 0.88) !important;
+  }
+  .modal-dialog {
+    background-color: #030712 !important;
+    border: 1px solid #00f0ff !important;
+    box-shadow: 0 0 35px rgba(0, 240, 255, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.15) !important;
+    border-radius: 4px !important;
+    color: #e0f2fe !important;
+  }
+  .modal-dialog * {
+    color: #00f0ff !important;
+  }
+  .modal-header {
+    background-color: #06182a !important;
+    border-bottom: 1px solid #00f0ff !important;
+  }
+  .modal-title {
+    color: #00f0ff !important;
+    text-shadow: 0 0 10px rgba(0, 240, 255, 0.8) !important;
+  }
+  .modal-subcard {
+    background-color: #071526 !important;
+    border: 1px solid rgba(0, 240, 255, 0.35) !important;
+    border-radius: 2px !important;
+    color: #e0f2fe !important;
+  }
+  .modal-subcard * {
+    color: #e0f2fe !important;
+  }
+  .modal-btn-primary {
+    background-color: #00f0ff !important;
+    color: #030712 !important;
+    border-radius: 2px !important;
+    font-weight: bold !important;
+  }
+  .modal-btn-primary * {
+    color: #030712 !important;
+  }
+}
+
+/* Y2K Futuristic Modals */
+body.theme-y2k {
+  .modal-backdrop {
+    background-color: rgba(16, 28, 48, 0.8) !important;
+    backdrop-filter: blur(16px) !important;
+  }
+  .modal-dialog {
+    background-color: rgba(16, 28, 48, 0.92) !important;
+    border: 2px solid #38bdf8 !important;
+    box-shadow: 0 0 40px rgba(56, 189, 248, 0.35), inset 0 0 25px rgba(56, 189, 248, 0.15) !important;
+    border-radius: 28px !important;
+    backdrop-filter: blur(20px) !important;
+    color: #ffffff !important;
+  }
+  .modal-dialog * {
+    color: #ffffff !important;
+  }
+  .modal-subcard {
+    background-color: rgba(30, 41, 59, 0.8) !important;
+    border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    border-radius: 16px !important;
+    color: #ffffff !important;
+  }
+  .modal-btn-primary {
+    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    color: #ffffff !important;
+    border-radius: 20px !important;
+  }
+  .modal-btn-primary * {
+    color: #ffffff !important;
+  }
+}
+
+/* Vaporwave Modals */
+body.theme-vaporwave {
+  .modal-backdrop {
+    background-color: rgba(29, 11, 51, 0.85) !important;
+  }
+  .modal-dialog {
+    background-color: #1d0b33 !important;
+    border: 2px solid #01cdfe !important;
+    box-shadow: 0 0 35px rgba(255, 113, 206, 0.4), 0 0 20px rgba(1, 205, 254, 0.3) !important;
+    border-radius: 20px !important;
+    color: #ffffff !important;
+  }
+  .modal-header {
+    background: linear-gradient(90deg, rgba(255, 113, 206, 0.25), rgba(1, 205, 254, 0.25)) !important;
+    border-bottom: 1px solid rgba(1, 205, 254, 0.4) !important;
+  }
+  .modal-title {
+    color: #ff71ce !important;
+    text-shadow: 0 0 10px rgba(255, 113, 206, 0.8) !important;
+  }
+  .modal-subcard {
+    background-color: rgba(45, 18, 77, 0.85) !important;
+    border: 1px solid rgba(1, 205, 254, 0.35) !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+  }
+}
+
+/* Monochrome Modals */
+body.theme-monochrome, body.theme-nordic {
+  .modal-dialog {
+    background-color: #121215 !important;
+    border: 1px solid #27272a !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
+    border-radius: 16px !important;
+    color: #fafafa !important;
+  }
+  .modal-dialog * {
+    color: #fafafa !important;
+  }
+  .modal-header {
+    background-color: #18181b !important;
+    border-bottom: 1px solid #27272a !important;
+  }
+  .modal-subcard {
+    background-color: #18181b !important;
+    border: 1px solid #27272a !important;
+    border-radius: 10px !important;
+    color: #fafafa !important;
+  }
+  .modal-btn-primary {
+    background-color: #ffffff !important;
+    color: #09090b !important;
+    border-radius: 10px !important;
+    font-weight: bold !important;
+  }
+  .modal-btn-primary * {
+    color: #09090b !important;
+  }
+}
+
+/* Developer / Solarized Modals */
+body.theme-developer {
+  .modal-dialog {
+    background-color: #002b36 !important;
+    border: 1px solid #2aa198 !important;
+    box-shadow: 0 0 35px rgba(42, 161, 152, 0.25) !important;
+    border-radius: 10px !important;
+    color: #93a1a1 !important;
+  }
+  .modal-dialog * {
+    font-family: 'JetBrains Mono', monospace !important;
+  }
+  .modal-header {
+    background-color: #073642 !important;
+    border-bottom: 1px solid #2aa198 !important;
+  }
+  .modal-title {
+    color: #2aa198 !important;
+  }
+  .modal-subcard {
+    background-color: #073642 !important;
+    border: 1px solid rgba(42, 161, 152, 0.3) !important;
+    border-radius: 6px !important;
+    color: #93a1a1 !important;
+  }
+  .modal-subcard * {
+    color: #93a1a1 !important;
+  }
+  .modal-btn-primary {
+    background-color: #2aa198 !important;
+    color: #002b36 !important;
+    border-radius: 6px !important;
+    font-weight: bold !important;
+  }
+  .modal-btn-primary * {
+    color: #002b36 !important;
+  }
+}
+
+/* ========================================================
+   GLOBAL DEEP COMPONENT-LEVEL THEME OVERRIDES
+   ======================================================== */
+
+/* 1. WINDOWS 95 DEEP OVERRIDES */
+body.theme-win95 {
+  font-family: Tahoma, 'MS Sans Serif', 'Segoe UI', system-ui, sans-serif !important;
+  
+  * {
+    font-family: Tahoma, 'MS Sans Serif', 'Segoe UI', system-ui, sans-serif !important;
+    border-radius: 0px !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #c0c0c0 !important;
+    border-top: 2px solid #ffffff !important;
+    border-bottom: 2px solid #404040 !important;
+    color: #000000 !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #c0c0c0 !important;
+    border-top: 2px solid #ffffff !important;
+    border-left: 2px solid #ffffff !important;
+    border-right: 2px solid #404040 !important;
+    border-bottom: 2px solid #404040 !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Sunken inner containers, charts and search inputs */
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"], [class*="bg-white/5"], [class*="bg-white/10"], .sub-panel {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-top: 2px solid #404040 !important;
+    border-left: 2px solid #404040 !important;
+    border-right: 2px solid #ffffff !important;
+    border-bottom: 2px solid #ffffff !important;
+  }
+
+  /* Classic 3D Buttons */
+  button, [role="button"], .tab-btn {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+    border-top: 2px solid #ffffff !important;
+    border-left: 2px solid #ffffff !important;
+    border-right: 2px solid #404040 !important;
+    border-bottom: 2px solid #404040 !important;
+    font-weight: bold !important;
+    box-shadow: none !important;
+  }
+
+  button:active, [role="button"]:active, .tab-active, [aria-selected="true"] {
+    background-color: #000080 !important;
+    color: #ffffff !important;
+    border-top: 2px solid #404040 !important;
+    border-left: 2px solid #404040 !important;
+    border-right: 2px solid #ffffff !important;
+    border-bottom: 2px solid #ffffff !important;
+  }
+
+  /* Windows 95 blue header bars */
+  h1, h2, h3 {
+    color: #000080 !important;
+    font-style: normal !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+  }
+
+  .text-white, [class*="text-white"], 
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"],
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"],
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] {
+    color: #000000 !important;
+  }
+
+  .text-accent, [class*="text-cyan-"], [class*="text-emerald-"], [class*="text-amber-"] {
+    color: #000080 !important;
+    font-weight: bold !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #dfdfdf;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-right: 2px solid #404040;
+    border-bottom: 2px solid #404040;
+  }
+}
+
+/* 2. MACINTOSH 1984 DEEP OVERRIDES */
+body.theme-macintosh {
+  font-family: 'Geneva', 'Chicago', system-ui, -apple-system, sans-serif !important;
+  
+  * {
+    font-family: 'Geneva', 'Chicago', system-ui, -apple-system, sans-serif !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #f7f7f5 !important;
+    border-bottom: 2px solid #111111 !important;
+    color: #111111 !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #ffffff !important;
+    border: 2px solid #111111 !important;
+    border-radius: 6px !important;
+    box-shadow: 4px 4px 0px #111111 !important;
+    color: #111111 !important;
+    backdrop-filter: none !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"], [class*="bg-white/5"] {
+    background-color: #f7f7f5 !important;
+    color: #111111 !important;
+    border: 2px solid #111111 !important;
+    border-radius: 4px !important;
+  }
+
+  button, [role="button"] {
+    background-color: #ffffff !important;
+    color: #111111 !important;
+    border: 2px solid #111111 !important;
+    border-radius: 4px !important;
+    font-weight: bold !important;
+    box-shadow: 2px 2px 0px #111111 !important;
+  }
+
+  button:hover, [role="button"]:hover {
+    background-color: #e5e5df !important;
+  }
+
+  button:active, [role="button"]:active, .tab-active, [aria-selected="true"] {
+    background-color: #111111 !important;
+    color: #ffffff !important;
+    border-color: #111111 !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #111111 !important;
+    font-style: normal !important;
+    text-transform: none !important;
+  }
+
+  .text-white, [class*="text-white"], 
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"],
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"],
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] {
+    color: #111111 !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f7f7f5;
+    border-left: 1px solid #111111;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #111111;
+    border-radius: 0px;
+  }
+}
+
+/* 3. NEO-BRUTALIST DEEP OVERRIDES */
+body.theme-brutalist {
+  font-family: 'Space Grotesk', 'Syne', system-ui, sans-serif !important;
+  
+  * {
+    font-family: 'Space Grotesk', 'Syne', system-ui, sans-serif !important;
+    border-radius: 0px !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #ffffff !important;
+    border-bottom: 3px solid #000000 !important;
+    color: #000000 !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #ffffff !important;
+    border: 3px solid #000000 !important;
+    box-shadow: 5px 5px 0px #000000 !important;
+    color: #000000 !important;
+    backdrop-filter: none !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"], [class*="bg-white/5"] {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 2.5px solid #000000 !important;
+    box-shadow: 3px 3px 0px #000000 !important;
+    font-weight: bold !important;
+  }
+
+  button, [role="button"], .tab-btn {
+    background-color: #ffde00 !important;
+    color: #000000 !important;
+    border: 2.5px solid #000000 !important;
+    box-shadow: 3px 3px 0px #000000 !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+  }
+
+  button:hover, [role="button"]:hover {
+    transform: translate(-2px, -2px) !important;
+    box-shadow: 6px 6px 0px #000000 !important;
+    background-color: #ff0055 !important;
+    color: #ffffff !important;
+  }
+
+  button:active, [role="button"]:active, .tab-active, [aria-selected="true"] {
+    transform: translate(2px, 2px) !important;
+    box-shadow: 1px 1px 0px #000000 !important;
+    background-color: #00f0ff !important;
+    color: #000000 !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #000000 !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: -0.03em !important;
+  }
+
+  .text-white, [class*="text-white"], 
+  .text-sand-50, .text-sand-100, .text-sand-200, .text-sand-300, [class*="text-sand-"],
+  .text-marine-100, .text-marine-200, .text-marine-300, [class*="text-marine-"],
+  .text-slate-300, .text-slate-400, .text-slate-500, [class*="text-slate-"] {
+    color: #000000 !important;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #ffffff;
+    border-left: 2px solid #000000;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #000000;
+  }
+}
+
+/* 4. MATRIX CODE RAIN DEEP OVERRIDES */
+body.theme-matrix {
+  font-family: 'Share Tech Mono', 'JetBrains Mono', monospace !important;
+  
+  * {
+    font-family: 'Share Tech Mono', 'JetBrains Mono', monospace !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #020904 !important;
+    border-bottom: 1px solid #00ff41 !important;
+    color: #00ff41 !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: rgba(2, 12, 4, 0.94) !important;
+    border: 1px solid #00ff41 !important;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.25), inset 0 0 10px rgba(0, 255, 65, 0.06) !important;
+    border-radius: 4px !important;
+    color: #00ff41 !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"], [class*="bg-white/5"] {
+    background-color: #010903 !important;
+    border: 1px solid #00ff41 !important;
+    color: #00ff41 !important;
+    box-shadow: inset 0 0 8px rgba(0, 255, 65, 0.15) !important;
+    border-radius: 2px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid #00ff41 !important;
+    background-color: rgba(2, 18, 5, 0.8) !important;
+    color: #00ff41 !important;
+    border-radius: 3px !important;
+    text-shadow: 0 0 4px rgba(0, 255, 65, 0.6) !important;
+  }
+
+  button:hover, [role="button"]:hover, .tab-active, [aria-selected="true"] {
+    background-color: #00ff41 !important;
+    color: #020702 !important;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.6) !important;
+    text-shadow: none !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #00ff41 !important;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.75) !important;
+  }
+
+  .text-white, .text-sand-50, .text-marine-200, .text-marine-300, .text-marine-400 {
+    color: #00ff41 !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #020904 !important;
+    color: #00ff41 !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #00ff41 !important;
+    box-shadow: 0 0 8px #00ff41;
+  }
+}
+
+/* 5. TERMINAL CRT DEEP OVERRIDES */
+body.theme-terminal {
+  font-family: 'Courier Prime', 'JetBrains Mono', monospace !important;
+  
+  * {
+    font-family: 'Courier Prime', 'JetBrains Mono', monospace !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #0d0b05 !important;
+    border-bottom: 1px solid #ffb000 !important;
+    color: #ffb000 !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #141006 !important;
+    border: 1px solid #ffb000 !important;
+    box-shadow: 0 0 12px rgba(255, 176, 0, 0.25) !important;
+    border-radius: 3px !important;
+    color: #ffb000 !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"], [class*="bg-white/5"] {
+    background-color: #0a0803 !important;
+    border: 1px solid #ffb000 !important;
+    color: #ffb000 !important;
+    border-radius: 2px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid #ffb000 !important;
+    background-color: #1b1406 !important;
+    color: #ffb000 !important;
+    border-radius: 2px !important;
+  }
+
+  button:hover, [role="button"]:hover, .tab-active, [aria-selected="true"] {
+    background-color: #ffb000 !important;
+    color: #0d0b05 !important;
+    box-shadow: 0 0 12px rgba(255, 176, 0, 0.6) !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #ffb000 !important;
+    text-shadow: 0 0 8px rgba(255, 176, 0, 0.6) !important;
+  }
+
+  .text-white, .text-sand-50, .text-marine-200, .text-marine-300, .text-marine-400 {
+    color: #ffb000 !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #0d0b05 !important;
+    color: #ffb000 !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #ffb000 !important;
+    box-shadow: 0 0 6px #ffb000;
+  }
+}
+
+/* 6. 8-BIT NES & ARCADE DEEP OVERRIDES */
+body.theme-nes8bit, body.theme-8bit, body.theme-arcade {
+  font-family: 'Silkscreen', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  
+  * {
+    font-family: 'Silkscreen', monospace !important;
+    border-radius: 0px !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  p, span, td, th, label, input, button {
+    line-height: 1.5 !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #050b14 !important;
+    border-bottom: 2px solid #00ffcc !important;
+    color: #00ffcc !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #0b1528 !important;
+    border: 2px solid #00ffcc !important;
+    box-shadow: 4px 4px 0px #000000, 5px 5px 0px rgba(0, 255, 204, 0.3) !important;
+    color: #00ffcc !important;
+    backdrop-filter: none !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"] {
+    background-color: #050b14 !important;
+    border: 2px solid #00ffcc !important;
+    color: #00ffcc !important;
+  }
+
+  button, [role="button"] {
+    background-color: #0f1c30 !important;
+    color: #00ffcc !important;
+    border: 2px solid #00ffcc !important;
+    box-shadow: 2px 2px 0px #000000 !important;
+    font-family: 'Press Start 2P', monospace !important;
+    font-size: 10px !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  button:hover, [role="button"]:hover, .tab-active, [aria-selected="true"] {
+    background-color: #00ffcc !important;
+    color: #050b14 !important;
+    box-shadow: 2px 2px 0px #000000 !important;
+  }
+
+  h1, h2, h3, h4, .font-retro {
+    font-family: 'Press Start 2P', monospace !important;
+    color: #00ffcc !important;
+    text-shadow: 2px 2px 0px #000000 !important;
+    line-height: 1.4 !important;
+  }
+
+  .text-white, .text-sand-50, .text-marine-200, .text-marine-300, .text-marine-400 {
+    color: #00ffcc !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #0b1528 !important;
+    color: #00ffcc !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #00ffcc !important;
+  }
+}
+
+/* 7. BLUEPRINT DEEP OVERRIDES */
+body.theme-blueprint {
+  font-family: 'Share Tech Mono', monospace !important;
+  
+  * {
+    font-family: 'Share Tech Mono', monospace !important;
+  }
+
+  header, nav, .bottom-nav {
+    background-color: #0a2540 !important;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.5) !important;
+    color: #ffffff !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: rgba(10, 37, 64, 0.92) !important;
+    border: 1px solid rgba(56, 189, 248, 0.5) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    border-radius: 4px !important;
+    color: #ffffff !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"] {
+    background-color: #071e33 !important;
+    border: 1px solid #38bdf8 !important;
+    color: #38bdf8 !important;
+    border-radius: 3px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid #38bdf8 !important;
+    background-color: rgba(13, 59, 102, 0.8) !important;
+    color: #38bdf8 !important;
+    border-radius: 3px !important;
+  }
+
+  button:hover, [role="button"]:hover, .tab-active, [aria-selected="true"] {
+    background-color: #38bdf8 !important;
+    color: #0a2540 !important;
+    font-weight: bold !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #38bdf8 !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #0a2540 !important;
+    color: #38bdf8 !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #38bdf8 !important;
+  }
+}
+
+/* 8. PAPER / EDITORIAL DEEP OVERRIDES */
+body.theme-paper {
+  font-family: 'Newsreader', 'Playfair Display', Georgia, serif !important;
+
+  header, nav, .bottom-nav {
+    background-color: #fbf9f4 !important;
+    border-bottom: 1px solid #e7e5e4 !important;
+    color: #1c1917 !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #ffffff !important;
+    border: 1px solid #e7e5e4 !important;
+    color: #1c1917 !important;
+    box-shadow: 0 4px 16px rgba(120, 113, 108, 0.08) !important;
+    border-radius: 12px !important;
+    backdrop-filter: none !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"] {
+    background-color: #fbf9f4 !important;
+    border: 1px solid #d6d3d1 !important;
+    color: #1c1917 !important;
+    border-radius: 8px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid #d6d3d1 !important;
+    background-color: #f5f2eb !important;
+    color: #1c1917 !important;
+    border-radius: 8px !important;
+  }
+
+  button:hover, [role="button"]:hover {
+    background-color: #e7e5e4 !important;
+  }
+
+  .tab-active, [aria-selected="true"] {
+    background-color: #1c1917 !important;
+    color: #ffffff !important;
+    border-radius: 6px !important;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Playfair Display', Georgia, serif !important;
+    font-style: normal !important;
+    text-transform: none !important;
+    color: #1c1917 !important;
+  }
+
+  .text-white, .text-sand-50, .text-marine-200, .text-marine-300, .text-marine-400 {
+    color: #1c1917 !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #a8a29e !important;
+  }
+}
+
+/* 9. CYBERPUNK DEEP OVERRIDES */
+body.theme-cyberpunk {
+  font-family: 'Chakra Petch', 'Orbitron', sans-serif !important;
+
+  header, nav, .bottom-nav {
+    background-color: #0e071c !important;
+    border-bottom: 1px solid rgba(255, 0, 127, 0.4) !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: rgba(18, 12, 34, 0.85) !important;
+    border: 1px solid rgba(255, 0, 127, 0.45) !important;
+    box-shadow: 0 0 20px rgba(255, 0, 127, 0.25), inset 0 0 15px rgba(0, 240, 255, 0.12) !important;
+    border-radius: 10px !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"] {
+    background-color: #110924 !important;
+    border: 1px solid rgba(0, 240, 255, 0.5) !important;
+    color: #00f0ff !important;
+    border-radius: 8px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid rgba(0, 240, 255, 0.4) !important;
+    border-radius: 8px !important;
+  }
+
+  button:hover, [role="button"]:hover {
+    border-color: #00f0ff !important;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.5) !important;
+  }
+
+  .tab-active, [aria-selected="true"] {
+    background: linear-gradient(135deg, #ff007f 0%, #00f0ff 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 15px rgba(255, 0, 127, 0.5) !important;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Chakra Petch', 'Orbitron', sans-serif !important;
+    color: #ff007f !important;
+    text-shadow: 0 0 12px rgba(255, 0, 127, 0.7) !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #0e071c !important;
+    color: #00f0ff !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #00f0ff !important;
+    box-shadow: 0 0 10px #00f0ff;
+  }
+}
+
+/* 10. TRON LEGACY DEEP OVERRIDES */
+body.theme-tron {
+  font-family: 'Orbitron', sans-serif !important;
+
+  header, nav, .bottom-nav {
+    background-color: #030712 !important;
+    border-bottom: 1px solid #00f0ff !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: rgba(3, 10, 25, 0.9) !important;
+    border: 1px solid #00f0ff !important;
+    box-shadow: 0 0 18px rgba(0, 240, 255, 0.3) !important;
+    border-radius: 4px !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"] {
+    background-color: #020712 !important;
+    border: 1px solid #00f0ff !important;
+    color: #00f0ff !important;
+    border-radius: 3px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid #00f0ff !important;
+    background-color: rgba(3, 20, 40, 0.8) !important;
+    color: #00f0ff !important;
+    border-radius: 3px !important;
+  }
+
+  .tab-active, [aria-selected="true"] {
+    background-color: #00f0ff !important;
+    color: #030712 !important;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.7) !important;
+    font-weight: bold !important;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Orbitron', sans-serif !important;
+    color: #00f0ff !important;
+    text-shadow: 0 0 10px rgba(0, 240, 255, 0.8) !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #030712 !important;
+    color: #00f0ff !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #00f0ff !important;
+    box-shadow: 0 0 8px #00f0ff;
+  }
+}
+
+/* 11. Y2K METALLIC AQUA DEEP OVERRIDES */
+body.theme-y2k {
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(56, 189, 248, 0.12) 100%) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.4) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 10px 30px rgba(56, 189, 248, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+  }
+
+  button, [role="button"], input, select, textarea {
+    border-radius: 20px !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #0c4a6e !important;
+    color: #38bdf8 !important;
+  }
+
+  .tab-active, [aria-selected="true"] {
+    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
+  }
+}
+
+/* 12. SOLARIZED DEVELOPER DEEP OVERRIDES */
+body.theme-developer {
+  font-family: 'JetBrains Mono', monospace !important;
+
+  * {
+    font-family: 'JetBrains Mono', monospace !important;
+  }
+
+  .glass, .glass-dark, [class*="bg-marine-950"], [class*="bg-marine-900"], [class*="bg-marine-800"] {
+    background-color: #073642 !important;
+    border: 1px solid #586e75 !important;
+    color: #93a1a1 !important;
+    border-radius: 8px !important;
+  }
+
+  input, select, textarea, [class*="bg-marine-950/"], [class*="bg-marine-900/"] {
+    background-color: #002b36 !important;
+    border: 1px solid #586e75 !important;
+    color: #93a1a1 !important;
+    border-radius: 6px !important;
+  }
+
+  button, [role="button"] {
+    border: 1px solid #2aa198 !important;
+    background-color: #002b36 !important;
+    color: #2aa198 !important;
+    border-radius: 6px !important;
+  }
+
+  .forecast-sticky-col {
+    background-color: #073642 !important;
+    color: #2aa198 !important;
+  }
+
+  .tab-active, [aria-selected="true"] {
+    background-color: #2aa198 !important;
+    color: #002b36 !important;
+    font-weight: bold !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #cb4b16 !important;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-accent/40 rounded-full hover:bg-accent/60 transition-colors;
+}
+
+/* Leaflet Overrides */
+.leaflet-container {
+  background: #020617 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: white !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.custom-popup .leaflet-popup-content {
+  margin: 0 !important;
+  width: auto !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
