@@ -1,0 +1,163 @@
+{
+  "entities": {
+    "UserProfile": {
+      "description": "Stores user preferences, gear, and saved spots.",
+      "type": "object",
+      "properties": {
+        "weight": { "type": "number" },
+        "skillLevel": { "type": "string", "enum": ["beginner", "intermediate", "advanced", "pro"] },
+        "boards": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Board" }
+        },
+        "selectedBoardId": { "type": "string" },
+        "wetsuits": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Wetsuit" }
+        },
+        "selectedWetsuitId": { "type": "string" },
+        "savedSpots": {
+          "type": "array",
+          "items": { "$ref": "#/entities/SurfSpot" }
+        }
+      },
+      "required": ["weight", "skillLevel", "boards", "wetsuits"]
+    },
+    "Board": {
+      "title": "Board",
+      "description": "Surfboard details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["shortboard", "fish", "hybrid", "funboard", "longboard", "softtop"] },
+        "volume": { "type": "number" },
+        "length": { "type": "string" }
+      }
+    },
+    "Wetsuit": {
+      "title": "Wetsuit",
+      "description": "Wetsuit details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "thickness": { "type": "string" },
+        "hasHood": { "type": "boolean" },
+        "hasBoots": { "type": "boolean" },
+        "hasGloves": { "type": "boolean" }
+      }
+    },
+    "SurfSpot": {
+      "title": "SurfSpot",
+      "description": "Surf spot details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "type": { "type": "string", "enum": ["beachbreak", "pointbreak", "reefbreak"] },
+        "bestWind": { "type": "array", "items": { "type": "string" } },
+        "bestSwell": { "type": "array", "items": { "type": "string" } },
+        "tideStation": { "type": "string" }
+      }
+    },
+    "SharedSpot": {
+      "title": "SharedSpot",
+      "description": "A spot shared publicly by a user.",
+      "type": "object",
+      "properties": {
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "name": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "type": { "type": "string", "enum": ["beachbreak", "pointbreak", "reefbreak"] },
+        "bestWind": { "type": "array", "items": { "type": "string" } },
+        "bestSwell": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["creatorId", "name", "lat", "lng", "type", "createdAt"]
+    },
+    "SpotReport": {
+      "title": "SpotReport",
+      "description": "A verifiable report from a user at a spot.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "spotId": { "type": "string" },
+        "spotName": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "forecastAtTime": { "type": "object" },
+        "analysis": { "type": "object" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["userId", "spotId", "spotName", "timestamp", "location", "createdAt"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "User uploaded community image posts.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "caption": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userId", "imageUrl", "timestamp"]
+    },
+    "ErrorLog": {
+      "title": "ErrorLog",
+      "description": "System and user errors captured from the application for admin troubleshooting.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "errorType": { "type": "string" },
+        "message": { "type": "string" },
+        "stack": { "type": "string" },
+        "context": { "type": "object" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["errorType", "message", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    },
+    "sharedSpots/{spotId}": {
+      "schema": "SharedSpot",
+      "description": "Shared surf spots."
+    },
+    "spotReports/{reportId}": {
+      "schema": "SpotReport",
+      "description": "Reports with photos/analysis from spots."
+    },
+    "communityPosts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Community posts with images."
+    },
+    "spots/{spotId}": {
+      "schema": "Spot",
+      "description": "Spots config and corrections."
+    },
+    "errorLogs/{logId}": {
+      "schema": "ErrorLog",
+      "description": "Captured error logs for debugging."
+    }
+  }
+}

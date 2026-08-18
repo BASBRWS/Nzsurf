@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (((request.auth.token.email == "sebastiaan.boom2@gmail.com" || request.auth.token.email == "sebastiaan.boom@gmail.com") && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['weight', 'skillLevel']) &&
+             data.weight is number && data.weight > 0 && data.weight < 300 &&
+             data.skillLevel in ['beginner', 'intermediate', 'advanced', 'pro'];
+    }
+
+    function isValidSpotReport(data) {
+      return data.keys().hasAll(['userId', 'spotId', 'spotName', 'timestamp', 'location', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.spotId is string &&
+             data.spotName is string &&
+             data.timestamp is string &&
+             data.location is map &&
+             data.createdAt is string;
+    }
+
+    function isValidSharedSpot(data) {
+      return data.keys().hasAll(['creatorId', 'name', 'lat', 'lng', 'type', 'createdAt']) &&
+             data.creatorId == request.auth.uid &&
+             data.name is string && data.name.size() <= 100 &&
+             data.lat is number && data.lng is number &&
+             data.type is string &&
+             data.createdAt is string;
+    }
+
+    function isValidCommunityPost(data) {
+      return data.keys().hasAll(['userId', 'imageUrl', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.imageUrl is string && data.imageUrl.size() <= 1048576 &&
+             data.timestamp is string;
+    }
+
+    function isValidErrorLog(data) {
+      return data.keys().hasAll(['errorType', 'message', 'timestamp']) &&
+             data.errorType is string && data.errorType.size() <= 200 &&
+             data.message is string && data.message.size() <= 10000 &&
+             data.timestamp is string;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data);
+      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /spotReports/{reportId} {
+      allow create: if isAuthenticated() && isValidSpotReport(request.resource.data);
+      allow read, list: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /sharedSpots/{spotId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidSharedSpot(request.resource.data);
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+      allow update: if isAdmin();
+    }
+
+    match /spots/{spotId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidCommunityPost(request.resource.data);
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin();
+    }
+    
+    match /blogPosts/{blogId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /feedback/{feedbackId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+    match /acceptedInsights/{insightId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /errorLogs/{logId} {
+      allow create: if true && isValidErrorLog(request.resource.data);
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
+

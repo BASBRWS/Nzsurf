@@ -1,0 +1,11 @@
+{
+  "name": "Remix Remix: Noordzee Surf Advies",
+  "description": "Gepersonaliseerd surfadvies voor de Noordzee op basis van jouw gear, niveau en de actuele weersomstandigheden.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
