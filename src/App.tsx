@@ -76,7 +76,7 @@ export default function App() {
     return (localStorage.getItem('nzs_forecast_view_mode') as 'compact' | 'detailed') || 'compact';
   });
   const [themeStyle, setThemeStyle] = useState<ThemeStyle>(() => {
-    return (localStorage.getItem('nzs_theme_style') as ThemeStyle) || 'glass';
+    return (localStorage.getItem('nzs_theme_style') as ThemeStyle) || 'light';
   });
 
   useEffect(() => {
@@ -494,20 +494,26 @@ export default function App() {
     return R * c;
   };
 
-  const handleCellClick = async (data: ForecastData) => {
+  const handleCellClick = (data: ForecastData) => {
     setSelectedForecast(data);
-    setIsAdviceLoading(true);
     setAdvice(null);
-    
+    setIsAdviceLoading(false);
+  };
+
+  const handleRequestAdvice = async (targetData?: ForecastData) => {
+    const dataToAnalyze = targetData || selectedForecast;
+    if (!dataToAnalyze) return;
+
+    setIsAdviceLoading(true);
     try {
       const nearbySpots = userCoords 
         ? allSpots.filter(s => calculateDistance(userCoords.lat, userCoords.lng, s.lat, s.lng) <= 5)
         : [];
 
-      const result = await getSurfAdvice(user, selectedSpot, data, nearbySpots);
+      const result = await getSurfAdvice(user, selectedSpot, dataToAnalyze, nearbySpots);
       setAdvice(result);
     } catch (error) {
-      console.error(error);
+      console.error('Failed to get surf advice:', error);
     } finally {
       setIsAdviceLoading(false);
     }
@@ -1170,12 +1176,21 @@ export default function App() {
       {/* Global Interactive Modal */}
       <AdviceModal 
         isOpen={!!selectedForecast} 
-        onClose={() => setSelectedForecast(null)}
+        onClose={() => {
+          setSelectedForecast(null);
+          setAdvice(null);
+        }}
         advice={advice}
         forecast={selectedForecast}
         allForecastData={forecast}
         loading={isAdviceLoading}
         spot={selectedSpot}
+        user={user}
+        onRequestAdvice={handleRequestAdvice}
+        onSelectForecastHour={(hourData) => {
+          setSelectedForecast(hourData);
+          setAdvice(null);
+        }}
       />
 
       {/* Share Notification Portal */}

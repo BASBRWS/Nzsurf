@@ -1,4 +1,6 @@
-import { ForecastData, SurfSpot, UserProfile, Board, Wetsuit, SkillLevel } from '../types';
+import { ForecastData, SurfSpot, UserProfile, Board, Wetsuit, SkillLevel, SunscreenAdvice } from '../types';
+import { calculateSunscreenAdvice } from './sunscreenUtils';
+import { getKiteAlert, KiteAlertInfo } from './kiteAlertUtils';
 import { parseISO, format, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -17,6 +19,7 @@ export interface DayPartSnapshot {
   windDir: string;
   condition: string;
   ratingScore: number;
+  uvIndex?: number;
 }
 
 export interface RankedQuiverBoard {
@@ -99,6 +102,10 @@ export interface DailySummary {
   };
   tideTurns: TideTurn[];
   nextTideSummary: string;
+  waterTempAvg: number;
+  uvIndexMax: number;
+  sunscreenAdvice: SunscreenAdvice;
+  kiteAlert?: KiteAlertInfo;
   bestWindow?: {
     timeRange: string;
     conditionText: string;
@@ -339,7 +346,7 @@ export function calculateWetsuitMatch(
       thickness: `${idealThickness} ${accessoriesText}`.trim(),
       subtitle: `Advies bij ${waterTemp}°C water (Geen pakken in profiel)`,
       isOwned: false,
-      note: `Voeg je wetsuit toe in je profiel voor quiver-specifiek warmteadvies.`
+      note: `Voeg je wetsuit toe in je profiel voor setup-specifiek warmteadvies.`
     };
   }
 
@@ -435,9 +442,31 @@ export function processDailyForecasts(
     const activeHours = daylightHours.length > 0 ? daylightHours : dayHours;
 
     // Find peak / representative values
-    const maxWave = Math.max(...activeHours.map(h => h.waveHeight));
-    const minWave = Math.min(...activeHours.map(h => h.waveHeight));
+    const rawMaxWave = Math.max(...activeHours.map(h => h.waveHeight));
+    const rawMinWave = Math.min(...activeHours.map(h => h.waveHeight));
     const avgPeriod = Math.round(activeHours.reduce((acc, h) => acc + h.swellPeriod, 0) / activeHours.length);
+
+    let bathyMultiplier = 1.0;
+    let bathyNote = '';
+    
+    // Toepassing van regionale bathymetrie (kustlijndiepte data)
+    if (spot.bathymetryProfile === 'deep_water_approach') {
+      bathyMultiplier = 1.25; 
+      bathyNote = 'Diep water dicht onder de kust zorgt dat swell energie behoudt.';
+    } else if (spot.bathymetryProfile === 'sandbanks') {
+      if (avgPeriod >= 7) {
+        bathyMultiplier = 1.15;
+        bathyNote = 'Lange periode swell bouwt mooi op over de ondiepe zandbanken (shoaling).';
+      } else {
+        bathyMultiplier = 0.85;
+        bathyNote = 'Korte periode windswell verliest wat energie door bodemwrijving op de uitgestrekte banken.';
+      }
+    } else if (spot.bathymetryProfile === 'gentle_slope') {
+      bathyMultiplier = 0.95;
+    }
+
+    const maxWave = rawMaxWave * bathyMultiplier;
+    const minWave = rawMinWave * bathyMultiplier;
 
     const minKnots = Math.min(...activeHours.map(h => h.windSpeed));
     const maxKnots = Math.max(...activeHours.map(h => h.windSpeed));
@@ -586,10 +615,10 @@ export function processDailyForecasts(
     let ratingHeadline = 'Gemengde condities';
     let ratingColor = {
       bg: 'bg-cyan-500/10',
-      text: 'text-cyan-300',
-      border: 'border-cyan-500/30',
+      text: 'text-sky-800 dark:text-cyan-300',
+      border: 'border-sky-300 dark:border-cyan-500/30',
       glow: 'shadow-cyan-500/10',
-      pill: 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40'
+      pill: 'rating-pill-fair'
     };
 
     if (maxWave < 0.35 || score < 3.8) {
@@ -597,50 +626,50 @@ export function processDailyForecasts(
       ratingHeadline = 'Vlakke zee & mini rimpels';
       ratingColor = {
         bg: 'bg-slate-500/10',
-        text: 'text-slate-300',
-        border: 'border-slate-500/30',
+        text: 'text-slate-700 dark:text-slate-300',
+        border: 'border-slate-300 dark:border-slate-500/30',
         glow: 'shadow-slate-500/5',
-        pill: 'bg-slate-800/80 text-slate-300 border-slate-600/40'
+        pill: 'rating-pill-flat'
       };
     } else if (score < 5.2) {
       ratingLabel = 'POOR';
       ratingHeadline = 'Rommelig of te weinig kracht';
       ratingColor = {
         bg: 'bg-amber-500/10',
-        text: 'text-amber-300',
-        border: 'border-amber-500/30',
+        text: 'text-amber-800 dark:text-amber-300',
+        border: 'border-amber-300 dark:border-amber-500/30',
         glow: 'shadow-amber-500/10',
-        pill: 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+        pill: 'rating-pill-poor'
       };
     } else if (score < 7.0) {
       ratingLabel = 'FAIR';
       ratingHeadline = 'Leuke berijdbare sessie';
       ratingColor = {
         bg: 'bg-cyan-500/10',
-        text: 'text-cyan-300',
-        border: 'border-cyan-500/30',
+        text: 'text-sky-800 dark:text-cyan-300',
+        border: 'border-sky-300 dark:border-cyan-500/30',
         glow: 'shadow-cyan-500/15',
-        pill: 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40'
+        pill: 'rating-pill-fair'
       };
     } else if (score < 8.5) {
       ratingLabel = 'GOOD';
       ratingHeadline = 'Cleane sets & goede vorm';
       ratingColor = {
         bg: 'bg-emerald-500/10',
-        text: 'text-emerald-300',
-        border: 'border-emerald-500/30',
+        text: 'text-emerald-800 dark:text-emerald-300',
+        border: 'border-emerald-300 dark:border-emerald-500/30',
         glow: 'shadow-emerald-500/20',
-        pill: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+        pill: 'rating-pill-good'
       };
     } else {
       ratingLabel = 'EPIC';
       ratingHeadline = 'Topdag voor de Noordzee';
       ratingColor = {
         bg: 'bg-amber-400/15',
-        text: 'text-amber-200',
-        border: 'border-amber-400/40',
+        text: 'text-amber-900 dark:text-amber-200',
+        border: 'border-amber-400 dark:border-amber-400/40',
         glow: 'shadow-amber-400/30',
-        pill: 'bg-gradient-to-r from-amber-400/30 to-yellow-300/20 text-amber-200 border-amber-300/50'
+        pill: 'rating-pill-epic'
       };
     }
 
@@ -666,6 +695,10 @@ export function processDailyForecasts(
       matchNoteText = `Wind ${windDirInfo.label} (${bestHour.windType || 'onshore'}) geeft wat chop, maar er staat wel degelijk swell (${swellDirInfo.label}).`;
     } else {
       matchNoteText = `Wind ${windDirInfo.label} is gunstig clean, maar de ${swellDirInfo.label}-hoek levert beperkte hoogte op.`;
+    }
+    
+    if (bathyNote) {
+      matchNoteText += ` ${bathyNote}`;
     }
 
     // Dynamic AI / Coach Narrative referencing user's actual gear
@@ -789,6 +822,7 @@ export function processDailyForecasts(
       const slotBft = knotsToBeaufort(avgWindKts);
       const slotWindDir = getCompassInfo(slotHours[0].windDirection).label;
       const slotType = slotHours[0].windType === 'offshore' ? 'Clean' : slotHours[0].windType === 'onshore' ? 'Chop' : 'Matig';
+      const slotUv = Math.round((slotHours.reduce((acc, h) => acc + (h.uvIndex || 0), 0) / slotHours.length) * 10) / 10;
 
       return {
         label: slot.label,
@@ -798,9 +832,20 @@ export function processDailyForecasts(
         windKnots: avgWindKts,
         windDir: slotWindDir,
         condition: slotType,
-        ratingScore: Math.round((score + (slotType === 'Clean' ? 0.4 : -0.3)) * 10) / 10
+        ratingScore: Math.round((score + (slotType === 'Clean' ? 0.4 : -0.3)) * 10) / 10,
+        uvIndex: slotUv
       };
     });
+
+    // UV Index & Sunscreen Protection calculation for the day
+    const uvIndexMax = Math.max(0, ...activeHours.map(h => h.uvIndex || 0));
+    const dailySunscreenAdvice = calculateSunscreenAdvice(
+      uvIndexMax,
+      true,
+      weatherCode,
+      bestHour.airTemp
+    );
+    const waterTempAvg = Math.round(dayHours.reduce((acc, h) => acc + h.waterTemp, 0) / dayHours.length);
 
     const dayParsed = parseISO(dateStr);
     const dayName = format(dayParsed, 'EEEE', { locale: nl }).toUpperCase();
@@ -858,7 +903,7 @@ export function processDailyForecasts(
           ? `${bestBoardMatch.name} (${bestBoardMatch.length || ''}${bestBoardMatch.volume ? ` • ${bestBoardMatch.volume}L` : ''})`
           : bestBoardMatch.name,
         boardSubtitle: hasUserBoards 
-          ? `${bestBoardMatch.matchPercent}% Quiver Match • ${bestBoardMatch.reason}`
+          ? `${bestBoardMatch.matchPercent}% Setup Match • ${bestBoardMatch.reason}`
           : `Advies voor ${userWeight}kg (${skill})`,
         boardIsOwned: hasUserBoards,
         boardMatchScore: bestBoardMatch.matchPercent,
@@ -873,8 +918,12 @@ export function processDailyForecasts(
         quiverFitNote: bestBoardMatch.reason,
         wetsuitNote: wetsuitEval.note
       },
+      kiteAlert: getKiteAlert(spot, bestHour),
       tideTurns,
       nextTideSummary,
+      waterTempAvg,
+      uvIndexMax,
+      sunscreenAdvice: dailySunscreenAdvice,
       bestWindow,
       dayParts,
       hourlyData: dayHours,

@@ -1,4 +1,5 @@
 import { SurfSpot, ForecastData } from '../types';
+import { calculateSunscreenAdvice } from '../utils/sunscreenUtils';
 
 function getSeasonalWaterTemp(date: Date, isAtlantic: boolean): number {
   const month = date.getMonth(); // 0 = Jan, 11 = Dec
@@ -30,8 +31,10 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
   // Open-Meteo Marine API for waves
   const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=wave_height,wave_period,wave_direction&timezone=auto&forecast_days=10`;
   
-  // Open-Meteo Weather API for wind and air temp
-  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,weather_code,precipitation&timezone=auto&forecast_days=10`;
+  // Open-Meteo Weather API for wind, air temp and UV index
+  // Fallback to explicitly defined robust models instead of default seamless models to prevent "Failed to fetch historical" errors
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,weather_code,precipitation,uv_index&timezone=auto&forecast_days=10&models=gfs_seamless`;
+
 
   try {
     const [marineRes, weatherRes] = await Promise.all([
@@ -202,6 +205,29 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         }
       }
 
+      // UV Index & Sunscreen Advice calculation
+      const rawUv = weatherData.hourly.uv_index?.[i];
+      let uvIndex = typeof rawUv === 'number' && !isNaN(rawUv) ? Math.max(0, Math.round(rawUv * 10) / 10) : 0;
+      
+      // Fallback if uv_index is not returned by API: estimate daylight UV based on hour, month and weather
+      if (rawUv === undefined && isDaylight) {
+        const month = date.getMonth(); // 0 = Jan, 6 = Jul
+        // Sun elevation peak around month 5-6 (Jun-Jul), lowest month 11-0 (Dec-Jan)
+        const seasonalFactor = Math.max(0.2, Math.sin(((month + 0.5) / 12) * Math.PI));
+        // Daily curve: peak at 13:00-14:00
+        const solarHourOffset = Math.abs(hour - 13.5);
+        const hourlyFactor = Math.max(0, Math.cos((solarHourOffset / 7.5) * (Math.PI / 2)));
+        const cloudFactor = (weatherData.hourly.weather_code[i] || 0) > 3 ? 0.5 : 0.9;
+        uvIndex = Math.round((seasonalFactor * hourlyFactor * 7.5 * cloudFactor) * 10) / 10;
+      }
+
+      const sunscreenAdvice = calculateSunscreenAdvice(
+        uvIndex,
+        isDaylight,
+        weatherData.hourly.weather_code[i],
+        weatherData.hourly.temperature_2m[i]
+      );
+
       forecast.push({
         timestamp: new Date(time).toISOString(),
         waveHeight,
@@ -212,6 +238,8 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         waterTemp: getSeasonalWaterTemp(date, !!spot.isAtlantic),
         airTemp: Math.round(weatherData.hourly.temperature_2m[i] || 0),
         isDaylight,
+        uvIndex,
+        sunscreenAdvice,
         wavePower,
         tideHeight: Math.round(tideHeight * 10) / 10,
         precipitation: weatherData.hourly.precipitation[i] || 0,

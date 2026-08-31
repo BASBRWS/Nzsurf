@@ -10,7 +10,31 @@ export const DEFAULT_SPOTS: SurfSpot[] = [
     bestWind: ['ZO', 'O', 'Z'],
     bestSwell: ['NW', 'WNW', 'W', 'N'],
     coastlineAngle: 300,
-    tideStation: 'Ouddorp'
+    tideStation: 'Ouddorp',
+    bathymetryProfile: 'sandbanks'
+  },
+  {
+    id: 'ouddorp-p-noordweg',
+    name: 'Ouddorp (P Noordweg)',
+    lat: 51.8253,
+    lng: 3.8874,
+    type: 'beachbreak',
+    bestWind: ['ZO', 'O', 'Z'],
+    bestSwell: ['NW', 'WNW', 'W', 'N'],
+    coastlineAngle: 300,
+    tideStation: 'Ouddorp',
+    bathymetryProfile: 'sandbanks'
+  },
+  {
+    id: 'maasvlakte',
+    name: 'Maasvlakte 2 (Slufter)',
+    lat: 51.95,
+    lng: 3.98,
+    type: 'beachbreak',
+    bestWind: ['ZO', 'O', 'NO'],
+    bestSwell: ['WNW', 'NW', 'N'],
+    coastlineAngle: 310,
+    bathymetryProfile: 'deep_water_approach'
   },
   {
     id: 'scheveningen',
@@ -20,7 +44,8 @@ export const DEFAULT_SPOTS: SurfSpot[] = [
     type: 'beachbreak',
     bestWind: ['O', 'ZO', 'NO'],
     bestSwell: ['NW', 'WNW'],
-    coastlineAngle: 305
+    coastlineAngle: 305,
+    bathymetryProfile: 'gentle_slope'
   },
   {
     id: 'wijk-aan-zee',

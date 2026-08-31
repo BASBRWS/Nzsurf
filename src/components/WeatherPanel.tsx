@@ -133,6 +133,9 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
         setStatusText(`Model ${i + 1}/${selectedModels.length} toetsen: ${model.name}`);
         
         try {
+          // Delay to prevent Open-Meteo rate limiting / connection drops
+          if (i > 0) await new Promise(r => setTimeout(r, 600));
+          
           const histUrl = `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lng}&hourly=temperature_2m,precipitation,wind_speed_10m,cloud_cover&timezone=auto&start_date=${verifyStart}&end_date=${verifyEnd}&models=${encodeURIComponent(model.id)}`;
           const histData = await fetchJson(histUrl);
           const forecastDays = getDaily(histData.hourly);
@@ -197,7 +200,11 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
       const uniqueWinnerIds = Array.from(new Set([best.total.model.id, best.temp.model.id, best.rain.model.id, best.wind.model.id]));
       const forecastMap = new Map();
       
+      let reqCount = 0;
       for (const mid of uniqueWinnerIds) {
+        if (reqCount > 0) await new Promise(r => setTimeout(r, 600));
+        reqCount++;
+        
         setStatusText(`Komende verwachting ophalen: ${MODELS.find(m => m.id === mid)?.name}`);
         const fUrl = `https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lng}&hourly=temperature_2m,precipitation,wind_speed_10m,cloud_cover&timezone=auto&forecast_days=7&models=${encodeURIComponent(mid)}`;
         const fData = await fetchJson(fUrl);

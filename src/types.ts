@@ -44,12 +44,23 @@ export interface SurfSpot {
   coastlineAngle: number; // direction the beach faces (e.g. 305 for NW)
   tideStation?: string;
   isAtlantic?: boolean;
+  bathymetryProfile?: 'deep_water_approach' | 'gentle_slope' | 'sandbanks' | 'default';
   correction?: {
     waveMultiplier?: number;
     windMultiplier?: number;
     lastUpdated?: string;
     updatedBy?: string;
   };
+}
+
+export interface SunscreenAdvice {
+  uvIndex: number;
+  level: 'low' | 'moderate' | 'high' | 'very_high' | 'extreme';
+  levelLabel: string;
+  spfRecommendation: string;
+  shortAdvice: string;
+  details: string;
+  needsSunscreen: boolean;
 }
 
 export interface ForecastData {
@@ -62,6 +73,8 @@ export interface ForecastData {
   waterTemp: number; // in Celsius
   airTemp: number; // in Celsius
   isDaylight: boolean;
+  uvIndex?: number;
+  sunscreenAdvice?: SunscreenAdvice;
   wavePower?: number; // North Sea specific power index (0-100)
   tideHeight?: number; // in meters
   precipitation?: number; // in mm
@@ -161,6 +174,14 @@ export interface SurfAdvice {
   chanceOfSuccess?: number; // 0-100
 }
 
+export interface PostComment {
+  id?: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface CommunityPost {
   id?: string;
   userId: string;
@@ -170,6 +191,8 @@ export interface CommunityPost {
   imageUrl: string;
   caption?: string;
   timestamp: string; // ISO format
+  upvotes?: string[]; // Array of user UIDs
+  downvotes?: string[]; // Array of user UIDs
 }
 
 export interface BlogPost {
@@ -182,4 +205,6 @@ export interface BlogPost {
   authorAvatar?: string;
   timestamp: string; // ISO format
   imageUrl?: string;
+  upvotes?: string[]; // Array of user UIDs
+  downvotes?: string[]; // Array of user UIDs
 }

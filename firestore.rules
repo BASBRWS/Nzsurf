@@ -48,13 +48,45 @@ service cloud.firestore {
       return data.keys().hasAll(['userId', 'imageUrl', 'timestamp']) &&
              data.userId == request.auth.uid &&
              data.imageUrl is string && data.imageUrl.size() <= 1048576 &&
-             data.timestamp is string;
+             data.timestamp is string &&
+             (data.keys().hasAll(['caption']) == false || data.caption is string) &&
+             (data.keys().hasAll(['userName']) == false || data.userName is string) &&
+             (data.keys().hasAll(['userEmail']) == false || data.userEmail is string) &&
+             (data.keys().hasAll(['userAvatar']) == false || (data.userAvatar is string || data.userAvatar == null)) &&
+             (data.keys().hasAll(['upvotes']) == false || data.upvotes is list) &&
+             (data.keys().hasAll(['downvotes']) == false || data.downvotes is list);
+    }
+
+    function isVoteArrayUpdateValid(field) {
+      let incomingArr = request.resource.data.get(field, []);
+      return incomingArr is list && incomingArr.size() <= 10000;
+    }
+    
+    function isValidVoting() {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      let onlyVotesChanged = affected.hasOnly(['upvotes', 'downvotes']) || affected.hasOnly(['upvotes']) || affected.hasOnly(['downvotes']);
+      return onlyVotesChanged && isVoteArrayUpdateValid('upvotes') && isVoteArrayUpdateValid('downvotes');
+    }
+    
+    function isHeavilyDownvoted() {
+      let up = resource.data.get('upvotes', []).size();
+      let down = resource.data.get('downvotes', []).size();
+      let total = up + down;
+      return total >= 5 && (down * 100) / total >= 60;
     }
 
     function isValidErrorLog(data) {
       return data.keys().hasAll(['errorType', 'message', 'timestamp']) &&
              data.errorType is string && data.errorType.size() <= 200 &&
              data.message is string && data.message.size() <= 10000 &&
+             data.timestamp is string;
+    }
+
+    function isValidCommunityComment(data) {
+      return data.keys().hasAll(['userId', 'userName', 'text', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 1000 &&
              data.timestamp is string;
     }
 
@@ -86,13 +118,22 @@ service cloud.firestore {
     match /communityPosts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated() && isValidCommunityPost(request.resource.data);
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid) || isHeavilyDownvoted();
+      allow update: if isAdmin() || (isAuthenticated() && isValidVoting());
+      
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && isValidCommunityComment(request.resource.data) && exists(/databases/$(database)/documents/communityPosts/$(postId));
+        allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+        allow update: if isAdmin();
+      }
     }
     
     match /blogPosts/{blogId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow delete: if isAdmin() || isHeavilyDownvoted();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isAuthenticated() && isValidVoting());
     }
     match /feedback/{feedbackId} {
       allow create: if true;

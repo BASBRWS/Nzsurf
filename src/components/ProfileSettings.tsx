@@ -298,8 +298,8 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                   <Waves className="w-4 h-4 text-accent" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/70">Mijn Boards (Quiver)</h3>
-                  <p className="text-[10px] font-mono text-white/40">Beheer je quiver voor golf- en volumematching</p>
+                  <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/70">Mijn Boards (Setup)</h3>
+                  <p className="text-[10px] font-mono text-white/40">Beheer je boards voor golf- en volumematching</p>
                 </div>
               </div>
               <button 
@@ -316,7 +316,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                 <div className="p-6 rounded-2xl glass border border-white/5 text-center space-y-3">
                   <Waves className="w-8 h-8 text-white/20 mx-auto" />
                   <p className="text-xs font-mono text-white/50 uppercase tracking-widest">
-                    Geen boards in je quiver
+                    Geen boards in je setup
                   </p>
                   <p className="text-[11px] text-white/40 max-w-sm mx-auto">
                     Voeg je surfplanken toe om hydrodynamische golf- en gear-matches specifiek voor jouw profiel te berekenen.
@@ -376,7 +376,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                           <button 
                             type="button"
                             onClick={() => removeBoard(board.id)} 
-                            title={`Verwijder ${board.name || 'board'} uit quiver`}
+                            title={`Verwijder ${board.name || 'board'} uit setup`}
                             className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/25 text-red-400 border border-red-500/20 transition-all flex items-center justify-center"
                           >
                             <Trash2 className="w-4 h-4" />

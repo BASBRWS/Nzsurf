@@ -1,15 +1,19 @@
-import { GoogleGenAI } from "@google/genai";
 import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SpotReport } from "../types";
 import { logAppError } from "./loggerService";
+import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils";
 
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY || "",
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
+async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
+  const response = await fetch('/api/gemini/generateContent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options)
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'API request failed');
   }
-});
+  return response.json();
+}
 
 /**
  * Fallback local advisory engine to calculate highly accurate and personalized
@@ -139,12 +143,12 @@ export function generateLocalSurfAdvice(
     score = Math.max(1, Math.min(10, Math.round((skillScore + windBonus + periodBonus + tideBonus))));
   }
 
-  // Quiver & Board evaluation (evaluate all boards in user's possession)
+  // Setup & Board evaluation (evaluate all boards in user's possession)
   let bestBoard = userBoards.find(b => b.id === user.selectedBoardId) || userBoards[0];
   let quiverScoreBonus = 0;
 
   if (userBoards.length > 0) {
-    // Score all boards in quiver
+    // Score all boards in setup
     const evaluated = userBoards.map(b => {
       const vol = b.volume || 35;
       let match = 70;
@@ -170,20 +174,20 @@ export function generateLocalSurfAdvice(
 
     if (topMatch >= 90) {
       quiverScoreBonus = 1;
-      thoughts.push(`🏄 **Quiver Match (Uitstekend):** Jouw **${bestBoard.name}** (${bestBoard.type}, ${bestBoard.volume}L) is de ideale keuze uit je quiver voor deze ${waveHeight}m golven!`);
+      thoughts.push(`🏄 **Setup Match (Uitstekend):** Jouw **${bestBoard.name}** (${bestBoard.type}, ${bestBoard.volume}L) is de ideale keuze uit je setup voor deze ${waveHeight}m golven!`);
     } else if (topMatch >= 75) {
-      thoughts.push(`🏄 **Quiver Keuze:** Uit jouw quiver raden we de **${bestBoard.name}** (${bestBoard.type}, ${bestBoard.volume}L) aan voor deze sessie.`);
+      thoughts.push(`🏄 **Setup Keuze:** Uit jouw setup raden we de **${bestBoard.name}** (${bestBoard.type}, ${bestBoard.volume}L) aan voor deze sessie.`);
     } else {
       quiverScoreBonus = -1;
-      thoughts.push(`⚠️ **Quiver Mismatch:** Je geregistreerde boards zijn wat krap qua drijfvermogen voor de huidige ${waveHeight}m golfenergie. Met een board met meer volume zou je meer golven pakken.`);
+      thoughts.push(`⚠️ **Setup Mismatch:** Je geregistreerde boards zijn wat krap qua drijfvermogen voor de huidige ${waveHeight}m golfenergie. Met een board met meer volume zou je meer golven pakken.`);
     }
 
     if (userBoards.length > 1) {
       const otherBoards = evaluated.slice(1).map(e => `${e.board.name} (${e.match}%)`).join(', ');
-      thoughts.push(`📋 **Overige boards in je quiver:** ${otherBoards}`);
+      thoughts.push(`📋 **Overige boards in je setup:** ${otherBoards}`);
     }
   } else {
-    thoughts.push("**Gear Advies:** Er zijn nog geen specifieke surfplanken toegevoegd aan je profiel. Voeg je quiver toe voor exacte plank-matches.");
+    thoughts.push("**Gear Advies:** Er zijn nog geen specifieke surfplanken toegevoegd aan je profiel. Voeg je setup toe voor exacte plank-matches.");
   }
 
   // Wetsuit evaluation based on temperature and user's wetsuits
@@ -206,6 +210,17 @@ export function generateLocalSurfAdvice(
     }
   } else {
     thoughts.push(`🤿 **Wetsuit Advies:** Geen wetsuit geregistreerd. Bij ${waterTemp}°C watertemperatuur adviseren we ${waterTemp < 12 ? '5/4mm + boots' : waterTemp < 16 ? '4/3mm fullsuit' : '3/2mm fullsuit'}.`);
+  }
+
+  // Sunscreen & UV protection check
+  if (forecast?.sunscreenAdvice && forecast.sunscreenAdvice.needsSunscreen) {
+    thoughts.push(`☀️ **Zonbescherming:** ${forecast.sunscreenAdvice.shortAdvice} (${forecast.sunscreenAdvice.spfRecommendation}). Let op reflectie van het water.`);
+  }
+
+  // Kite Alert for Ouddorp P Noordweg zone (+100m N / -200m S)
+  const kiteAlert = getKiteAlert(spot, forecast);
+  if (kiteAlert.isZone && kiteAlert.isFavorable) {
+    thoughts.push(`🪁 **Kite Waarschuwing (P Noordweg Zone):** ${kiteAlert.fullWarning}`);
   }
 
   // Nearby spots reminder
@@ -270,7 +285,7 @@ export async function analyzeSpotPhoto(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await callGenerateContent({
       model: "gemini-2.5-flash",
       contents: [
         {
@@ -326,7 +341,7 @@ export async function analyzeWaveVideo(
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await callGenerateContent({
       model: "gemini-2.5-flash",
       contents: [
         ...frames.map(frame => ({
@@ -395,15 +410,15 @@ export async function getSurfAdvice(
     Gebruik de volgende gegevens om een deskundige, persoonlijke sessie-evaluatie en score te berekenen.
     
     BELANGRIJK: De score (1-10) en het advies MOETEN berekend worden op basis van het gear dat deze specifieke surfer in bezit heeft!
-    - Kies het beste board uit de quiver van de surfer voor deze condities.
+    - Kies het beste board uit de setup van de surfer voor deze condities.
     - Als de surfer alleen een board heeft dat ongeschikt is (bijv. een 28L shortboard bij 0.3m golfjes), pas de score daarop aan (lagere score wegens gear mismatch) en leg dit uit.
-    - Als de surfer juist het perfecte board in bezit heeft (bijv. een 65L longboard of fish), verhoog de score en leg uit waarom dit board uit hun quiver vandaag het beste werkt.
+    - Als de surfer juist het perfecte board in bezit heeft (bijv. een 65L longboard of fish), verhoog de score en leg uit waarom dit board uit hun setup vandaag het beste werkt.
     - Evalueer of de wetsuit set-up warm genoeg is voor de huidige watertemperatuur (${forecast.waterTemp || 12}°C).
     
     SURFER PROFIEL & GEAR IN BEZIT:
     - Gewicht: ${user.weight || 75}kg
     - Niveau: ${user.skillLevel || 'intermediate'}
-    - Surfboards in Quiver:
+    - Surfboards in Setup:
     ${quiverBoardsStr}
     - Wetsuits in Kast:
     ${userWetsuitsStr}
@@ -424,7 +439,9 @@ export async function getSurfAdvice(
     - Wind Type: ${forecast.windType || 'cross-shore'} (${forecast.windQuality || 0}/100 kwaliteit)
     - Watertemp: ${forecast.waterTemp || 12}°C
     - Luchttemp: ${forecast.airTemp || 15}°C
+    - Zonkracht / UV Index: ${forecast.uvIndex !== undefined ? forecast.uvIndex : 'N/A'}${forecast.sunscreenAdvice ? ` (Advies: ${forecast.sunscreenAdvice.spfRecommendation})` : ''}
     - ${tideHeightContext}
+    ${isOuddorpNoordwegKiteZone(spot) ? `- KITESURF MONITORING ZONE: Deze spot ligt op of binnen 100m N / 200m Z van Ouddorp P Noordweg. Als de wind >= 12 knopen is (${forecast.windSpeed || 0} knopen), vermeld dan altijd een duidelijke kite-waarschuwing: de spot staat dan vol met kiters, let op kiterlijnen en drukte in de branding.` : ''}
 
     ---
     GEEF JE ANALYSE IN JSON FORMAAT MET DE DEZE VELDEN: score, title, description, suitability, chanceOfSuccess.
@@ -433,7 +450,7 @@ export async function getSurfAdvice(
 
   // Attempt 1: Call Primary Model (gemini-3.5-flash) per standard guidelines
   try {
-    const response = await ai.models.generateContent({
+    const response = await callGenerateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
@@ -460,7 +477,7 @@ export async function getSurfAdvice(
     // Attempt 2: Secondary model (gemini-3.1-flash-lite) for cost/latency optimization/backup
     try {
       console.warn("Primary Gemini model failed. Attempting secondary backup (gemini-3.1-flash-lite)...");
-      const backupResponse = await ai.models.generateContent({
+      const backupResponse = await callGenerateContent({
         model: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {

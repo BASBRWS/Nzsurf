@@ -2,8 +2,9 @@ import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { SurfSpot } from '../types';
-import { Locate, MapPin, Eye } from 'lucide-react';
+import { Locate, MapPin, Eye, Wind } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { isOuddorpNoordwegKiteZone } from '../utils/kiteAlertUtils';
 
 // Fix for default marker icons in Leaflet with React
 const customIcon = new L.DivIcon({
@@ -112,9 +113,16 @@ function DraggableMarker({
               <MapPin className="w-3 h-3 text-accent" />
               <h4 className="text-xs font-black text-white uppercase tracking-wider">{spot.name}</h4>
             </div>
-            {(spot.id.startsWith('custom-') || spot.id.startsWith('shared-')) && (
-              <span className="text-[7px] font-mono bg-white/10 px-1.5 py-0.5 rounded uppercase text-white/40">Draggable</span>
-            )}
+            <div className="flex items-center gap-1 flex-wrap">
+              {isOuddorpNoordwegKiteZone(spot) && forecast && (forecast.windSpeed || 0) >= 12 && (
+                <span className="text-[7px] font-mono bg-amber-500/20 border border-amber-500/30 text-amber-300 px-1.5 py-0.5 rounded uppercase flex items-center gap-0.5">
+                  <Wind className="w-2 h-2" /> Veel Kiters
+                </span>
+              )}
+              {(spot.id.startsWith('custom-') || spot.id.startsWith('shared-')) && (
+                <span className="text-[7px] font-mono bg-white/10 px-1.5 py-0.5 rounded uppercase text-white/40">Draggable</span>
+              )}
+            </div>
           </div>
           
           {forecast && (

@@ -59,10 +59,10 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
   const days = Array.from(new Set(forecast.map(f => format(parseISO(f.timestamp), 'yyyy-MM-dd'))));
 
   const getSuitabilityClasses = (height: number, period: number) => {
-    if (height < 0.3) return 'text-white/20 border-white/5 bg-white/5'; // Flat
-    if (height > 1.8) return 'text-amber-400 border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10'; // Big
-    if (height >= 0.6 && period >= 5) return 'text-accent border-accent/20 bg-accent/5 hover:bg-accent/10'; // Good
-    return 'text-marine-500 border-marine-500/20 bg-marine-500/5 hover:bg-marine-500/10'; // Average
+    if (height < 0.3) return 'text-slate-400 dark:text-white/30 border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-white/5'; // Flat
+    if (height > 1.8) return 'text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 hover:bg-amber-100 dark:hover:bg-amber-500/10 font-bold'; // Big
+    if (height >= 0.6 && period >= 5) return 'text-emerald-800 dark:text-accent border-emerald-300 dark:border-accent/20 bg-emerald-50 dark:bg-accent/5 hover:bg-emerald-100 dark:hover:bg-accent/10 font-bold'; // Good
+    return 'text-sky-800 dark:text-marine-300 border-sky-200 dark:border-marine-500/20 bg-sky-50 dark:bg-marine-500/5 hover:bg-sky-100 dark:hover:bg-marine-500/10'; // Average
   };
 
   const calculateScores = (data: ForecastData) => {
@@ -165,7 +165,12 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
                       </div>
 
                       <div className="flex-col items-center gap-0.5 py-0.5 border-t border-current/5 sm:border-current/10 hidden sm:flex">
-                        <span className="text-[6px] sm:text-[9px] font-mono opacity-40">{data.airTemp}°</span>
+                        <div className="flex items-center gap-1.5 text-[6px] sm:text-[9px] font-mono opacity-60">
+                          <span>{data.airTemp}°</span>
+                          {data.uvIndex !== undefined && data.uvIndex >= 1 && (
+                            <span className="text-amber-400/90 font-medium">☀️ UV {data.uvIndex}</span>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="flex items-center justify-center gap-0.5 sm:gap-2 pt-0.5 sm:pt-2 border-t border-current/5 sm:border-current/10">

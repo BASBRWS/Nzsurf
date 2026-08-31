@@ -284,7 +284,7 @@ export function AdminPanel() {
                         {u.weight ? `${u.weight} kg` : '-'}
                       </div>
                       <div>
-                        <span className="block text-[8px] text-white/30 uppercase">Board Quiver</span>
+                        <span className="block text-[8px] text-white/30 uppercase">Board Setup</span>
                         {u.boards ? `${u.boards.length} craft(s)` : '0'}
                       </div>
                       <div>

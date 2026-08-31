@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ForecastData, SurfSpot, UserProfile } from '../types';
 import { processDailyForecasts, DailySummary } from '../utils/dailyForecastUtils';
+import { isOuddorpNoordwegKiteZone } from '../utils/kiteAlertUtils';
 import { 
   Sun, 
   CloudSun, 
@@ -143,6 +144,12 @@ export function CompactDailyForecast({
                   <span className="text-xs sm:text-sm text-cyan-300 font-medium">
                     • {todaySummary.bestWindow.conditionText}
                   </span>
+                  {todaySummary.sunscreenAdvice && todaySummary.sunscreenAdvice.uvIndex >= 1 && (
+                    <span className="text-[10px] sm:text-[11px] font-mono px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-amber-300/90 flex items-center gap-1">
+                      <Sun className="w-3 h-3 text-amber-400" />
+                      UV {todaySummary.sunscreenAdvice.uvIndex} ({todaySummary.sunscreenAdvice.spfRecommendation.split(' ')[0]})
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -155,7 +162,7 @@ export function CompactDailyForecast({
         </motion.div>
       )}
 
-      {/* Profile & Quiver Calibration Banner */}
+      {/* Profile & Setup Calibration Banner */}
       {user.boards && user.boards.length > 0 ? (
         <div className="rounded-2xl p-3.5 sm:p-4 border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-white/[0.02] to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 backdrop-blur-md">
           <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0">
@@ -163,7 +170,7 @@ export function CompactDailyForecast({
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div className="text-xs text-white/80 leading-relaxed min-w-0">
-              <span className="text-white font-bold block sm:inline">Quiver-berekening actief: </span>
+              <span className="text-white font-bold block sm:inline">Setup-berekening actief: </span>
               <span className="text-white/70">
                 Scores & adviezen zijn geoptimaliseerd voor jouw <strong className="text-emerald-300">{user.boards.length} geregistreerde surfplank{user.boards.length > 1 ? 'en' : ''}</strong> en {user.weight || 75}kg profiel ({user.skillLevel || 'intermediate'}).
               </span>
@@ -174,7 +181,7 @@ export function CompactDailyForecast({
               onClick={onOpenProfile}
               className="shrink-0 self-start sm:self-center px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-300 hover:text-white transition-all cursor-pointer whitespace-nowrap"
             >
-              Quiver beheren
+              Setup beheren
             </button>
           )}
         </div>
@@ -193,7 +200,7 @@ export function CompactDailyForecast({
               onClick={onOpenProfile}
               className="shrink-0 self-start sm:self-center px-3 py-1 rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/30 text-[11px] font-mono font-bold uppercase tracking-wider text-accent hover:text-white transition-all cursor-pointer whitespace-nowrap"
             >
-              + Voeg quiver toe
+              + Voeg setup toe
             </button>
           )}
         </div>
@@ -262,36 +269,77 @@ export function CompactDailyForecast({
                         {day.isPersonalizedQuiver ? (
                           <span className="text-[9px] sm:text-[10px] font-mono text-emerald-300 bg-emerald-500/10 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                            Quiver: {day.quiverEvaluation.bestBoard.name} ({day.quiverEvaluation.bestBoard.matchPercent}%)
+                            Setup: {day.quiverEvaluation.bestBoard.name} ({day.quiverEvaluation.bestBoard.matchPercent}%)
                           </span>
                         ) : (
                           <span className="text-[9px] sm:text-[10px] font-mono text-white/40 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded border border-white/10">
                             Standaard shape: {day.gearAdvice.board}
                           </span>
                         )}
+                        {day.kiteAlert?.isZone && day.kiteAlert?.isFavorable && (
+                          <span className={cn(
+                            "text-[9px] sm:text-[10px] font-mono px-1.5 sm:px-2 py-0.5 rounded border flex items-center gap-1 font-bold",
+                            day.kiteAlert.intensity === 'extreme'
+                              ? "bg-red-500/20 text-red-300 border-red-500/40"
+                              : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                          )}>
+                            <Wind className="w-3 h-3" />
+                            Kite Alert: {day.kiteAlert.badgeLabel}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: Score Radar Capsule */}
-                  <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
-                    <div className={cn(
-                      "flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl border font-mono shadow-lg",
-                      day.ratingColor.pill
-                    )}>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[8px] sm:text-[9px] uppercase tracking-wider opacity-70">
-                          {day.isPersonalizedQuiver ? 'Quiver Score' : 'Score'}
+                    {/* Right: Score Radar Capsule */}
+                    <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
+                      <div className={cn(
+                        "flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl border font-mono shadow-lg transition-all",
+                        day.ratingColor.pill
+                      )}>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[8px] sm:text-[9px] uppercase tracking-wider opacity-80 font-bold">
+                            {day.isPersonalizedQuiver ? 'Setup Score' : 'Score'}
+                          </span>
+                          <span className="text-sm sm:text-lg font-black leading-none">{day.ratingScore.toFixed(1)}</span>
+                        </div>
+                        <div className="h-5 sm:h-6 w-px bg-current opacity-40" />
+                        <span className="text-xs sm:text-sm font-black uppercase tracking-wider">
+                          {day.ratingLabel}
                         </span>
-                        <span className="text-sm sm:text-lg font-black leading-none">{day.ratingScore.toFixed(1)}</span>
                       </div>
-                      <div className="h-5 sm:h-6 w-px bg-current opacity-30" />
-                      <span className="text-xs sm:text-sm font-black uppercase tracking-wider">
-                        {day.ratingLabel}
-                      </span>
+                    </div>
+                </div>
+
+                {/* Kite Waarschuwing Alert Box (indien P Noordweg zone en gunstige kitewind) */}
+                {day.kiteAlert?.isZone && day.kiteAlert?.isFavorable && (
+                  <div className={cn(
+                    "p-3.5 sm:p-4 rounded-2xl border flex items-start gap-3 transition-all",
+                    day.kiteAlert.intensity === 'extreme'
+                      ? "bg-red-500/15 border-red-500/35 text-red-200"
+                      : "bg-amber-500/15 border-amber-500/30 text-amber-200"
+                  )}>
+                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 shrink-0 mt-0.5">
+                      <Wind className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono flex items-center gap-1.5">
+                          <span>🪁 Kite Waarschuwing: Drukte & Gunstige Wind</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-400/20 text-amber-200 font-mono font-bold">
+                            {day.kiteAlert.windKnots} kn / {day.kiteAlert.windBft} Bft {day.kiteAlert.windDirection ? `(${day.kiteAlert.windDirection})` : ''}
+                          </span>
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/90 leading-relaxed font-medium">
+                        {day.kiteAlert.fullWarning}
+                      </p>
+                      <p className="text-[10px] font-mono text-white/40 pt-0.5">
+                        Geldt voor: {day.kiteAlert.zoneDescription}
+                      </p>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* 2. Tactical AI Oceanographic Briefing Box */}
                 <div className="p-3.5 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/5 space-y-2.5 sm:space-y-3 relative">
@@ -413,14 +461,14 @@ export function CompactDailyForecast({
                     </p>
                   </div>
 
-                  {/* Quiver & Wetsuit Advice Grid */}
+                  {/* Setup & Wetsuit Advice Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-0.5">
-                    {/* Quiver Surfboard Box */}
+                    {/* Setup Surfboard Box */}
                     <div className="p-3 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-accent flex items-center gap-1.5">
                           <Layers className="w-3.5 h-3.5" />
-                          {day.isPersonalizedQuiver ? 'Uit jouw Quiver' : 'Aanbevolen Shape'}
+                          {day.isPersonalizedQuiver ? 'Uit jouw Setup' : 'Aanbevolen Shape'}
                         </span>
                         <span className={cn(
                           "text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border",
@@ -443,10 +491,10 @@ export function CompactDailyForecast({
                         </p>
                       </div>
 
-                      {/* Quiver Comparison Pill list if multiple boards owned */}
+                      {/* Setup Comparison Pill list if multiple boards owned */}
                       {day.quiverEvaluation.allBoards.length > 1 && (
                         <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
-                          <span className="text-white/40">Jouw quiver:</span>
+                          <span className="text-white/40">Jouw setup:</span>
                           {day.quiverEvaluation.allBoards.map((b, bIdx) => (
                             <span 
                               key={bIdx} 
@@ -488,6 +536,36 @@ export function CompactDailyForecast({
                       </div>
                     </div>
                   </div>
+
+                  {/* Subtle Sunscreen Advice Sub-bar (Secondary / Non-intrusive) */}
+                  {day.sunscreenAdvice && (
+                    <div className="pt-2.5 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Sun className={cn(
+                          "w-3.5 h-3.5 shrink-0",
+                          day.sunscreenAdvice.level === 'high' || day.sunscreenAdvice.level === 'very_high' 
+                            ? "text-amber-400" 
+                            : day.sunscreenAdvice.level === 'moderate' 
+                            ? "text-yellow-400" 
+                            : "text-white/40"
+                        )} />
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-white/40 shrink-0">Zonkracht & Zonnebrand:</span>
+                        <span className={cn(
+                          "text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border shrink-0",
+                          day.sunscreenAdvice.level === 'high' || day.sunscreenAdvice.level === 'very_high'
+                            ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                            : day.sunscreenAdvice.level === 'moderate'
+                            ? "bg-yellow-500/15 text-yellow-300 border-yellow-500/30"
+                            : "bg-white/5 text-white/50 border-white/10"
+                        )}>
+                          {day.sunscreenAdvice.levelLabel}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-white/70 truncate sm:text-right">
+                        {day.sunscreenAdvice.shortAdvice}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* 5. Daypart Timeline Strip (Quick visual overview throughout the day) */}
@@ -518,7 +596,12 @@ export function CompactDailyForecast({
                           >
                             <div className="flex items-center justify-between text-white/50 text-[10px]">
                               <span className="font-bold text-white/80 uppercase">{part.label}</span>
-                              <span>{part.timeRange}</span>
+                              <div className="flex items-center gap-1.5">
+                                {part.uvIndex !== undefined && part.uvIndex >= 1 && (
+                                  <span className="text-amber-300/80 font-bold">☀️ UV {part.uvIndex}</span>
+                                )}
+                                <span>{part.timeRange}</span>
+                              </div>
                             </div>
                             <div className="flex items-baseline justify-between">
                               <span className="text-base font-bold text-white">{part.waveHeight.toFixed(1)}m</span>
