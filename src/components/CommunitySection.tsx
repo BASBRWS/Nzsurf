@@ -6,6 +6,7 @@ import { CommunityPost, BlogPost, PostComment } from '../types';
 import { format, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
+import { apiUrl } from '../lib/api';
 import { logAppError } from '../services/loggerService';
 import { VotingWidget } from './VotingWidget';
 
@@ -430,13 +431,21 @@ export function CommunitySection() {
     
     try {
       // Step 1: Content Moderation
-      const modRes = await fetch("/api/moderate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64Image: compressedImageData }),
-      });
-      
-      if (modRes.ok) {
+      // De moderatie draait op de Express-backend. Bestaat die niet (bijv. in de
+      // APK die vanaf https://localhost laadt), dan mag een netwerkfout de upload
+      // niet blokkeren: we vangen 'm hier af en gaan gewoon door.
+      let modRes: Response | null = null;
+      try {
+        modRes = await fetch(apiUrl("/api/moderate-image"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base64Image: compressedImageData }),
+        });
+      } catch (modErr) {
+        console.warn("Moderation API unreachable, continuing with upload anyway...", modErr);
+      }
+
+      if (modRes && modRes.ok) {
         const modData = await modRes.json();
         if (modData.isSafe === false) {
           setUploadError({
@@ -447,6 +456,8 @@ export function CommunitySection() {
           setIsUploading(false);
           return;
         }
+      } else if (!modRes) {
+        // netwerkfout hierboven al gelogd
       } else {
         console.warn("Moderation API call failed, continuing with upload anyway...");
       }

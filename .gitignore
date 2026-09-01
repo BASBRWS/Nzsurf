@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Capacitor native project (in CI geregenereerd via cap add)
+android/
+ios/
