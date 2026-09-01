@@ -24,10 +24,10 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
 
   if (!auth.currentUser) {
     return (
-      <div className="p-8 text-center glass-dark rounded-2xl border border-white/5 space-y-4">
-        <AlertCircle className="w-8 h-8 text-white/40 mx-auto" />
-        <h3 className="text-white font-bold">Inloggen Vereist</h3>
-        <p className="text-white/60 text-sm">Je moet ingelogd zijn om een spot report achter te laten. Ga naar je profiel om in te loggen.</p>
+      <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
+        <h3 className="text-slate-900 font-bold text-lg">Inloggen Vereist</h3>
+        <p className="text-slate-600 text-sm">Je moet ingelogd zijn om een spot report achter te laten. Ga naar je profiel om in te loggen.</p>
       </div>
     );
   }
@@ -166,70 +166,72 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
   };
 
   return (
-    <div className="glass p-6 rounded-[2rem] border border-white/5 space-y-6">
+    <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full glass border border-white/10 flex items-center justify-center">
-            <Aperture className="w-5 h-5 text-accent" />
+          <div className="w-10 h-10 rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
+            <Aperture className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/50">Spot Report Insturen</h3>
+            <h3 className="text-xs font-mono uppercase tracking-widest text-cyan-700 font-bold">Field Intelligence</h3>
+            <p className="text-lg font-black uppercase text-slate-900 font-tactical">Spot Report Insturen</p>
           </div>
         </div>
         <button 
           onClick={() => setShowInstructions(!showInstructions)}
-          className="p-2 glass rounded-full hover:bg-white/10 transition-colors"
+          className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 transition-colors cursor-pointer"
+          title="Instructies"
         >
-          <Info className="w-4 h-4 text-white/40" />
+          <Info className="w-4 h-4" />
         </button>
       </div>
 
       {showInstructions && (
-        <div className="glass p-4 rounded-xl text-[10px] font-mono uppercase tracking-widest text-white/40 space-y-3 border border-white/10 leading-relaxed">
-          <p className="font-bold text-accent">Protocol voor optimale data:</p>
-          <ul className="space-y-1">
-            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-accent rounded-full" /> Houd de horizon recht</li>
-            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-accent rounded-full" /> Identificeer vaste herkenningspunten</li>
-            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-accent rounded-full" /> Focus op de branding zone</li>
+        <div className="bg-slate-50 p-4 rounded-2xl text-xs font-mono text-slate-700 space-y-2 border border-slate-200 leading-relaxed">
+          <p className="font-bold text-slate-900 uppercase">Protocol voor betrouwbare spotdata:</p>
+          <ul className="space-y-1 text-slate-600">
+            <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-cyan-600 rounded-full shrink-0" /> Houd de horizon zo recht mogelijk</li>
+            <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-cyan-600 rounded-full shrink-0" /> Identificeer vaste herkenningspunten (pieren, strandpalen)</li>
+            <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-cyan-600 rounded-full shrink-0" /> Focus op de branding / brekende golven</li>
           </ul>
         </div>
       )}
 
       <div className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-widest text-white/30 ml-2">Selecteer Spot</label>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold ml-1">Selecteer Spot</label>
           <div className="relative">
             <select 
               value={selectedSpotId}
               onChange={(e) => setSelectedSpotId(e.target.value)}
-              className="w-full glass rounded-2xl border border-white/5 bg-transparent px-4 py-3 text-sm text-white focus:outline-none appearance-none"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-cyan-600 appearance-none font-medium"
             >
-              <option value="" className="bg-marine-950">--- Selecteer Spot ---</option>
+              <option value="" className="bg-white text-slate-500">--- Selecteer Spot ---</option>
               {spots.map(s => (
-                <option key={s.id} value={s.id} className="bg-marine-950">{s.name}</option>
+                <option key={s.id} value={s.id} className="bg-white text-slate-900">{s.name}</option>
               ))}
             </select>
-            <MapPin className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 pointer-events-none" />
+            <MapPin className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-widest text-white/30 ml-2">Extra opmerkingen (optioneel)</label>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold ml-1">Extra opmerkingen (optioneel)</label>
           <textarea
             value={userNote}
             onChange={(e) => setUserNote(e.target.value)}
-            placeholder="Bijv: 'De stroming is sterker dan verwacht' of 'Goede golven maar wel druk'"
-            className="w-full glass rounded-2xl border border-white/5 bg-transparent px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none resize-none h-24"
+            placeholder="Bijv: 'De stroming trekt flink naar het noorden' of 'Goede golven, cleane sets!'"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-600 resize-none h-24"
           />
         </div>
 
         <button
           disabled={!selectedSpotId || isUploading}
           onClick={() => fileInputRef.current?.click()}
-          className="w-full h-14 flex items-center justify-center gap-3 bg-white text-marine-950 rounded-2xl font-display font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:scale-100 transition-all shadow-xl"
+          className="w-full h-12 sm:h-14 flex items-center justify-center gap-2.5 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-wider hover:bg-cyan-700 disabled:opacity-40 transition-all shadow-md cursor-pointer text-xs sm:text-sm font-mono"
         >
           {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-          Report Insturen
+          Report met Foto Verzenden
         </button>
         <input 
           type="file" 
@@ -243,26 +245,20 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
 
       {status && (
         <div className={cn(
-          "p-4 rounded-xl flex items-start gap-4 text-[10px] font-mono uppercase tracking-widest border transition-all",
-          status.type === 'success' ? 'glass border-emerald-500/20 text-emerald-400' :
-          status.type === 'error' ? 'glass border-red-500/20 text-red-400' :
-          'glass border-accent/20 text-accent'
+          "p-4 rounded-xl flex items-start gap-3 text-xs font-mono border transition-all",
+          status.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+          status.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' :
+          'bg-cyan-50 border-cyan-200 text-cyan-800'
         )}>
-          {status.type === 'success' && <CheckCircle2 className="w-4 h-4 shrink-0" />}
-          {status.type === 'error' && <AlertCircle className="w-4 h-4 shrink-0" />}
-          {status.type === 'info' && <Loader2 className="w-4 h-4 shrink-0 animate-spin" />}
-          <p className="leading-relaxed">{status.message}</p>
+          {status.type === 'success' && <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />}
+          {status.type === 'error' && <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />}
+          {status.type === 'info' && <Loader2 className="w-4 h-4 shrink-0 animate-spin text-cyan-600 mt-0.5" />}
+          <p className="leading-relaxed font-medium">{status.message}</p>
         </div>
       )}
 
-      <div className="flex items-center justify-center gap-4 py-2 opacity-30">
-        <div className="h-px w-8 bg-white" />
-        <Eye className="w-3 h-3 text-white" />
-        <div className="h-px w-8 bg-white" />
-      </div>
-
-      <p className="text-[8px] font-mono text-white/20 text-center uppercase tracking-widest">
-        Visuele data wordt real-time verwerkt. Alleen de analyse wordt opgeslagen.
+      <p className="text-[10px] font-mono text-slate-400 text-center uppercase tracking-wider">
+        Visuele data wordt real-time verwerkt via GPS en AI-analyse.
       </p>
     </div>
   );

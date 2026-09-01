@@ -124,9 +124,9 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
   return (
     <>
       {/* Grid Thumbnail View */}
-      <div className="break-inside-avoid glass rounded-2xl overflow-hidden border border-white/5 mb-6 group">
+      <div className="break-inside-avoid bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mb-6 group hover:shadow-md transition-shadow">
         <div 
-          className="relative cursor-pointer overflow-hidden" 
+          className="relative cursor-pointer overflow-hidden bg-slate-100" 
           onClick={() => setIsExpanded(true)}
         >
           <img 
@@ -134,20 +134,20 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
             alt={post.caption || 'Community foto'} 
             className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105" 
           />
-          <div className="absolute inset-0 bg-marine-950/0 group-hover:bg-marine-950/20 transition-colors flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/30 transition-colors flex items-center justify-center">
             <MessageCircle className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
           </div>
         </div>
         
-        <div className="p-3 bg-marine-950/40 flex items-center justify-between">
+        <div className="p-3 bg-white border-t border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img 
               src={post.userAvatar || `https://ui-avatars.com/api/?name=${post.userName || 'U'}`} 
               alt="" 
-              className="w-6 h-6 rounded-full border border-white/10" 
+              className="w-6 h-6 rounded-full border border-slate-200" 
               referrerPolicy="no-referrer"
             />
-            <span className="text-[10px] font-mono text-white/60 uppercase truncate max-w-[100px]">{post.userName}</span>
+            <span className="text-xs font-mono font-bold text-slate-800 uppercase truncate max-w-[120px]">{post.userName}</span>
           </div>
           <VotingWidget 
             itemId={post.id!} 
@@ -167,7 +167,7 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-marine-950/95 backdrop-blur-md cursor-pointer"
+              className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm cursor-pointer"
               onClick={() => setIsExpanded(false)}
             />
             
@@ -176,10 +176,10 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className="relative w-full max-w-5xl h-full max-h-[90vh] glass bg-marine-900 border border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row z-10"
+              className="relative w-full max-w-5xl h-full max-h-[90vh] bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row z-10"
             >
               {/* Left side: Image */}
-              <div className="flex-1 bg-black/50 flex items-center justify-center relative md:border-r border-white/5 overflow-hidden min-h-[40vh] md:min-h-0">
+              <div className="flex-1 bg-slate-950 flex items-center justify-center relative md:border-r border-slate-200 overflow-hidden min-h-[40vh] md:min-h-0">
                 <img 
                   src={post.imageUrl} 
                   alt={post.caption || 'Community foto'} 
@@ -188,26 +188,26 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
                 {/* Mobile close button (absolute top right) */}
                 <button 
                   onClick={() => setIsExpanded(false)}
-                  className="md:hidden absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/80 rounded-full text-white backdrop-blur-sm transition-colors"
+                  className="md:hidden absolute top-4 right-4 p-2 bg-slate-900/70 hover:bg-slate-900 rounded-full text-white backdrop-blur-sm transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Right side: Info & Comments */}
-              <div className="w-full md:w-[400px] lg:w-[450px] flex flex-col h-[50vh] md:h-full bg-marine-950/50">
+              <div className="w-full md:w-[400px] lg:w-[450px] flex flex-col h-[50vh] md:h-full bg-slate-50">
                 {/* Header: User Info & Actions */}
-                <div className="p-4 border-b border-white/10 flex items-center justify-between shrink-0">
+                <div className="p-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
                   <div className="flex items-center gap-3">
                     <img 
                       src={post.userAvatar || `https://ui-avatars.com/api/?name=${post.userName || 'U'}`} 
                       alt="" 
-                      className="w-8 h-8 rounded-full" 
+                      className="w-8 h-8 rounded-full border border-slate-200" 
                       referrerPolicy="no-referrer"
                     />
-                    <div className="text-[10px] font-mono uppercase leading-tight">
-                      <div className="text-white/90 font-bold">{post.userName}</div>
-                      <div className="text-white/40">{format(parseISO(post.timestamp), 'd MMM yyyy, HH:mm', { locale: nl })}</div>
+                    <div className="text-xs font-mono leading-tight">
+                      <div className="text-slate-900 font-bold">{post.userName}</div>
+                      <div className="text-slate-500 text-[10px]">{format(parseISO(post.timestamp), 'd MMM yyyy, HH:mm', { locale: nl })}</div>
                     </div>
                   </div>
                   
@@ -215,7 +215,7 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
                     {canDelete && (
                       <button 
                         onClick={handleDeletePost}
-                        className="p-1.5 text-red-400/60 hover:text-red-400 transition-colors bg-white/5 rounded-full"
+                        className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 transition-colors rounded-full cursor-pointer"
                         title="Verwijder foto"
                       >
                         <X className="w-4 h-4" />
@@ -223,7 +223,7 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
                     )}
                     <button 
                       onClick={() => setIsExpanded(false)}
-                      className="hidden md:flex p-1.5 text-white/60 hover:text-white transition-colors bg-white/5 rounded-full"
+                      className="hidden md:flex p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors rounded-full cursor-pointer"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -231,41 +231,44 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
                 </div>
 
                 {/* Scrollable middle section: Caption, Voting, Comments List */}
-                <div className="flex-1 overflow-y-auto custom-scroll p-4 space-y-6">
+                <div className="flex-1 overflow-y-auto custom-scroll p-4 space-y-4">
                   {/* Caption & Voting */}
-                  <div className="space-y-4 pb-4 border-b border-white/5">
+                  <div className="space-y-3 pb-4 border-b border-slate-200 bg-white p-3.5 rounded-xl border border-slate-200">
                     {post.caption && (
-                      <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>
+                      <p className="text-slate-900 text-sm leading-relaxed font-medium">{post.caption}</p>
                     )}
-                    <VotingWidget 
-                      itemId={post.id!} 
-                      collectionName="communityPosts" 
-                      upvotes={post.upvotes || []} 
-                      downvotes={post.downvotes || []} 
-                    />
+                    <div className="pt-1">
+                      <VotingWidget 
+                        itemId={post.id!} 
+                        collectionName="communityPosts" 
+                        upvotes={post.upvotes || []} 
+                        downvotes={post.downvotes || []} 
+                      />
+                    </div>
                   </div>
 
                   {/* Comments List */}
-                  <div className="space-y-4">
+                  <div className="space-y-2.5">
+                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Reacties ({comments.length})</h4>
                     {comments.length > 0 ? (
                       comments.map(c => (
-                        <div key={c.id} className="group flex justify-between gap-3 text-sm">
-                          <div className="flex gap-2 text-white/70">
-                            <span className="font-bold text-white/90 shrink-0">{c.userName}</span>
-                            <span className="break-words leading-relaxed">{c.text}</span>
+                        <div key={c.id} className="group flex justify-between gap-3 text-xs bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                          <div className="flex flex-col gap-0.5 text-slate-700">
+                            <span className="font-bold text-slate-900">{c.userName}</span>
+                            <span className="break-words leading-relaxed text-slate-800">{c.text}</span>
                           </div>
                           {(isAdmin || currentUser?.uid === c.userId) && (
                             <button 
                               onClick={() => c.id && handleDeleteComment(c.id, c.userId)}
-                              className="opacity-0 group-hover:opacity-100 text-red-400/60 hover:text-red-400 shrink-0 transition-opacity p-0.5"
+                              className="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-rose-700 shrink-0 transition-opacity p-0.5 cursor-pointer self-start"
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-8 text-white/30 italic text-sm">
+                      <div className="text-center py-6 text-slate-400 italic text-xs bg-white rounded-xl border border-slate-200">
                         Nog geen reacties. Wees de eerste!
                       </div>
                     )}
@@ -273,7 +276,7 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
                 </div>
 
                 {/* Footer: Add Comment */}
-                <div className="p-4 border-t border-white/10 bg-marine-950/80 shrink-0">
+                <div className="p-4 border-t border-slate-200 bg-white shrink-0">
                   {currentUser ? (
                     <form onSubmit={handleAddComment} className="flex gap-2">
                       <input
@@ -281,19 +284,19 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         placeholder="Voeg een reactie toe..."
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-600"
                         maxLength={1000}
                       />
                       <button 
                         type="submit" 
                         disabled={isSubmitting || !newComment.trim()}
-                        className="text-xs font-bold text-accent disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider px-4 bg-accent/10 hover:bg-accent/20 rounded-xl transition-colors"
+                        className="text-xs font-bold text-white bg-slate-900 hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
                       >
                         Post
                       </button>
                     </form>
                   ) : (
-                    <p className="text-xs text-white/40 text-center">Log in om te reageren.</p>
+                    <p className="text-xs text-slate-500 text-center font-medium">Log in via je profiel om te reageren.</p>
                   )}
                 </div>
               </div>
@@ -523,19 +526,19 @@ export function CommunitySection() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-32">
-      <header className="text-center space-y-2">
-        <h2 className="text-3xl font-black italic uppercase text-white">Community</h2>
-        <p className="text-[10px] font-mono text-white/30 tracking-[0.3em] uppercase">Vang de Noordzee Vibe</p>
+    <div className="max-w-4xl mx-auto space-y-6 pb-32">
+      <header className="text-center space-y-1">
+        <h2 className="text-2xl sm:text-3xl font-black uppercase text-slate-900 tracking-tight font-tactical">Community</h2>
+        <p className="text-xs font-mono text-cyan-700 tracking-widest uppercase font-bold">Vang de Noordzee Vibe</p>
       </header>
       
       {/* Tabs */}
-      <div className="flex gap-2 p-1.5 glass rounded-2xl border border-white/5 mx-auto max-w-sm">
+      <div className="flex gap-1.5 p-1.5 bg-slate-100/90 backdrop-blur-md rounded-2xl border border-slate-200 mx-auto max-w-xs shadow-xs">
         <button 
           onClick={() => setActiveTab('gallery')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all",
-            activeTab === 'gallery' ? 'bg-white text-marine-950 shadow-xl' : 'text-white/40 hover:text-white/60'
+            "flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer font-mono",
+            activeTab === 'gallery' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
           )}
         >
           <Camera className="w-4 h-4" />
@@ -544,8 +547,8 @@ export function CommunitySection() {
         <button 
           onClick={() => setActiveTab('blog')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all",
-            activeTab === 'blog' ? 'bg-accent text-marine-950 shadow-xl' : 'text-white/40 hover:text-white/60'
+            "flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer font-mono",
+            activeTab === 'blog' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
           )}
         >
           <BookOpen className="w-4 h-4" />
@@ -557,14 +560,14 @@ export function CommunitySection() {
         {activeTab === 'gallery' ? (
           <motion.div
             key="gallery"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-8"
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
           >
             {/* Upload Area */}
             {auth.currentUser ? (
-              <div className="glass rounded-3xl p-6 border border-white/5 text-center">
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 text-center shadow-sm">
                 <input 
                   type="file" 
                   ref={fileInputRef}
@@ -574,76 +577,75 @@ export function CommunitySection() {
                 />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-12 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center gap-4 hover:border-accent/50 hover:bg-white/5 transition-all group"
+                  className="w-full py-8 sm:py-10 border-2 border-dashed border-slate-200 hover:border-cyan-500 hover:bg-cyan-50/20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all group cursor-pointer"
                 >
-                  <div className="w-16 h-16 rounded-full glass bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Upload className="w-8 h-8 text-white/40 group-hover:text-accent transition-colors" />
+                  <div className="w-14 h-14 rounded-2xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700 group-hover:scale-105 transition-transform">
+                    <Upload className="w-7 h-7" />
                   </div>
                   <div className="space-y-1">
-                    <p className="font-bold text-white uppercase italic">Deel een foto</p>
-                    <p className="text-xs text-white/40 font-mono">Max 10MB (JPEG, PNG, WEBP)</p>
+                    <p className="font-black text-slate-900 uppercase font-tactical tracking-wide">Deel een foto</p>
+                    <p className="text-xs text-slate-500 font-mono">Max 10MB (JPEG, PNG, WEBP)</p>
                   </div>
                 </button>
               </div>
             ) : (
-              <div className="glass rounded-3xl p-6 border border-white/5 text-center">
-                <p className="text-white/60">Log in om foto\'s te delen.</p>
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 text-center shadow-sm">
+                <p className="text-slate-700 font-medium text-sm">Log in via je profiel om foto's te delen met de community.</p>
               </div>
             )}
 
             {/* Gallery Grid */}
-            <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+            <div className="columns-1 sm:columns-2 lg:columns-3 gap-5 space-y-5">
               {posts.map(post => (
                 <CommunityPostCard key={post.id} post={post} />
               ))}
             </div>
             
             {posts.length === 0 && (
-              <div className="text-center py-12">
-                <Camera className="w-12 h-12 text-white/20 mx-auto mb-4" />
-                <p className="text-white/50">Nog geen foto's gedeeld. Wees de eerste!</p>
+              <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 shadow-sm">
+                <Camera className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-600 font-medium text-sm">Nog geen foto's gedeeld. Wees de eerste!</p>
               </div>
             )}
           </motion.div>
         ) : (
           <motion.div
             key="blog"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-8"
+            exit={{ opacity: 0, y: -15 }}
+            className="space-y-6"
           >
-            <div className="grid gap-8">
+            <div className="grid gap-6">
               {blogs.map(blog => (
-                <article key={blog.id} className="glass rounded-3xl overflow-hidden border border-white/5 group">
+                <article key={blog.id} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-shadow group">
                   {blog.imageUrl && (
-                    <div className="w-full h-64 overflow-hidden relative">
+                    <div className="w-full h-56 sm:h-72 overflow-hidden relative bg-slate-100">
                       <img src={blog.imageUrl} alt={blog.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-marine-950 to-transparent opacity-80" />
                     </div>
                   )}
-                  <div className="p-8 space-y-6">
-                    <div className="space-y-2">
-                      <div className="text-[10px] font-mono text-accent uppercase tracking-widest">
+                  <div className="p-6 sm:p-8 space-y-4">
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-mono text-cyan-700 uppercase tracking-widest font-bold">
                         {format(parseISO(blog.timestamp), 'd MMMM yyyy', { locale: nl })}
                       </div>
-                      <h3 className="text-2xl font-black italic uppercase text-white leading-tight">
+                      <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-900 leading-tight font-tactical">
                         {blog.title}
                       </h3>
                     </div>
                     
-                    <p className="text-white/60 leading-relaxed">
+                    <div className="text-slate-600 leading-relaxed text-sm sm:text-base space-y-3">
                       {blog.content.split('\n').map((paragraph, i) => (
-                        <span key={i} className="block mb-4">{paragraph}</span>
+                        <p key={i}>{paragraph}</p>
                       ))}
-                    </p>
+                    </div>
                     
-                    <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-                          <Users className="w-4 h-4 text-accent" />
+                    <div className="flex items-center justify-between pt-5 border-t border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
+                          <Users className="w-4 h-4" />
                         </div>
-                        <span className="text-xs font-bold text-white uppercase tracking-wider">{blog.authorName}</span>
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">{blog.authorName}</span>
                       </div>
                       {blog.id !== 'demo-1' && (
                         <VotingWidget 
@@ -668,25 +670,25 @@ export function CommunitySection() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-marine-950/90 backdrop-blur-md modal-backdrop"
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"
               onClick={() => { setShowEula(false); setCompressedImageData(null); setUploadError(null); setSelectedFileMeta(null); }}
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-lg glass bg-marine-900 border border-white/10 modal-dialog rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-white border border-slate-200 modal-dialog rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl overflow-hidden z-10"
             >
-              <div className="modal-header pb-2 border-b border-white/10 flex items-center justify-between">
-                <h3 className="modal-title text-2xl font-black italic uppercase text-white">Upload Voorwaarden</h3>
+              <div className="modal-header pb-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="modal-title text-xl font-black uppercase text-slate-900 font-tactical">Upload Voorwaarden</h3>
                 <button
                   onClick={() => { setShowEula(false); setCompressedImageData(null); setUploadError(null); setSelectedFileMeta(null); }}
-                  className="modal-close-btn p-2 glass rounded-full hover:bg-white/10 transition-colors flex items-center justify-center"
+                  className="modal-close-btn p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-600 transition-colors flex items-center justify-center cursor-pointer"
                 >
-                  <X className="w-4 h-4 text-white/50" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               
-              <div className="modal-subcard space-y-4 p-4 rounded-xl bg-black/20 text-sm text-white/70 h-44 overflow-y-auto custom-scroll">
-                <p>Door deze foto te uploaden ga je akkoord met de volgende voorwaarden:</p>
+              <div className="modal-subcard space-y-3 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 h-44 overflow-y-auto custom-scroll">
+                <p className="font-semibold text-slate-800">Door deze foto te uploaden ga je akkoord met de volgende voorwaarden:</p>
                 <ol className="list-decimal pl-4 space-y-2">
                   <li>Je beschikt over de rechten om deze foto te delen.</li>
                   <li>De foto bevat geen ongepaste, schokkende of illegale content.</li>
@@ -695,38 +697,38 @@ export function CommunitySection() {
                 </ol>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-mono text-white/40 uppercase tracking-widest pl-2">Bijschrift (Optioneel)</label>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest font-bold">Bijschrift (Optioneel)</label>
                 <textarea 
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  className="modal-input w-full glass bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 text-sm focus:border-cyan-600 focus:outline-none placeholder-slate-400"
                   rows={2}
                   placeholder="Wat gebeurt er op de foto?"
                 />
               </div>
 
-              <label className="flex items-start gap-4 cursor-pointer group">
-                <div className="mt-1 relative flex items-center justify-center">
+              <label className="flex items-start gap-3 cursor-pointer group select-none">
+                <div className="mt-0.5 relative flex items-center justify-center">
                   <input type="checkbox" checked={eulaAccepted} onChange={(e) => setEulaAccepted(e.target.checked)} className="peer sr-only" />
-                  <div className="w-5 h-5 rounded border-2 border-white/30 peer-checked:bg-accent peer-checked:border-accent transition-all" />
-                  <Check className="w-3 h-3 text-marine-950 absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
+                  <div className="w-5 h-5 rounded-md border-2 border-slate-300 peer-checked:bg-cyan-600 peer-checked:border-cyan-600 transition-all flex items-center justify-center" />
+                  <Check className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
                 </div>
-                <span className="text-sm text-white/80 group-hover:text-white transition-colors">
+                <span className="text-xs text-slate-700 group-hover:text-slate-900 transition-colors font-medium">
                   Ik ga akkoord dat Noordzeesurf niet aansprakelijk is voor deze upload.
                 </span>
               </label>
 
               {uploadError && (
-                <div id="upload-error-detail-panel" className="p-4 rounded-xl border border-red-500/20 bg-red-950/20 text-xs text-red-200 mt-2 space-y-2">
+                <div id="upload-error-detail-panel" className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 text-xs text-rose-800 space-y-1.5">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <p className="font-bold">{uploadError.message}</p>
                       {uploadError.details && (
-                        <details className="mt-1 text-red-400 font-mono text-[10px] cursor-pointer">
-                          <summary className="hover:text-red-300 select-none">Meer details</summary>
-                          <pre className="mt-1.5 p-2 bg-black/40 rounded border border-white/5 overflow-x-auto whitespace-pre-wrap select-all max-h-32 overflow-y-auto font-mono">
+                        <details className="text-rose-700 font-mono text-[10px] cursor-pointer">
+                          <summary className="hover:text-rose-900 select-none font-bold">Meer details</summary>
+                          <pre className="mt-1 p-2 bg-white rounded border border-rose-200 overflow-x-auto whitespace-pre-wrap select-all max-h-32 overflow-y-auto font-mono text-rose-900">
                             {uploadError.details}
                           </pre>
                         </details>
@@ -736,17 +738,17 @@ export function CommunitySection() {
                 </div>
               )}
 
-              <div className="flex gap-4 pt-2">
+              <div className="flex gap-3 pt-2">
                 <button 
                   onClick={() => { setShowEula(false); setCompressedImageData(null); setUploadError(null); setSelectedFileMeta(null); }}
-                  className="modal-btn-secondary flex-1 py-4 glass text-white font-bold rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                  className="modal-btn-secondary flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer text-xs uppercase font-mono"
                 >
                   Annuleren
                 </button>
                 <button 
                   onClick={handleUpload}
                   disabled={!eulaAccepted || isUploading}
-                  className="modal-btn-primary flex-1 py-4 bg-accent text-marine-950 font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent/90 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="modal-btn-primary flex-1 py-3 bg-slate-900 hover:bg-cyan-700 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer text-xs uppercase font-mono"
                 >
                   {isUploading ? 'Uploaden...' : 'Upload Foto'}
                 </button>

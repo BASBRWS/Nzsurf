@@ -72,25 +72,25 @@ export const VotingWidget = ({ itemId, collectionName, upvotes = [], downvotes =
   };
 
   return (
-    <div className="flex items-center gap-1 bg-black/20 rounded-full px-2 py-1">
+    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5 shadow-2xs">
       <button 
         onClick={() => handleVote('up')}
         disabled={isVoting || !currentUser}
         className={cn(
-          "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold transition-colors disabled:opacity-50",
-          hasUpvoted ? "text-emerald-400 bg-emerald-400/10" : "text-white/50 hover:text-emerald-400 hover:bg-emerald-400/5"
+          "flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-bold transition-colors disabled:opacity-40 cursor-pointer",
+          hasUpvoted ? "text-emerald-700 bg-emerald-100" : "text-slate-600 hover:text-emerald-700 hover:bg-emerald-50"
         )}
       >
         <ThumbsUp className="w-3.5 h-3.5" />
         {upvotes.length}
       </button>
-      <div className="w-px h-3 bg-white/10" />
+      <div className="w-px h-3 bg-slate-200" />
       <button 
         onClick={() => handleVote('down')}
         disabled={isVoting || !currentUser}
         className={cn(
-          "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold transition-colors disabled:opacity-50",
-          hasDownvoted ? "text-red-400 bg-red-400/10" : "text-white/50 hover:text-red-400 hover:bg-red-400/5"
+          "flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-bold transition-colors disabled:opacity-40 cursor-pointer",
+          hasDownvoted ? "text-rose-700 bg-rose-100" : "text-slate-600 hover:text-rose-700 hover:bg-rose-50"
         )}
       >
         <ThumbsDown className="w-3.5 h-3.5" />
