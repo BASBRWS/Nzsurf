@@ -11,6 +11,16 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
   },
+  plugins: {
+    // Native Google-login: de plugin doet de sign-in buiten de WebView en levert
+    // een idToken; daarmee loggen we in de Firebase JS-SDK in (signInWithCredential).
+    // serverClientId = de Web-OAuth-client van het Firebase-project.
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      serverClientId: '112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com',
+      forceCodeForRefreshToken: false,
+    },
+  },
 };
 
 export default config;

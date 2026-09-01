@@ -44,9 +44,10 @@ import { cn } from './lib/utils';
 import { 
   auth, 
   db, 
-  googleProvider, 
-  signInWithPopup, 
-  signOut, 
+  googleProvider,
+  signInWithPopup,
+  signInWithGoogleSmart,
+  signOut,
   onAuthStateChanged, 
   doc, 
   getDoc,
@@ -167,7 +168,7 @@ export default function App() {
 
   const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithGoogleSmart();
     } catch (error) {
       console.error('Login failed:', error);
     }

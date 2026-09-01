@@ -15,3 +15,4 @@ ios/
 preview/
 preview-dist/
 vite.preview.config.ts
+android-signing/

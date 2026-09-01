@@ -1,5 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { 
   getFirestore, 
   doc, 
@@ -26,6 +28,29 @@ export const auth = getAuth(app);
 export const db = firebaseConfig.firestoreDatabaseId ? getFirestore(app, firebaseConfig.firestoreDatabaseId) : getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Slimme Google-login: op web de popup, op native (APK) de Google-Auth-plugin.
+// In een WebView-APK werkt signInWithPopup niet (Google blokkeert OAuth in
+// embedded webviews), daarom doet de plugin de sign-in native en loggen we met
+// het idToken in via de Firebase JS-SDK.
+let googleAuthInitialized = false;
+const WEB_CLIENT_ID = '112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com';
+
+export async function signInWithGoogleSmart(): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    if (!googleAuthInitialized) {
+      GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
+      googleAuthInitialized = true;
+    }
+    const result = await GoogleAuth.signIn();
+    const idToken = result?.authentication?.idToken;
+    if (!idToken) throw new Error('Geen idToken ontvangen van Google');
+    const credential = GoogleAuthProvider.credential(idToken);
+    await signInWithCredential(auth, credential);
+  } else {
+    await signInWithPopup(auth, googleProvider);
+  }
+}
 
 // Storage helper
 export const uploadImageToStorage = async (file: File, path: string): Promise<string> => {
