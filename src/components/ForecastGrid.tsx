@@ -11,19 +11,19 @@ interface ForecastGridProps {
 }
 
 const getWeatherIcon = (code?: number) => {
-  if (code === undefined) return <Sun className="w-4 h-4 sm:w-5 sm:h-5 opacity-40" />;
+  if (code === undefined) return <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />;
 
   switch (code) {
     case 0:
-      return <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />;
+      return <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />;
     case 1:
     case 2:
-      return <CloudSun className="w-4 h-4 sm:w-5 sm:h-5 text-sand-200" />;
+      return <CloudSun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />;
     case 3:
-      return <Cloud className="w-4 h-4 sm:w-5 sm:h-5 text-sand-300" />;
+      return <Cloud className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />;
     case 45:
     case 48:
-      return <CloudFog className="w-4 h-4 sm:w-5 sm:h-5 text-sand-400" />;
+      return <CloudFog className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />;
     case 51:
     case 53:
     case 55:
@@ -37,20 +37,20 @@ const getWeatherIcon = (code?: number) => {
     case 80:
     case 81:
     case 82:
-      return <CloudRain className="w-4 h-4 sm:w-5 sm:h-5 text-marine-400" />;
+      return <CloudRain className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-600" />;
     case 71:
     case 73:
     case 75:
     case 77:
     case 85:
     case 86:
-      return <CloudSnow className="w-4 h-4 sm:w-5 sm:h-5 text-blue-100" />;
+      return <CloudSnow className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />;
     case 95:
     case 96:
     case 99:
-      return <CloudLightning className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />;
+      return <CloudLightning className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />;
     default:
-      return <Sun className="w-4 h-4 sm:w-5 sm:h-5 opacity-40" />;
+      return <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />;
   }
 };
 
@@ -59,10 +59,10 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
   const days = Array.from(new Set(forecast.map(f => format(parseISO(f.timestamp), 'yyyy-MM-dd'))));
 
   const getSuitabilityClasses = (height: number, period: number) => {
-    if (height < 0.3) return 'text-slate-400 dark:text-white/30 border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-white/5'; // Flat
-    if (height > 1.8) return 'text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 hover:bg-amber-100 dark:hover:bg-amber-500/10 font-bold'; // Big
-    if (height >= 0.6 && period >= 5) return 'text-emerald-800 dark:text-accent border-emerald-300 dark:border-accent/20 bg-emerald-50 dark:bg-accent/5 hover:bg-emerald-100 dark:hover:bg-accent/10 font-bold'; // Good
-    return 'text-sky-800 dark:text-marine-300 border-sky-200 dark:border-marine-500/20 bg-sky-50 dark:bg-marine-500/5 hover:bg-sky-100 dark:hover:bg-marine-500/10'; // Average
+    if (height < 0.3) return 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100'; // Flat
+    if (height > 1.8) return 'text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100 font-bold shadow-xs'; // Big
+    if (height >= 0.6 && period >= 5) return 'text-emerald-900 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 font-bold shadow-xs'; // Good
+    return 'text-sky-900 border-sky-200 bg-sky-50 hover:bg-sky-100'; // Average
   };
 
   const calculateScores = (data: ForecastData) => {
@@ -100,27 +100,29 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
   const hoursToShow = [9, 12, 15, 18, 21];
 
   return (
-    <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+    <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 bg-white/95 rounded-3xl border border-slate-200 p-3 sm:p-5 shadow-[0_8px_30px_rgba(0,40,90,0.06)]">
       <table className="w-full text-left border-collapse min-w-[380px] sm:min-w-[700px]">
         <thead>
-          <tr className="border-b border-white/10">
-            <th className="py-2 sm:py-6 px-1.5 sm:px-4 font-mono text-[9px] sm:text-[11px] uppercase tracking-widest opacity-70 w-[45px] sm:w-[80px] sticky left-0 forecast-sticky-col z-20 border-r border-white/10">Tijd</th>
+          <tr className="border-b border-slate-200">
+            <th className="py-3 sm:py-4 px-2 sm:px-4 font-mono text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 font-bold w-[50px] sm:w-[90px] sticky left-0 bg-white/95 z-20 border-r border-slate-200">
+              Dag
+            </th>
             {hoursToShow.map((hour) => (
-              <th key={hour} className="py-2 sm:py-6 px-1 sm:px-2 font-mono text-[9px] sm:text-[11px] uppercase tracking-widest opacity-60 text-center">
+              <th key={hour} className="py-3 sm:py-4 px-1 sm:px-2 font-mono text-[10px] sm:text-xs uppercase tracking-widest text-slate-600 font-bold text-center">
                 {hour}:00
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-100">
           {days.map((day) => (
-            <tr key={day} className="border-b border-white/10 last:border-0 group">
-              <td className="py-2 sm:py-6 px-1.5 sm:px-4 align-middle sticky left-0 forecast-sticky-col z-10 border-r border-white/10 shadow-[2px_0_8px_rgba(0,0,0,0.25)]">
+            <tr key={day} className="group hover:bg-slate-50/50 transition-colors">
+              <td className="py-3 sm:py-4 px-2 sm:px-4 align-middle sticky left-0 bg-white/95 z-10 border-r border-slate-200">
                 <div className="flex flex-col leading-none">
-                  <span className="capitalize text-[10px] sm:text-xs font-black group-hover:text-accent transition-colors">
+                  <span className="capitalize text-xs sm:text-sm font-black font-tactical text-slate-900 group-hover:text-cyan-700 transition-colors">
                     {format(parseISO(day), 'EEEE', { locale: nl }).slice(0, 2)}
                   </span>
-                  <span className="text-[7px] sm:text-[9px] font-mono font-bold opacity-60 uppercase tracking-tighter mt-0.5">
+                  <span className="text-[9px] sm:text-[10px] font-mono font-bold text-slate-500 uppercase tracking-tight mt-0.5">
                     {format(parseISO(day), 'd/MM')}
                   </span>
                 </div>
@@ -131,67 +133,67 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
                   return isSameDay(d, parseISO(day)) && d.getHours() === hour;
                 });
 
-                if (!data) return <td key={hour} className="p-1 opacity-20 text-center text-[8px] font-mono">---</td>;
+                if (!data) return <td key={hour} className="p-1 opacity-30 text-center text-[10px] font-mono text-slate-400">---</td>;
 
                 const { confidence, probability } = calculateScores(data);
 
                 return (
                   <td 
                     key={hour} 
-                    className="p-0.5 sm:p-2 group/cell"
+                    className="p-1 sm:p-2 group/cell"
                     onClick={() => onCellClick(data)}
                   >
                     <div className={cn(
-                      "flex flex-col gap-0.5 sm:gap-2 p-1 sm:p-4 rounded-md sm:rounded-2xl border transition-all cursor-pointer h-full justify-center group-hover/cell:scale-105 group-hover/cell:shadow-2xl group-hover/cell:z-10 relative overflow-hidden",
+                      "flex flex-col gap-1 sm:gap-2 p-1.5 sm:p-3.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer h-full justify-center group-hover/cell:scale-105 group-hover/cell:shadow-md group-hover/cell:z-10 relative overflow-hidden",
                       getSuitabilityClasses(data.waveHeight, data.swellPeriod)
                     )}>
                       {/* Probability Badge */}
                       {probability > 0 && (
-                        <div className="absolute top-0.5 right-0.5 sm:top-2 sm:right-2">
-                          <span className="text-[5px] sm:text-[8px] font-mono font-bold bg-black/20 px-1 rounded-sm text-current">
+                        <div className="absolute top-1 right-1 sm:top-2 sm:right-2">
+                          <span className="text-[7px] sm:text-[9px] font-mono font-bold bg-white/80 px-1 rounded border border-current/20 text-current">
                             {probability}%
                           </span>
                         </div>
                       )}
 
                       <div className="flex flex-col items-center leading-none">
-                        <span className="text-[10px] sm:text-2xl font-black tracking-tighter">
-                          {data.waveHeight}<span className="text-[5px] sm:text-[10px] ml-0.5 font-mono opacity-50 uppercase font-normal">m</span>
+                        <span className="text-xs sm:text-2xl font-black font-tactical tracking-tight text-slate-900">
+                          {data.waveHeight.toFixed(1)}<span className="text-[7px] sm:text-[10px] ml-0.5 font-mono text-slate-500 uppercase font-normal">m</span>
                         </span>
-                        <div className="flex items-center gap-0.5 mt-0.5 opacity-60">
-                          <Waves className="w-1.5 h-1.5 sm:w-3 sm:h-3" />
-                          <span className="text-[5px] sm:text-[10px] font-mono">{data.swellPeriod}s</span>
+                        <div className="flex items-center gap-0.5 mt-0.5 opacity-80">
+                          <Waves className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                          <span className="text-[8px] sm:text-[10px] font-mono font-bold">{data.swellPeriod}s</span>
                         </div>
                       </div>
 
-                      <div className="flex-col items-center gap-0.5 py-0.5 border-t border-current/5 sm:border-current/10 hidden sm:flex">
-                        <div className="flex items-center gap-1.5 text-[6px] sm:text-[9px] font-mono opacity-60">
-                          <span>{data.airTemp}°</span>
+                      <div className="flex-col items-center gap-0.5 py-0.5 border-t border-slate-200/60 hidden sm:flex">
+                        <div className="flex items-center gap-1.5 text-[8px] sm:text-[10px] font-mono text-slate-600">
+                          <span>{data.airTemp}°C</span>
                           {data.uvIndex !== undefined && data.uvIndex >= 1 && (
-                            <span className="text-amber-400/90 font-medium">☀️ UV {data.uvIndex}</span>
+                            <span className="text-amber-700 font-bold">☀️ UV {data.uvIndex}</span>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-center gap-0.5 sm:gap-2 pt-0.5 sm:pt-2 border-t border-current/5 sm:border-current/10">
-                        <div className="flex items-center gap-0.5 text-[5px] sm:text-[9px] font-mono uppercase bg-black/10 px-0.5 sm:px-1.5 py-0.2 sm:py-0.5 rounded-sm sm:rounded-md">
-                          <Wind className="w-1.5 h-1.5 sm:w-3 sm:h-3 opacity-60" />
+                      <div className="flex items-center justify-center gap-1 sm:gap-2 pt-1 border-t border-slate-200/60">
+                        <div className="flex items-center gap-0.5 text-[8px] sm:text-[10px] font-mono font-bold uppercase bg-white/80 px-1 sm:px-1.5 py-0.5 rounded border border-slate-200 text-slate-700">
+                          <Wind className="w-2 h-2 sm:w-3 sm:h-3 text-slate-500" />
                           <span>{Math.round(data.windSpeed)}</span>
                         </div>
                         <div 
-                          className="flex items-center justify-center w-2.5 h-2.5 sm:w-5 sm:h-5 rounded-full bg-black/10 sm:bg-black/20 text-current transition-transform duration-700 shrink-0"
+                          className="flex items-center justify-center w-3 h-3 sm:w-5 sm:h-5 rounded-full bg-slate-100 text-slate-700 transition-transform duration-700 shrink-0"
                           style={{ transform: `rotate(${data.windDirection}deg)` }}
                         >
-                          <Navigation className="w-1.5 h-1.5 sm:w-3 sm:h-3 fill-current" />
+                          <Navigation className="w-2 h-2 sm:w-3 sm:h-3 fill-current text-cyan-600" />
                         </div>
                       </div>
 
                       {/* Confidence Bar */}
-                      <div className="absolute bottom-0 left-0 right-0 h-[1.5px] sm:h-[3px] bg-black/10">
+                      <div className="absolute bottom-0 left-0 right-0 h-[2px] sm:h-[3px] bg-slate-200/80">
                         <div 
                           className={cn(
                             "h-full transition-all duration-1000",
-                            confidence > 80 ? "bg-emerald-500" : confidence > 60 ? "bg-accent" : "bg-orange-500"
+                            confidence > 80 ? "bg-emerald-500" : confidence > 60 ? "bg-cyan-500" : "bg-orange-500"
                           )}
                           style={{ width: `${confidence}%` }}
                         />
@@ -207,3 +209,4 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
     </div>
   );
 }
+

@@ -3,19 +3,70 @@
 @import "leaflet/dist/leaflet.css";
 
 @theme {
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Outfit", sans-serif;
+  --font-sans: "Inter", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Rajdhani", "Outfit", sans-serif;
+  --font-tactical: "Rajdhani", "Space Grotesk", "Chakra Petch", sans-serif;
+  --font-technical: "Space Grotesk", "Rajdhani", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-pixel: "Silkscreen", "Press Start 2P", monospace;
   --font-retro: "Press Start 2P", monospace;
   --font-serif: "Newsreader", "Playfair Display", Georgia, serif;
   
-  --color-marine-950: #020617;
-  --color-marine-900: #080c1d;
-  --color-marine-800: #10162f;
-  --color-marine-500: #3b82f6;
+  --color-marine-950: #0D1117;
+  --color-marine-900: #10141D;
+  --color-marine-800: #161D29;
+  --color-marine-500: #00D2FF;
   --color-sand-50: #f8fafc;
-  --color-accent: #54d1c1; /* Marine Teal */
+  --color-accent: #00D2FF; /* Neon Cyan */
+  --color-neon-cyan: #00D2FF;
+  --color-neon-blue: #007AFF;
+}
+
+@layer utilities {
+  .font-tactical {
+    font-family: "Rajdhani", "Space Grotesk", "Chakra Petch", sans-serif;
+  }
+  .font-technical {
+    font-family: "Space Grotesk", "Rajdhani", sans-serif;
+  }
+  .glass-tactical {
+    background-color: rgba(16, 22, 32, 0.75);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  }
+  .glass-tactical-glow {
+    background-color: rgba(16, 22, 32, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 210, 255, 0.25);
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.15), 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  }
+  .radar-sweep {
+    animation: radar-sweep 4s linear infinite;
+  }
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  .radar-ring {
+    animation: radar-ring 3s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+  }
+}
+
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}
+
+@keyframes radar-ring {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
 }
 
 @layer base {

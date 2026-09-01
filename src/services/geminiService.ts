@@ -379,7 +379,7 @@ export async function getSurfAdvice(
 
   const nearbyInfo = nearbySpots.length > 0 
     ? `ER ZIJN ANDERE SPOTS DICHTBIJ (BINNEN 5KM VAN DE GEBRUIKER): 
-       ${nearbySpots.map(s => `- ${s.name} (${s.type}, beste wind: ${s.bestWind.join(', ')})`).join('\n')}`
+       ${nearbySpots.map(s => `- ${s.name} (${s.type}, beste wind: ${(s.bestWind || []).join(', ')})`).join('\n')}`
     : '';
 
   const isSoulac = spot.id === 'soulac-sandaya' || spot.name.toLowerCase().includes('soulac');
@@ -402,9 +402,66 @@ export async function getSurfAdvice(
     ? user.boards.map(b => `- ${b.name} (${b.type}, ${b.volume}L, ${b.length}) ${b.id === user.selectedBoardId ? '[HUIDIG GESELECTEERD]' : ''}`).join('\n    ')
     : 'Geen boards geregistreerd in profiel';
 
+  // ... existing code ...
   const userWetsuitsStr = (user.wetsuits && user.wetsuits.length > 0)
     ? user.wetsuits.map(w => `- ${w.thickness} (Hood: ${w.hasHood ? 'Ja' : 'Nee'}, Boots: ${w.hasBoots ? 'Ja' : 'Nee'}, Gloves: ${w.hasGloves ? 'Ja' : 'Nee'})`).join('\n    ')
     : 'Geen wetsuits geregistreerd in profiel';
+
+  let recommendedBoardsStr = '';
+  try {
+    const res = await fetch('/surfboard-dataset-TOTAAL-1024.json');
+    if (res.ok) {
+      const data = await res.json();
+      const sizesMap = data.dropdowns?.sizes_by_brand_model || {};
+      let allBoards: any[] = [];
+      
+      for (const brand in sizesMap) {
+        for (const model in sizesMap[brand]) {
+          const boards = sizesMap[brand][model];
+          if (Array.isArray(boards)) {
+            boards.forEach(b => {
+               allBoards.push({ brand, model, ...b });
+            });
+          }
+        }
+      }
+      
+      const weight = user.weight || 75;
+      const skill = user.skillLevel || 'intermediate';
+      const waveHeight = forecast.waveHeight || 1;
+      
+      let targetVolume = weight * 0.45; 
+      if (skill === 'beginner') targetVolume = weight * 0.85;
+      if (skill === 'advanced') targetVolume = weight * 0.35;
+      
+      const matches = allBoards.filter(b => {
+         if (!b.volume_l) return false;
+         const diff = Math.abs(b.volume_l - targetVolume);
+         return diff < 15;
+      });
+      
+      matches.forEach(b => {
+         let matchScore = 15 - Math.abs(b.volume_l - targetVolume);
+         if (waveHeight < 0.6) {
+            if (b.volume_l > targetVolume) matchScore += 5;
+            if (b.lengte_cm > 230) matchScore += 5;
+         } else if (waveHeight > 1.5) {
+            if (b.volume_l < targetVolume + 2) matchScore += 5;
+            if (b.lengte_cm < 210) matchScore += 3;
+         }
+         b._matchScore = matchScore;
+      });
+      
+      matches.sort((a, b) => (b._matchScore || 0) - (a._matchScore || 0));
+      const topMatches = matches.slice(0, 8);
+      
+      if (topMatches.length > 0) {
+        recommendedBoardsStr = topMatches.map(b => `- ${b.brand} ${b.model} ${b.maat_label} (${b.volume_l}L, Lengte: ${Math.round(b.lengte_cm)}cm)`).join('\n    ');
+      }
+    }
+  } catch (error) {
+    console.error("Could not fetch board dataset for recommendations", error);
+  }
 
   const prompt = `
     ${coachRole}
@@ -423,6 +480,11 @@ export async function getSurfAdvice(
     ${quiverBoardsStr}
     - Wetsuits in Kast:
     ${userWetsuitsStr}
+    
+    DATABASE AANBEVELINGEN (IDEALE BOARDS VOOR DEZE SURFER & CONDITIES):
+    De volgende boards komen uit onze live database en matchen perfect met het gewicht en niveau van de surfer:
+    ${recommendedBoardsStr || 'Geen specifieke aanbevelingen.'}
+    => Gebruik eventueel 1 of 2 van deze specifieke aanbevelingen (merk, model, maat, volume) als 'tip' voor hun volgende board, vooral als hun eigen setup tekortschiet voor de huidige condities.
     
     LOCATIE DIE WORDT BEKEKEN:
     - Spot: ${spot.name} (${spot.type})

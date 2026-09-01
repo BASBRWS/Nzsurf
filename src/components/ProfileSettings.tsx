@@ -4,7 +4,7 @@ import { SpotReport } from './SpotReport';
 import { AdminPanel } from './AdminPanel';
 import { auth, db } from '../lib/firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { Settings, Camera, Shield, User, Waves, MapPin, Plus, Trash2, Share2, ChevronRight, History, AlertTriangle, RefreshCw, Thermometer, Ruler, CheckCircle2 } from 'lucide-react';
+import { Settings, Camera, Shield, User, Waves, MapPin, Plus, Trash2, Share2, ChevronRight, History, AlertTriangle, RefreshCw, Thermometer, Ruler, CheckCircle2, Database, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -17,9 +17,129 @@ interface ProfileSettingsProps {
   onShareSpot: (spot: SurfSpot) => void;
 }
 
+function BoardDatabaseSelector({ onAdd, onCancel }: { onAdd: (b: Board) => void, onCancel: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
+  const [selectedSizeId, setSelectedSizeId] = useState('');
+
+  useEffect(() => {
+    fetch('/surfboard-dataset-TOTAAL-1024.json')
+      .then(res => res.json())
+      .then(d => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch(e => {
+        console.error('Error loading board dataset:', e);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 text-center text-[10px] font-mono text-slate-500 uppercase tracking-widest animate-pulse">Database laden...</div>;
+  }
+
+  if (!data || !data.dropdowns) {
+    return <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 border border-red-500/20 text-center text-xs text-red-400">Fout bij laden database.</div>;
+  }
+
+  const brands = data.dropdowns.brands || [];
+  const models = selectedBrand ? (data.dropdowns.models_by_brand[selectedBrand] || []) : [];
+  const sizes = (selectedBrand && selectedModel) ? (data.dropdowns.sizes_by_brand_model[selectedBrand]?.[selectedModel] || []) : [];
+
+  const handleAdd = () => {
+    const sizeData = sizes.find((s: any) => s.board_id === selectedSizeId);
+    if (!sizeData) return;
+    
+    // Map to local Board type
+    let boardType: Board['type'] = 'shortboard';
+    const volume = sizeData.volume_l;
+    
+    if (sizeData.constructie === 'soft-top') boardType = 'softtop';
+    else if (sizeData.lengte_cm > 270) boardType = 'longboard';
+    else if (sizeData.lengte_cm > 210) boardType = 'funboard';
+    
+    onAdd({
+      id: Math.random().toString(36).substr(2, 9),
+      name: `${selectedBrand} ${selectedModel}`,
+      type: boardType,
+      volume: volume,
+      length: sizeData.lengte_imperial || sizeData.maat_label
+    });
+  };
+
+  return (
+    <div className="p-5 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 border border-cyan-600/40 bg-cyan-600/[0.03] space-y-4 relative">
+      <button onClick={onCancel} className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+        <X className="w-4 h-4" />
+      </button>
+      
+      <div className="flex items-center gap-2 mb-4">
+        <Database className="w-4 h-4 text-cyan-600" />
+        <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-slate-900">Database Selector</h4>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 block">Merk</label>
+          <select 
+            value={selectedBrand} 
+            onChange={(e) => { setSelectedBrand(e.target.value); setSelectedModel(''); setSelectedSizeId(''); }}
+            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-cyan-600"
+          >
+            <option value="">-- Kies Merk --</option>
+            {brands.map((b: string) => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 block">Model</label>
+          <select 
+            value={selectedModel} 
+            onChange={(e) => { setSelectedModel(e.target.value); setSelectedSizeId(''); }}
+            disabled={!selectedBrand}
+            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-cyan-600 disabled:opacity-50"
+          >
+            <option value="">-- Kies Model --</option>
+            {models.map((m: string) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 block">Maat (Volume)</label>
+          <select 
+            value={selectedSizeId} 
+            onChange={(e) => setSelectedSizeId(e.target.value)}
+            disabled={!selectedModel}
+            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-cyan-600 disabled:opacity-50"
+          >
+            <option value="">-- Kies Maat --</option>
+            {sizes.map((s: any) => <option key={s.board_id} value={s.board_id}>{s.maat_label} ({s.volume_l}L)</option>)}
+          </select>
+        </div>
+      </div>
+      
+      <div className="pt-2">
+        <button 
+          onClick={handleAdd}
+          disabled={!selectedSizeId}
+          className="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Toevoegen aan Quiver
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onShareSpot }: ProfileSettingsProps) {
   const [activeSubTab, setActiveSubTab] = useState<'settings' | 'report' | 'activity' | 'admin' | 'beta'>('settings');
   const [userReports, setUserReports] = useState<SpotReportType[]>([]);
+  const [showBoardSelector, setShowBoardSelector] = useState(false);
   
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -46,7 +166,8 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
   const updateWeight = (weight: number) => onUpdate({ ...user, weight });
   const updateSkill = (skillLevel: SkillLevel) => onUpdate({ ...user, skillLevel });
 
-  const isAdmin = auth.currentUser?.email === 'sebastiaan.boom2@gmail.com' || auth.currentUser?.email === 'sebastiaan.boom@gmail.com';
+  const currentUserEmail = auth.currentUser?.email?.toLowerCase() || user.email?.toLowerCase();
+  const isAdmin = currentUserEmail === 'sebastiaan.boom@gmail.com' || currentUserEmail === 'sebastiaan.boom2@gmail.com';
 
   const addBoard = () => {
     const newBoard: Board = {
@@ -94,38 +215,38 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
   return (
     <div className="space-y-8 pb-32">
       {/* Sub-Tabs */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 glass rounded-2xl border border-white/5">
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100/90 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xs">
         <button 
           onClick={() => setActiveSubTab('settings')}
           className={cn(
-            "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all",
-            activeSubTab === 'settings' ? 'bg-white text-marine-950 shadow-xl' : 'text-white/40 hover:text-white/60'
+            "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer",
+            activeSubTab === 'settings' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
           )}
         >
-          <Settings className="w-3 h-3" />
+          <Settings className="w-3.5 h-3.5" />
           Setup
         </button>
         <button 
           onClick={() => setActiveSubTab('activity')}
           className={cn(
-            "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all relative",
-            activeSubTab === 'activity' ? 'bg-white text-marine-950 shadow-xl' : 'text-white/40 hover:text-white/60'
+            "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all relative cursor-pointer",
+            activeSubTab === 'activity' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
           )}
         >
-          <History className="w-3 h-3" />
+          <History className="w-3.5 h-3.5" />
           Sessies
           {mismatchedReports.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-white" />
           )}
         </button>
         <button 
           onClick={() => setActiveSubTab('report')}
           className={cn(
-            "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all",
-            activeSubTab === 'report' ? 'bg-white text-marine-950 shadow-xl' : 'text-white/40 hover:text-white/60'
+            "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer",
+            activeSubTab === 'report' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
           )}
         >
-          <Camera className="w-3 h-3" />
+          <Camera className="w-3.5 h-3.5" />
           Report
         </button>
         {isAdmin && (
@@ -133,21 +254,21 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
             <button 
               onClick={() => setActiveSubTab('admin')}
               className={cn(
-                "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all",
-                activeSubTab === 'admin' ? 'bg-accent text-marine-950 shadow-xl' : 'text-white/40 hover:text-white/60'
+                "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer",
+                activeSubTab === 'admin' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
               )}
             >
-              <Shield className="w-3 h-3" />
+              <Shield className="w-3.5 h-3.5" />
               Admin
             </button>
             <button 
               onClick={() => setActiveSubTab('beta')}
               className={cn(
-                "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all",
-                activeSubTab === 'beta' ? 'bg-purple-500 text-white shadow-xl' : 'text-white/40 hover:text-white/60'
+                "flex-auto sm:flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition-all cursor-pointer",
+                activeSubTab === 'beta' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
               )}
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-3.5 h-3.5" />
               Beta
             </button>
           </>
@@ -157,21 +278,21 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
       {activeSubTab === 'activity' && (
         <div className="space-y-6">
           {mismatchedReports.length > 0 && (
-            <div className="glass border-red-500/30 p-6 rounded-[2rem] bg-red-500/5 space-y-4">
+            <div className="bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 border-red-500/30 p-6 rounded-[2rem] bg-red-500/5 space-y-4">
               <div className="flex items-center gap-3 text-red-400">
                 <AlertTriangle className="w-5 h-5" />
                 <h3 className="text-sm font-black uppercase tracking-widest">Tactical Mismatch Gedetecteerd</h3>
               </div>
-              <p className="text-[11px] text-white/60 leading-relaxed">
+              <p className="text-[11px] text-slate-600 leading-relaxed">
                 Een of meerdere van jouw recente spot reports bevatten gegevens die niet overeenkomen met onze satelliet- en sensor data. 
                 De tactical oversight vraagt om verduidelijking of een re-submit voor de volgende sessies:
               </p>
               <div className="space-y-3">
                 {mismatchedReports.map(report => (
-                  <div key={report.id} className="glass p-4 rounded-xl border border-red-500/10 flex items-center justify-between">
+                  <div key={report.id} className="bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 p-4 rounded-xl border border-red-500/10 flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-white">{report.spotName}</h4>
-                      <p className="text-[9px] font-mono text-white/30 uppercase">{format(new Date(report.timestamp), 'd MMM HH:mm', { locale: nl })}</p>
+                      <h4 className="text-xs font-bold text-slate-900">{report.spotName}</h4>
+                      <p className="text-[9px] font-mono text-slate-400 uppercase">{format(new Date(report.timestamp), 'd MMM HH:mm', { locale: nl })}</p>
                     </div>
                     <button 
                       onClick={() => setActiveSubTab('report')}
@@ -187,29 +308,29 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
           )}
 
           <div className="space-y-4">
-            <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/30 ml-2">Recente Activiteit</h3>
+            <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-slate-400 ml-2">Recente Activiteit</h3>
             {userReports.length === 0 ? (
-              <p className="text-[10px] font-mono text-white/20 italic uppercase tracking-widest text-center py-12">Nog geen sessies geregistreerd.</p>
+              <p className="text-[10px] font-mono text-slate-400 italic uppercase tracking-widest text-center py-12">Nog geen sessies geregistreerd.</p>
             ) : (
               userReports.map(report => (
-                <div key={report.id} className="glass p-5 rounded-2xl border border-white/5 flex items-center justify-between group hover:border-white/10 transition-all">
+                <div key={report.id} className="bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 p-5 rounded-2xl border border-slate-200 flex items-center justify-between group hover:border-slate-200 transition-all">
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center border",
-                      report.analysis.isMismatched ? "bg-red-500/10 border-red-500/20 text-red-400" : "bg-white/5 border-white/10 text-white/40"
+                      report.analysis.isMismatched ? "bg-red-500/10 border-red-500/20 text-red-400" : "bg-slate-50 border-slate-200 text-slate-400"
                     )}>
                       {report.analysis.isMismatched ? <AlertTriangle className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-white">{report.spotName}</h4>
+                      <h4 className="text-sm font-bold text-slate-900">{report.spotName}</h4>
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-[9px] font-mono text-white/30 uppercase">{format(new Date(report.timestamp), 'd MMM HH:mm', { locale: nl })}</span>
-                        <div className="h-1 w-1 rounded-full bg-white/10" />
-                        <span className="text-[9px] font-mono text-accent uppercase">Match {report.analysis.matchScore}/10</span>
+                        <span className="text-[9px] font-mono text-slate-400 uppercase">{format(new Date(report.timestamp), 'd MMM HH:mm', { locale: nl })}</span>
+                        <div className="h-1 w-1 rounded-full bg-slate-100" />
+                        <span className="text-[9px] font-mono text-cyan-600 uppercase">Match {report.analysis.matchScore}/10</span>
                       </div>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-white/10" />
+                  <ChevronRight className="w-4 h-4 text-slate-300" />
                 </div>
               ))
             )}
@@ -226,9 +347,9 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
       )}
 
       {activeSubTab === 'beta' && isAdmin && (
-        <div className="glass rounded-3xl p-8 border border-purple-500/20 bg-purple-500/5">
-           <h3 className="text-xl font-black italic uppercase text-white mb-6">Beta Laboratory</h3>
-           <p className="text-sm text-white/60 mb-8 leading-relaxed">
+        <div className="bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 rounded-3xl p-8 border border-purple-500/20 bg-purple-500/5">
+           <h3 className="text-xl font-black italic uppercase text-slate-900 mb-6">Beta Laboratory</h3>
+           <p className="text-sm text-slate-600 mb-8 leading-relaxed">
              Activeer experimentele functies zoals Live Wave Calibration. Deze tools gebruiken direct de camera en Gemini Vision voor real-time spot analyse.
            </p>
            <button 
@@ -238,7 +359,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
               // Given the structure, let's assume the user wants the content here or I'll add a link.
               window.dispatchEvent(new CustomEvent('switchTab', { detail: 'beta' }));
             }}
-            className="w-full py-4 bg-purple-500 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform shadow-lg shadow-purple-500/20"
+            className="w-full py-4 bg-purple-600 text-white font-bold rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform shadow-lg shadow-purple-500/20"
            >
              <Plus className="w-5 h-5" />
              Open Live Video Lab
@@ -254,33 +375,33 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
         <div className="space-y-10">
           <section className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full glass border border-white/10 flex items-center justify-center">
-                <User className="w-4 h-4 text-accent" />
+              <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
+                <User className="w-4 h-4 text-cyan-600" />
               </div>
-              <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/50">Jouw Gegevens</h3>
+              <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Jouw Gegevens</h3>
             </div>
             
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
-                <label htmlFor="weight" className="text-[10px] font-mono uppercase tracking-widest text-white/30 ml-1">Gewicht (KG)</label>
+                <label htmlFor="weight" className="text-[10px] font-mono uppercase tracking-widest text-slate-400 ml-1">Gewicht (KG)</label>
                 <div className="relative">
                   <input 
                     id="weight" 
                     type="number" 
                     value={user.weight} 
                     onChange={(e) => updateWeight(Number(e.target.value))}
-                    className="w-full glass rounded-xl border border-white/5 bg-transparent px-4 py-3 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors"
+                    className="w-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 rounded-xl border border-slate-200 bg-transparent px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-cyan-600/50 transition-colors"
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-white/20">KG</div>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400">KG</div>
                 </div>
               </div>
               <div className="space-y-3">
-                <label htmlFor="skill" className="text-[10px] font-mono uppercase tracking-widest text-white/30 ml-1">Niveau</label>
+                <label htmlFor="skill" className="text-[10px] font-mono uppercase tracking-widest text-slate-400 ml-1">Niveau</label>
                 <select 
                   id="skill"
                   value={user.skillLevel} 
                   onChange={(e) => updateSkill(e.target.value as SkillLevel)}
-                  className="w-full glass rounded-xl border border-white/5 bg-transparent px-4 py-3 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors appearance-none"
+                  className="w-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 rounded-xl border border-slate-200 bg-transparent px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-cyan-600/50 transition-colors appearance-none"
                 >
                   <option value="beginner">Beginner</option>
                   <option value="intermediate">Intermediate</option>
@@ -294,40 +415,74 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full glass border border-white/10 flex items-center justify-center">
-                  <Waves className="w-4 h-4 text-accent" />
+                <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
+                  <Waves className="w-4 h-4 text-cyan-600" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/70">Mijn Boards (Setup)</h3>
-                  <p className="text-[10px] font-mono text-white/40">Beheer je boards voor golf- en volumematching</p>
+                  <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Mijn Boards (Setup)</h3>
+                  <p className="text-[10px] font-mono text-slate-400">Beheer je boards voor golf- en volumematching</p>
                 </div>
               </div>
-              <button 
-                onClick={addBoard}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-accent text-marine-950 text-[10px] font-mono font-bold uppercase tracking-wider hover:opacity-90 transition-all shadow-sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Board Toevoegen
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowBoardSelector(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-600 text-white text-[10px] font-mono font-bold uppercase tracking-wider hover:opacity-90 transition-all shadow-sm"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Kies uit Database</span>
+                  <span className="sm:hidden">Database</span>
+                </button>
+                <button 
+                  onClick={addBoard}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-slate-100 transition-all shadow-sm"
+                  title="Handmatig Toevoegen"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
+
+            {showBoardSelector && (
+              <BoardDatabaseSelector 
+                onCancel={() => setShowBoardSelector(false)}
+                onAdd={(board) => {
+                  const updatedBoards = [...(user.boards || []), board];
+                  onUpdate({ 
+                    ...user, 
+                    boards: updatedBoards,
+                    selectedBoardId: user.selectedBoardId || board.id
+                  });
+                  setShowBoardSelector(false);
+                }}
+              />
+            )}
 
             <div className="space-y-3">
               {(!user.boards || user.boards.length === 0) ? (
-                <div className="p-6 rounded-2xl glass border border-white/5 text-center space-y-3">
-                  <Waves className="w-8 h-8 text-white/20 mx-auto" />
-                  <p className="text-xs font-mono text-white/50 uppercase tracking-widest">
+                <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 text-center space-y-3">
+                  <Waves className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="text-xs font-mono text-slate-500 uppercase tracking-widest">
                     Geen boards in je setup
                   </p>
-                  <p className="text-[11px] text-white/40 max-w-sm mx-auto">
+                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
                     Voeg je surfplanken toe om hydrodynamische golf- en gear-matches specifiek voor jouw profiel te berekenen.
                   </p>
-                  <button 
-                    onClick={addBoard}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-marine-950 text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Eerste Board Toevoegen
-                  </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-4">
+                    <button 
+                      onClick={() => setShowBoardSelector(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 text-white text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity w-full sm:w-auto justify-center"
+                    >
+                      <Database className="w-4 h-4" />
+                      Kies uit Database
+                    </button>
+                    <button 
+                      onClick={addBoard}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold uppercase tracking-wider hover:bg-slate-100 transition-opacity w-full sm:w-auto justify-center"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Handmatig
+                    </button>
+                  </div>
                 </div>
               ) : (
                 user.boards.map((board, index) => {
@@ -336,14 +491,14 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                     <div 
                       key={board.id} 
                       className={cn(
-                        "p-4 sm:p-5 rounded-2xl glass border transition-all space-y-4 group",
-                        isSelected ? "border-accent/40 bg-accent/[0.03]" : "border-white/5 hover:border-white/20"
+                        "p-4 sm:p-5 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 border transition-all space-y-4 group",
+                        isSelected ? "border-cyan-600/40 bg-cyan-600/[0.03]" : "border-slate-200 hover:border-slate-300"
                       )}
                     >
                       {/* Top Row: Board Name, Active Toggle & Delete Button */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <label className="text-[9px] font-mono uppercase tracking-widest text-white/40 block mb-1">
+                          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 block mb-1">
                             Naam / Model
                           </label>
                           <input 
@@ -353,7 +508,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                               const newBoards = user.boards.map(b => b.id === board.id ? { ...b, name: e.target.value } : b);
                               onUpdate({ ...user, boards: newBoards });
                             }}
-                            className="bg-transparent border-b border-white/10 px-0 py-1 text-sm font-bold text-white focus:outline-none focus:border-accent w-full transition-colors"
+                            className="bg-transparent border-b border-slate-200 px-0 py-1 text-sm font-bold text-slate-900 focus:outline-none focus:border-cyan-600 w-full transition-colors"
                           />
                         </div>
 
@@ -364,8 +519,8 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                             className={cn(
                               "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all",
                               isSelected 
-                                ? "bg-accent text-marine-950 font-bold shadow-sm" 
-                                : "bg-white/5 text-white/50 hover:text-white hover:bg-white/10 border border-white/10"
+                                ? "bg-cyan-600 text-white font-bold shadow-sm" 
+                                : "bg-slate-50 text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-slate-200"
                             )}
                             title={isSelected ? "Huidig actief board" : "Stel in als actief board"}
                           >
@@ -388,7 +543,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                         {/* Type Shape */}
                         <div className="space-y-1">
-                          <label className="text-[9px] font-mono uppercase tracking-widest text-white/40 block">
+                          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 block">
                             Type Shape
                           </label>
                           <select 
@@ -397,7 +552,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                               const newBoards = user.boards.map(b => b.id === board.id ? { ...b, type: e.target.value as any } : b);
                               onUpdate({ ...user, boards: newBoards });
                             }}
-                            className="w-full bg-marine-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-accent transition-colors"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-cyan-600 transition-colors"
                           >
                             <option value="shortboard">Shortboard</option>
                             <option value="fish">Fish</option>
@@ -410,8 +565,8 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
 
                         {/* Lengte van het board */}
                         <div className="space-y-1">
-                          <label className="text-[9px] font-mono uppercase tracking-widest text-white/40 flex items-center gap-1">
-                            <Ruler className="w-3 h-3 text-accent" />
+                          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                            <Ruler className="w-3 h-3 text-cyan-600" />
                             Lengte
                           </label>
                           <div className="relative">
@@ -423,15 +578,15 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                                 const newBoards = user.boards.map(b => b.id === board.id ? { ...b, length: e.target.value } : b);
                                 onUpdate({ ...user, boards: newBoards });
                               }}
-                              className="w-full bg-marine-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-medium text-white focus:outline-none focus:border-accent transition-colors"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:outline-none focus:border-cyan-600 transition-colors"
                             />
                           </div>
                         </div>
 
                         {/* Volume */}
                         <div className="space-y-1">
-                          <label className="text-[9px] font-mono uppercase tracking-widest text-white/40 flex items-center gap-1">
-                            <Waves className="w-3 h-3 text-accent" />
+                          <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                            <Waves className="w-3 h-3 text-cyan-600" />
                             Volume (L)
                           </label>
                           <div className="relative">
@@ -444,9 +599,9 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                                 const newBoards = user.boards.map(b => b.id === board.id ? { ...b, volume: Number(e.target.value) } : b);
                                 onUpdate({ ...user, boards: newBoards });
                               }}
-                              className="w-full bg-marine-950 border border-white/10 rounded-xl px-3 py-2 pr-12 text-xs font-mono font-medium text-white focus:outline-none focus:border-accent transition-colors"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 pr-12 text-xs font-mono font-medium text-slate-900 focus:outline-none focus:border-cyan-600 transition-colors"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-white/30 pointer-events-none">
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 pointer-events-none">
                               Liter
                             </span>
                           </div>
@@ -463,14 +618,14 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full glass border border-white/10 flex items-center justify-center">
-                  <Thermometer className="w-4 h-4 text-accent" />
+                <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
+                  <Thermometer className="w-4 h-4 text-cyan-600" />
                 </div>
-                <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/50">Mijn Wetsuits & Gear</h3>
+                <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Mijn Wetsuits & Gear</h3>
               </div>
               <button 
                 onClick={addWetsuit}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-mono font-bold uppercase tracking-widest text-white hover:bg-white/5 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-900 hover:bg-slate-50 transition-all"
               >
                 <Plus className="w-3 h-3" />
                 Wetsuit Toevoegen
@@ -479,20 +634,20 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
 
             <div className="space-y-3">
               {(!user.wetsuits || user.wetsuits.length === 0) ? (
-                <p className="text-[10px] font-mono text-white/30 italic uppercase tracking-widest text-center py-8">Geen wetsuits ingesteld.</p>
+                <p className="text-[10px] font-mono text-slate-400 italic uppercase tracking-widest text-center py-8">Geen wetsuits ingesteld.</p>
               ) : (
                 user.wetsuits.map((wetsuit) => (
-                  <div key={wetsuit.id} className="p-4 rounded-2xl glass border border-white/5 group hover:border-white/20 transition-all space-y-3">
+                  <div key={wetsuit.id} className="p-4 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 group hover:border-slate-300 transition-all space-y-3">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3">
-                        <label className="text-[10px] font-mono uppercase text-white/40">Dikte:</label>
+                        <label className="text-[10px] font-mono uppercase text-slate-400">Dikte:</label>
                         <select
                           value={wetsuit.thickness}
                           onChange={(e) => {
                             const newWetsuits = user.wetsuits?.map(w => w.id === wetsuit.id ? { ...w, thickness: e.target.value } : w);
                             onUpdate({ ...user, wetsuits: newWetsuits });
                           }}
-                          className="bg-marine-950 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none"
+                          className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 focus:outline-none"
                         >
                           <option value="6/5/4">6/5/4 mm (Winter)</option>
                           <option value="5/4">5/4 mm (Koud)</option>
@@ -513,8 +668,8 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                     </div>
 
                     {/* Accessories Checkboxes */}
-                    <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-white/5">
-                      <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
+                    <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-200">
+                      <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
                         <input 
                           type="checkbox" 
                           checked={wetsuit.hasHood}
@@ -522,12 +677,12 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                             const newWetsuits = user.wetsuits?.map(w => w.id === wetsuit.id ? { ...w, hasHood: e.target.checked } : w);
                             onUpdate({ ...user, wetsuits: newWetsuits });
                           }}
-                          className="rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
+                          className="rounded border-slate-300 bg-slate-50 text-cyan-600 focus:ring-accent"
                         />
                         <span>Hood (Capuchon)</span>
                       </label>
 
-                      <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
+                      <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
                         <input 
                           type="checkbox" 
                           checked={wetsuit.hasBoots}
@@ -535,12 +690,12 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                             const newWetsuits = user.wetsuits?.map(w => w.id === wetsuit.id ? { ...w, hasBoots: e.target.checked } : w);
                             onUpdate({ ...user, wetsuits: newWetsuits });
                           }}
-                          className="rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
+                          className="rounded border-slate-300 bg-slate-50 text-cyan-600 focus:ring-accent"
                         />
                         <span>Boots (Schoentjes)</span>
                       </label>
 
-                      <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
+                      <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
                         <input 
                           type="checkbox" 
                           checked={wetsuit.hasGloves}
@@ -548,7 +703,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                             const newWetsuits = user.wetsuits?.map(w => w.id === wetsuit.id ? { ...w, hasGloves: e.target.checked } : w);
                             onUpdate({ ...user, wetsuits: newWetsuits });
                           }}
-                          className="rounded border-white/20 bg-white/5 text-accent focus:ring-accent"
+                          className="rounded border-slate-300 bg-slate-50 text-cyan-600 focus:ring-accent"
                         />
                         <span>Gloves (Handschoenen)</span>
                       </label>
@@ -561,18 +716,18 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
 
           <section className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full glass border border-white/10 flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-accent" />
+              <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
+                <MapPin className="w-4 h-4 text-cyan-600" />
               </div>
-              <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-white/50">Opgeslagen Locaties</h3>
+              <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Opgeslagen Locaties</h3>
             </div>
 
             <div className="space-y-3">
               {(!user.savedSpots || user.savedSpots.length === 0) ? (
-                <p className="text-[10px] font-mono text-white/30 italic uppercase tracking-widest text-center py-8">Geen locaties opgeslagen.</p>
+                <p className="text-[10px] font-mono text-slate-400 italic uppercase tracking-widest text-center py-8">Geen locaties opgeslagen.</p>
               ) : (
                 user.savedSpots.map((spot) => (
-                  <div key={spot.id} className="flex items-center gap-4 p-4 rounded-2xl glass border border-white/5 group hover:border-white/20 transition-all">
+                  <div key={spot.id} className="flex items-center gap-4 p-4 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 group hover:border-slate-300 transition-all">
                     <div className="flex-1 space-y-1">
                       <input 
                         value={spot.name} 
@@ -580,16 +735,16 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                           const newSpots = user.savedSpots?.map(s => s.id === spot.id ? { ...s, name: e.target.value } : s);
                           onUpdate({ ...user, savedSpots: newSpots });
                         }}
-                        className="bg-transparent border-none p-0 text-sm font-bold text-white focus:ring-0 w-full"
+                        className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 w-full"
                       />
-                      <div className="text-[9px] font-mono text-white/30 uppercase tracking-widest">
+                      <div className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">
                         LOC: {spot.lat.toFixed(4)}N / {spot.lng.toFixed(4)}E
                       </div>
                     </div>
                       <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all">
                         <button 
                           onClick={() => onShareSpot(spot)}
-                          className="p-2 text-white/60 md:text-white/40 hover:text-accent transition-colors"
+                          className="p-2 text-slate-600 md:text-slate-400 hover:text-cyan-600 transition-colors"
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
@@ -598,12 +753,12 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                             const newSpots = user.savedSpots?.filter(s => s.id !== spot.id);
                             onUpdate({ ...user, savedSpots: newSpots });
                           }}
-                          className="p-2 text-white/60 md:text-white/40 hover:text-red-400 transition-colors"
+                          className="p-2 text-slate-600 md:text-slate-400 hover:text-red-400 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    <ChevronRight className="w-4 h-4 text-white/10" />
+                    <ChevronRight className="w-4 h-4 text-slate-300" />
                   </div>
                 ))
               )}

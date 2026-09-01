@@ -118,29 +118,31 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 glass rounded-xl border border-white/5 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-5 bg-white rounded-2xl border border-slate-200 shadow-sm gap-4">
         <div className="flex items-center gap-3">
-          <Shield className="w-6 h-6 text-accent animate-pulse" />
+          <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
+            <Shield className="w-6 h-6" />
+          </div>
           <div>
-            <h2 className="text-xl font-bold text-white uppercase tracking-tighter">Command Center</h2>
-            <p className="text-[10px] font-mono text-accent uppercase tracking-widest">Tactical Oversight Bureau</p>
+            <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider font-tactical">Command Center</h2>
+            <p className="text-[10px] font-mono text-cyan-700 uppercase tracking-widest font-bold">Tactical Oversight Bureau</p>
           </div>
         </div>
         
         {/* Tab Selection */}
-        <div className="flex gap-2 bg-slate-950 p-1 rounded-lg border border-white/5">
+        <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-wider transition-all ${
-              activeTab === 'reports' ? 'bg-accent/20 text-accent font-bold' : 'text-white/40 hover:text-white'
+            className={`px-3 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all cursor-pointer font-bold ${
+              activeTab === 'reports' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
             Field Intelligence
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-              activeTab === 'users' ? 'bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/25' : 'text-white/40 hover:text-white'
+            className={`px-3 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+              activeTab === 'users' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
             <Users className="w-3 h-3" />
@@ -148,13 +150,13 @@ export function AdminPanel() {
           </button>
           <button
             onClick={() => setActiveTab('logs')}
-            className={`px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-              activeTab === 'logs' ? 'bg-red-500/10 text-red-400 font-bold border border-red-500/25' : 'text-white/40 hover:text-white'
+            className={`px-3 py-1.5 rounded-lg font-mono text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+              activeTab === 'logs' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
             Terminal Logs 
             {stats.errorCount > 0 && (
-              <span className="bg-red-500 text-white font-sans text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+              <span className="bg-white text-rose-600 font-sans text-[9px] px-1.5 py-0.2 rounded-full font-bold ml-1">
                 {stats.errorCount}
               </span>
             )}
@@ -163,72 +165,60 @@ export function AdminPanel() {
       </div>
 
       {/* Analytics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div 
           onClick={() => setActiveTab('users')}
-          className="glass p-5 rounded-2xl border border-white/5 relative overflow-hidden group cursor-pointer hover:border-emerald-500/30 transition-all"
+          className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group cursor-pointer hover:border-emerald-500/50 transition-all"
         >
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Users className="w-20 h-20 text-white" />
+          <div className="flex items-center gap-2 mb-2 text-slate-500">
+            <Users className="w-4 h-4 text-cyan-600" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest">Totaal Gebruikers</span>
           </div>
-          <div className="flex items-center gap-2 mb-3 text-white/40">
-            <Users className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-mono uppercase tracking-widest">Totaal Gebruikers</span>
-          </div>
-          <div className="text-3xl font-black text-white italic tracking-tighter">
+          <div className="text-3xl font-black text-slate-900 tracking-tight">
             {stats.totalUsers}
           </div>
-          <div className="mt-1 text-[9px] font-mono text-white/20 uppercase tracking-widest">
+          <div className="mt-1 text-[10px] font-mono text-slate-400 uppercase tracking-wider">
             Geregistreerde Operatives
           </div>
         </div>
 
-        <div className="glass p-5 rounded-2xl border border-white/5 relative overflow-hidden group">
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Activity className="w-20 h-20 text-emerald-400" />
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+          <div className="flex items-center gap-2 mb-2 text-slate-500">
+            <Activity className="w-4 h-4 text-emerald-600" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest">Actieve Gebruikers</span>
           </div>
-          <div className="flex items-center gap-2 mb-3 text-emerald-400/60">
-            <Activity className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-mono uppercase tracking-widest">Actieve Gebruikers</span>
-          </div>
-          <div className="text-3xl font-black text-white italic tracking-tighter">
+          <div className="text-3xl font-black text-slate-900 tracking-tight">
             {stats.activeUsers}
           </div>
-          <div className="mt-1 text-[9px] font-mono text-emerald-500/40 uppercase tracking-widest">
+          <div className="mt-1 text-[10px] font-mono text-emerald-600 uppercase tracking-wider font-semibold">
             30-Dagen Engagement
           </div>
         </div>
 
-        <div className="glass p-5 rounded-2xl border border-white/5 relative overflow-hidden group">
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <TrendingUp className="w-20 h-20 text-accent" />
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+          <div className="flex items-center gap-2 mb-2 text-slate-500">
+            <TrendingUp className="w-4 h-4 text-blue-600" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest">Nieuw deze maand</span>
           </div>
-          <div className="flex items-center gap-2 mb-3 text-accent/60">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-mono uppercase tracking-widest">Nieuw deze maand</span>
-          </div>
-          <div className="text-3xl font-black text-white italic tracking-tighter">
+          <div className="text-3xl font-black text-slate-900 tracking-tight">
             {stats.newThisMonth}
           </div>
-          <div className="mt-1 text-[9px] font-mono text-accent/40 uppercase tracking-widest">
+          <div className="mt-1 text-[10px] font-mono text-blue-600 uppercase tracking-wider font-semibold">
             Monthly Inflow Rate
           </div>
         </div>
 
         {/* Dynamic Log Count Card */}
-        <div className={`glass p-5 rounded-2xl border transition-colors ${stats.errorCount > 0 ? 'border-red-500/20 bg-red-950/5' : 'border-white/5'} relative overflow-hidden group`}>
-          <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Terminal className="w-20 h-20 text-red-400" />
+        <div className={`bg-white p-5 rounded-2xl border shadow-sm transition-colors ${stats.errorCount > 0 ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'} relative overflow-hidden group`}>
+          <div className="flex items-center gap-2 mb-2 text-slate-500">
+            <Terminal className="w-4 h-4 text-rose-600" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest">Systeem Fouten</span>
           </div>
-          <div className="flex items-center gap-2 mb-3 text-red-400/60">
-            <Terminal className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-mono uppercase tracking-widest">Systeem Fouten</span>
-          </div>
-          <div className="text-3xl font-black text-white italic tracking-tighter flex items-center gap-2">
+          <div className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             {stats.errorCount}
-            {stats.errorCount > 0 && <AlertTriangle className="w-5 h-5 text-red-500 animate-bounce" />}
+            {stats.errorCount > 0 && <AlertTriangle className="w-5 h-5 text-rose-500 animate-bounce" />}
           </div>
-          <div className="mt-1 text-[9px] font-mono text-red-500/40 uppercase tracking-widest">
+          <div className="mt-1 text-[10px] font-mono text-rose-600 uppercase tracking-wider font-semibold">
             Geregistreerde Logs
           </div>
         </div>
@@ -237,18 +227,18 @@ export function AdminPanel() {
       {/* Main Tab Content */}
       {activeTab === 'reports' ? (
         <div className="space-y-4">
-          <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/30 ml-2">Recent Field Intelligence</h3>
+          <h3 className="text-xs font-mono uppercase tracking-widest font-bold text-slate-500 ml-1">Recent Field Intelligence</h3>
           <AdminReportList />
         </div>
       ) : activeTab === 'users' ? (
         <div className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-            <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/30">Geregistreerde Operatives ({users.length})</h3>
+          <div className="flex justify-between items-center px-1">
+            <h3 className="text-xs font-mono uppercase tracking-widest font-bold text-slate-500">Geregistreerde Operatives ({users.length})</h3>
           </div>
 
           {users.length === 0 ? (
-            <div className="glass p-12 rounded-2xl border border-white/5 text-center text-white/30 flex flex-col items-center justify-center gap-3">
-              <Users className="w-10 h-10 text-white/10" />
+            <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-400 flex flex-col items-center justify-center gap-3 shadow-sm">
+              <Users className="w-10 h-10 text-slate-300" />
               <p className="text-xs font-mono uppercase tracking-widest">Geen geregistreerde gebruikers gevonden.</p>
             </div>
           ) : (
@@ -260,40 +250,40 @@ export function AdminPanel() {
                 const lastActiveDate = u.lastActiveAt ? format(new Date(u.lastActiveAt), 'dd MMM yyyy, HH:mm', { locale: nl }) : 'Onbekend';
 
                 return (
-                  <div key={u.uid || idx} className="glass p-4 rounded-xl border border-white/10 hover:border-white/20 transition-all space-y-3">
+                  <div key={u.uid || idx} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-cyan-300 shadow-sm transition-all space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                           {userName}
                           {u.uid && (
-                            <span className="text-[8px] font-mono bg-white/10 px-1.5 py-0.5 rounded text-white/60">
+                            <span className="text-[9px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-normal">
                               {u.uid.slice(0, 6)}...
                             </span>
                           )}
                         </h4>
-                        <p className="text-xs font-mono text-emerald-400 font-semibold">{userEmail}</p>
+                        <p className="text-xs font-mono text-cyan-700 font-semibold">{userEmail}</p>
                       </div>
-                      <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-accent/20 text-accent font-bold border border-accent/30">
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 font-bold border border-cyan-200">
                         {u.skillLevel || 'intermediate'}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5 text-[10px] font-mono text-white/60">
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] font-mono text-slate-600">
                       <div>
-                        <span className="block text-[8px] text-white/30 uppercase">Gewicht</span>
+                        <span className="block text-[8px] text-slate-400 uppercase">Gewicht</span>
                         {u.weight ? `${u.weight} kg` : '-'}
                       </div>
                       <div>
-                        <span className="block text-[8px] text-white/30 uppercase">Board Setup</span>
+                        <span className="block text-[8px] text-slate-400 uppercase">Board Setup</span>
                         {u.boards ? `${u.boards.length} craft(s)` : '0'}
                       </div>
                       <div>
-                        <span className="block text-[8px] text-white/30 uppercase">Spots</span>
+                        <span className="block text-[8px] text-slate-400 uppercase">Spots</span>
                         {u.savedSpots ? `${u.savedSpots.length} saved` : 'Default'}
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[9px] font-mono text-white/40">
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[9px] font-mono text-slate-400">
                       <span>Lid sinds: {createdDate}</span>
                       <span>Laatst actief: {lastActiveDate}</span>
                     </div>
@@ -305,20 +295,20 @@ export function AdminPanel() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-            <h3 className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/30">System Error logboek</h3>
+          <div className="flex justify-between items-center px-1">
+            <h3 className="text-xs font-mono uppercase tracking-widest font-bold text-slate-500">System Error logboek</h3>
             
             {logs.length > 0 && (
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleDownloadLogs}
-                  className="flex items-center gap-1.5 px-3 py-1.5 glass bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-mono uppercase tracking-wider border border-emerald-500/25 transition-all hover:scale-[1.02]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-mono uppercase tracking-wider border border-emerald-200 transition-all font-bold cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" /> Exporteer JSON
                 </button>
                 <button
                   onClick={handleClearAllLogs}
-                  className="flex items-center gap-1.5 px-3 py-1.5 glass bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-[10px] font-mono uppercase tracking-wider border border-red-500/25 transition-all hover:scale-[1.02]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[10px] font-mono uppercase tracking-wider border border-rose-200 transition-all font-bold cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Wis Logs ({logs.length})
                 </button>
@@ -327,10 +317,10 @@ export function AdminPanel() {
           </div>
 
           {logs.length === 0 ? (
-            <div className="glass p-12 rounded-2xl border border-white/5 text-center text-white/30 flex flex-col items-center justify-center gap-3">
-              <Terminal className="w-10 h-10 text-white/10" />
-              <p className="text-xs font-mono uppercase tracking-widest">Systeemstatus is momenteel 100% stabiel.</p>
-              <p className="text-[10px] text-white/20">Geen actuele foutmeldingen of api crashes gedocumenteerd.</p>
+            <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-500 flex flex-col items-center justify-center gap-3 shadow-sm">
+              <Terminal className="w-10 h-10 text-emerald-500" />
+              <p className="text-xs font-mono uppercase tracking-widest font-bold text-slate-800">Systeemstatus is momenteel 100% stabiel.</p>
+              <p className="text-[11px] text-slate-400">Geen actuele foutmeldingen of api crashes gedocumenteerd.</p>
             </div>
           ) : (
             <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
@@ -339,14 +329,14 @@ export function AdminPanel() {
                 const isGeminiError = log.errorType.includes('gemini');
                 const isAnalysisError = log.errorType.includes('analysis');
                 
-                let typeColor = 'text-amber-400 border-amber-500/20 bg-amber-500/5';
-                if (isGeminiError) typeColor = 'text-red-400 border-red-500/20 bg-red-500/5';
-                if (isAnalysisError) typeColor = 'text-purple-400 border-purple-500/20 bg-purple-500/5';
+                let typeColor = 'text-amber-700 border-amber-200 bg-amber-50';
+                if (isGeminiError) typeColor = 'text-rose-700 border-rose-200 bg-rose-50';
+                if (isAnalysisError) typeColor = 'text-purple-700 border-purple-200 bg-purple-50';
 
                 return (
                   <div 
                     key={log.id} 
-                    className={`rounded-xl border transition-all ${isExpanded ? 'bg-slate-900/80 border-white/10 shadow-lg' : 'glass border-white/5 hover:border-white/10'}`}
+                    className={`rounded-xl border transition-all ${isExpanded ? 'bg-white border-slate-300 shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'}`}
                   >
                     {/* Header bar of log */}
                     <div 
@@ -354,12 +344,12 @@ export function AdminPanel() {
                       className="flex flex-col sm:flex-row sm:items-center justify-between p-4 cursor-pointer gap-2 select-none"
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider border ${typeColor}`}>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase tracking-wider border font-bold ${typeColor}`}>
                           {log.errorType}
                         </span>
                         <div>
-                          <p className="text-xs font-bold text-white tracking-tight">{log.message}</p>
-                          <p className="text-[10px] font-mono text-white/40 mt-0.5">
+                          <p className="text-xs font-bold text-slate-900 tracking-tight">{log.message}</p>
+                          <p className="text-[10px] font-mono text-slate-500 mt-0.5">
                             User: {log.userEmail || 'Anoniem'} • {format(new Date(log.timestamp), 'dd MMM yyyy, HH:mm:ss', { locale: nl })}
                           </p>
                         </div>
@@ -370,43 +360,43 @@ export function AdminPanel() {
                             e.stopPropagation();
                             if (log.id) handleDeleteLog(log.id);
                           }}
-                          className="p-1 px-2 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors text-[10px] font-mono flex items-center gap-1"
+                          className="p-1 px-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer"
                           title="Prune log entry"
                         >
                           <Trash2 className="w-3 h-3" /> Wis
                         </button>
-                        {isExpanded ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}
+                        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
                       </div>
                     </div>
 
                     {/* Detailed info expanded */}
                     {isExpanded && (
-                      <div className="p-4 pt-0 border-t border-white/5 bg-slate-950/50 rounded-b-xl space-y-3 font-mono text-[11px]">
+                      <div className="p-4 pt-0 border-t border-slate-100 bg-slate-50 rounded-b-xl space-y-3 font-mono text-[11px]">
                         {/* Summary of log meta info */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] text-white/40 border-b border-white/5 pb-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] text-slate-600 border-b border-slate-200 pb-3 pt-3">
                           <div>
-                            <span className="block text-[8px] uppercase tracking-wider text-white/20">Log ID</span>
-                            <span className="text-white/60 select-all">{log.id}</span>
+                            <span className="block text-[8px] uppercase tracking-wider text-slate-400 font-bold">Log ID</span>
+                            <span className="text-slate-800 select-all font-semibold">{log.id}</span>
                           </div>
                           <div>
-                            <span className="block text-[8px] uppercase tracking-wider text-white/20">User ID</span>
-                            <span className="text-white/60 select-all">{log.userId || 'N/A'}</span>
+                            <span className="block text-[8px] uppercase tracking-wider text-slate-400 font-bold">User ID</span>
+                            <span className="text-slate-800 select-all font-semibold">{log.userId || 'N/A'}</span>
                           </div>
                           <div>
-                            <span className="block text-[8px] uppercase tracking-wider text-white/20">Timestamp ISO</span>
-                            <span className="text-white/60">{log.timestamp}</span>
+                            <span className="block text-[8px] uppercase tracking-wider text-slate-400 font-bold">Timestamp ISO</span>
+                            <span className="text-slate-800 font-semibold">{log.timestamp}</span>
                           </div>
                           <div>
-                            <span className="block text-[8px] uppercase tracking-wider text-white/20">Category</span>
-                            <span className="text-accent underline text-accent/80 hover:text-accent font-bold uppercase">{isGeminiError ? 'Core AI Bureau' : 'Local Platform'}</span>
+                            <span className="block text-[8px] uppercase tracking-wider text-slate-400 font-bold">Category</span>
+                            <span className="text-cyan-700 font-bold uppercase">{isGeminiError ? 'Core AI Bureau' : 'Local Platform'}</span>
                           </div>
                         </div>
 
                         {/* Custom Context properties */}
                         {log.context && Object.keys(log.context).length > 0 && (
                           <div className="space-y-1">
-                            <span className="text-[9px] uppercase tracking-wider text-white/30 block mb-1">Log Context Map</span>
-                            <pre className="bg-slate-950 p-3 rounded-lg border border-white/5 text-amber-300 text-[10px] overflow-x-auto">
+                            <span className="text-[9px] uppercase tracking-wider text-slate-500 block mb-1 font-bold">Log Context Map</span>
+                            <pre className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-amber-300 text-[10px] overflow-x-auto">
                               {JSON.stringify(log.context, null, 2)}
                             </pre>
                           </div>
@@ -415,8 +405,8 @@ export function AdminPanel() {
                         {/* Stack trace section if available */}
                         {log.stack && (
                           <div className="space-y-1">
-                            <span className="text-[9px] uppercase tracking-wider text-white/30 block mb-1 font-bold text-red-400">Error Stack Trace</span>
-                            <pre className="bg-red-950/10 p-3 rounded-lg border border-red-500/10 text-red-300 text-[10px] overflow-x-auto max-h-[250px] overflow-y-auto whitespace-pre-wrap select-text">
+                            <span className="text-[9px] uppercase tracking-wider text-rose-600 block mb-1 font-bold">Error Stack Trace</span>
+                            <pre className="bg-rose-950 p-3 rounded-lg border border-rose-800 text-rose-200 text-[10px] overflow-x-auto max-h-[250px] overflow-y-auto whitespace-pre-wrap select-text">
                               {log.stack}
                             </pre>
                           </div>
