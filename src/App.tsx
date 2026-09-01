@@ -895,8 +895,15 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="max-w-screen-2xl mx-auto w-full"
+              className="max-w-screen-2xl mx-auto w-full space-y-8"
             >
+              {/* Zelfde surf-report-samenvatting bovenaan de weer-tab */}
+              <SurfReportCard
+                spot={selectedSpot}
+                forecast={forecast[0] || null}
+                advice={heroAdvice}
+                onDetails={forecast[0] ? () => handleCellClick(forecast[0]) : undefined}
+              />
               <WeatherPanel spot={selectedSpot} />
             </motion.div>
           )}
