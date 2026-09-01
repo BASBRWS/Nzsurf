@@ -36,17 +36,16 @@ export function Tooltip({ content, children, className, position = 'top' }: Tool
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: position === 'top' ? 4 : -4 }}
             className={cn(
-              "absolute z-[100] w-48 p-3 bg-marine-900 border border-white/10 rounded-xl shadow-2xl text-[10px] leading-relaxed text-white/80 font-medium pointer-events-none",
+              "absolute z-[100] w-56 p-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl text-xs leading-relaxed text-slate-100 font-medium pointer-events-none",
               positionClasses[position]
             )}
           >
-            <div className="absolute inset-0 bg-accent/5 rounded-xl pointer-events-none" />
             <div className="relative">
               {content}
             </div>
             {/* Arrow */}
             <div className={cn(
-              "absolute w-2 h-2 bg-marine-900 border-white/10 rotate-45",
+              "absolute w-2 h-2 bg-slate-900 border-slate-700 rotate-45",
               position === 'top' && "bottom-[-5px] left-1/2 -translate-x-1/2 border-r border-b",
               position === 'bottom' && "top-[-5px] left-1/2 -translate-x-1/2 border-l border-t",
               position === 'left' && "right-[-5px] top-1/2 -translate-y-1/2 border-r border-t",
@@ -62,7 +61,7 @@ export function Tooltip({ content, children, className, position = 'top' }: Tool
 export function TooltipIcon({ content, className }: { content: string; className?: string }) {
   return (
     <Tooltip content={content} className={className}>
-      <Info className="w-3 h-3 text-white/30 cursor-help hover:text-accent transition-colors" />
+      <Info className="w-3.5 h-3.5 text-slate-400 cursor-help hover:text-cyan-700 transition-colors inline-block" />
     </Tooltip>
   );
 }

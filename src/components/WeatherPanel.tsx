@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -17,7 +16,10 @@ import {
   TrendingUp,
   Cpu,
   Brain,
-  Info
+  Info,
+  CheckCircle2,
+  Calendar,
+  Gauge
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -263,86 +265,88 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
   return (
     <div className="space-y-8">
       {/* Header section w/ Mode Toggle */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl glass flex items-center justify-center border border-accent/20">
-            <Zap className="w-6 h-6 text-accent" />
+          <div className="w-12 h-12 rounded-2xl bg-cyan-100 border border-cyan-300 flex items-center justify-center text-cyan-800 shadow-xs flex-shrink-0">
+            <Zap className="w-6 h-6 text-cyan-700" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-3xl font-black italic uppercase text-white tracking-tighter">Atmos IQ</h2>
-              <TooltipIcon content="Onze eigen AI-motor die meteorologische modellen vergelijkt met historische data van deze specifieke locatie om de meest nauwkeurige voorspelling te kiezen." />
+              <h2 className="text-2xl sm:text-3xl font-black italic uppercase text-slate-900 tracking-tight">Atmos IQ</h2>
+              <TooltipIcon content="Meteorologische rekenmotor die 7 weermodellen toetst tegen historische meetstations en de beste data combineert voor deze spot." />
             </div>
-            <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em]">Local Model Intelligence</p>
+            <p className="text-xs font-mono font-bold text-cyan-800 uppercase tracking-widest mt-0.5">
+              Lokale Weer- & Weermodel Intelligentie
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center p-1 glass rounded-2xl border border-white/5 bg-white/5">
+        <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 self-stretch sm:self-auto justify-center">
           <button 
             onClick={() => setMode('simple')}
             className={cn(
-              "px-6 py-2 rounded-xl text-[10px] font-mono uppercase tracking-widest transition-all",
-              mode === 'simple' ? "bg-accent text-white shadow-lg shadow-accent/20" : "text-white/40 hover:text-white/60"
+              "px-5 py-2 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all",
+              mode === 'simple' ? "bg-white text-slate-900 shadow-xs border border-slate-200" : "text-slate-600 hover:text-slate-900"
             )}
           >
-            Simple
+            Overzicht
           </button>
-          <Tooltip content="Geavanceerde modus die de onderliggende prestaties en statistieken van verschillende weermodellen onthult.">
+          <Tooltip content="Geavanceerde modus die de scores, foutmarges (MAE/Bias) en individuele prestaties per weermodel onthult.">
             <button 
               onClick={() => setMode('pro')}
               className={cn(
-                "px-6 py-2 rounded-xl text-[10px] font-mono uppercase tracking-widest transition-all",
-                mode === 'pro' ? "bg-accent text-white shadow-lg shadow-accent/20" : "text-white/40 hover:text-white/60"
+                "px-5 py-2 rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-all",
+                mode === 'pro' ? "bg-cyan-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
               )}
             >
-              Pro IQ
+              Pro Modellen
             </button>
           </Tooltip>
         </div>
       </div>
 
-      {/* Constraints Panel (Collapsible in Simple) */}
-      <div className={cn(
-        "glass rounded-[2rem] p-6 border border-white/5 space-y-6 overflow-hidden transition-all duration-500",
-        mode === 'simple' ? "opacity-60 grayscale hover:grayscale-0 hover:opacity-100" : ""
-      )}>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="space-y-2">
+      {/* Constraints Panel (Collapsible / Config) */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[9px] font-mono uppercase text-white/30 tracking-widest">Modeltoets</label>
-              <TooltipIcon content="Het aantal dagen dat ons systeem terugkijkt om de voorspellingen van elk model te vergelijken met de werkelijk gemeten waarden op deze locatie." />
+              <label className="text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">Modeltoetsing</label>
+              <TooltipIcon content="Het aantal dagen dat de historische voorspellingen worden vergeleken met daadwerkelijk gemeten weerdata op deze coördinaten." />
             </div>
             <select 
               value={verifyDays} 
               onChange={(e) => setVerifyDays(Number(e.target.value))}
-              className="w-full bg-marine-950/50 border border-white/10 rounded-xl px-4 py-3 text-xs font-mono uppercase text-white outline-none focus:border-accent/50"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono font-semibold text-slate-900 outline-none focus:border-cyan-600 focus:bg-white focus:ring-2 focus:ring-cyan-100 transition-all cursor-pointer"
             >
-              {[90, 180, 365, 730].map(d => <option key={d} value={d}>{d} dagen</option>)}
+              {[90, 180, 365, 730].map(d => <option key={d} value={d}>{d} dagen analyse</option>)}
             </select>
           </div>
-          <div className="space-y-2">
+          
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[9px] font-mono uppercase text-white/30 tracking-widest">Klimaatbeeld</label>
-              <TooltipIcon content="De historische periode die wordt gebruikt om een betrouwbaar beeld te krijgen van de normale weersomstandigheden voor dit seizoen." />
+              <label className="text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">Klimaatperiode</label>
+              <TooltipIcon content="Historische referentieperiode om seizoensgebonden afwijkingen en lokale microklimaten vast te stellen." />
             </div>
             <select 
               value={historyYears} 
               onChange={(e) => setHistoryYears(Number(e.target.value))}
-              className="w-full bg-marine-950/50 border border-white/10 rounded-xl px-4 py-3 text-xs font-mono uppercase text-white outline-none focus:border-accent/50"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-mono font-semibold text-slate-900 outline-none focus:border-cyan-600 focus:bg-white focus:ring-2 focus:ring-cyan-100 transition-all cursor-pointer"
             >
-              {[5, 10, 15].map(y => <option key={y} value={y}>{y} jaar</option>)}
+              {[5, 10, 15].map(y => <option key={y} value={y}>{y} jaar historiek</option>)}
             </select>
           </div>
-          <div className="md:col-span-2 flex items-end gap-3">
-             <button 
+
+          <div className="md:col-span-2 flex flex-col sm:flex-row items-stretch sm:items-end gap-3 pt-2 sm:pt-0">
+            <button 
               onClick={runAnalysis}
               disabled={isLoading}
-              className="flex-1 h-[46px] bg-accent text-white rounded-xl text-[10px] font-mono uppercase tracking-widest hover:opacity-90 transition-all font-bold disabled:opacity-50"
+              className="flex-1 h-[42px] bg-cyan-700 hover:bg-cyan-800 active:scale-98 text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
-              Recalibrate Intelligence
+              <Target className={cn("w-4 h-4", isLoading && "animate-spin")} />
+              <span>{isLoading ? 'Herberekenen...' : 'Modellen Herkalibreren'}</span>
             </button>
-            <div className="px-4 h-[46px] flex items-center glass rounded-xl border border-white/5 uppercase text-[10px] font-mono text-white/40">
-              GPS: {spot.lat.toFixed(4)}, {spot.lng.toFixed(4)}
+            <div className="px-4 h-[42px] flex items-center justify-center bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono font-semibold text-slate-600 truncate">
+              GPS: {spot.lat.toFixed(3)}°N, {spot.lng.toFixed(3)}°E
             </div>
           </div>
         </div>
@@ -351,35 +355,47 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 pt-4 border-t border-white/5"
+            className="pt-4 border-t border-slate-200"
           >
-            {MODELS.map(m => (
-              <label 
-                key={m.id}
-                className={cn(
-                  "flex items-center gap-2 p-3 rounded-xl border transition-all cursor-pointer",
-                  selectedModelIds.includes(m.id) ? "border-accent/50 bg-accent/5 text-white" : "border-white/5 text-white/20 hover:text-white/40"
-                )}
-              >
-                <input 
-                  type="checkbox" 
-                  checked={selectedModelIds.includes(m.id)}
-                  onChange={(e) => {
-                    if (e.target.checked) setSelectedModelIds([...selectedModelIds, m.id]);
-                    else setSelectedModelIds(selectedModelIds.filter(id => id !== m.id));
-                  }}
-                  className="hidden"
-                />
-                <span className="text-[9px] font-mono uppercase truncate">{m.name.split(' ').slice(-1)}</span>
-              </label>
-            ))}
+            <p className="text-xs font-mono font-bold uppercase text-slate-600 mb-3 tracking-wider">
+              Actieve Modellen in Vergelijking:
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              {MODELS.map(m => (
+                <label 
+                  key={m.id}
+                  className={cn(
+                    "flex items-center gap-2 p-2.5 rounded-xl border text-xs font-mono transition-all cursor-pointer select-none",
+                    selectedModelIds.includes(m.id) 
+                      ? "border-cyan-500 bg-cyan-50 text-cyan-900 font-bold shadow-2xs" 
+                      : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-400 hover:text-slate-800"
+                  )}
+                >
+                  <input 
+                    type="checkbox" 
+                    checked={selectedModelIds.includes(m.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedModelIds([...selectedModelIds, m.id]);
+                      else setSelectedModelIds(selectedModelIds.filter(id => id !== m.id));
+                    }}
+                    className="rounded text-cyan-600 focus:ring-cyan-500 border-slate-300"
+                  />
+                  <span className="truncate">{m.name.replace('Open-Meteo ', '').replace(' seamless', '')}</span>
+                </label>
+              ))}
+            </div>
           </motion.div>
         )}
       </div>
 
-      <div className="glass-dark border border-accent/20 rounded-2xl p-4 flex items-center gap-4">
-        {isLoading ? <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" /> : <Target className="w-4 h-4 text-accent" />}
-        <p className={cn("text-[11px] font-mono uppercase tracking-widest", isLoading ? "text-accent animate-pulse" : "text-white/60")}>
+      {/* Live Status Bar */}
+      <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 flex items-center gap-3 text-sky-900 shadow-2xs">
+        {isLoading ? (
+          <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        ) : (
+          <CheckCircle2 className="w-4 h-4 text-sky-700 flex-shrink-0" />
+        )}
+        <p className="text-xs font-mono font-semibold text-sky-950 truncate">
           {statusText}
         </p>
       </div>
@@ -388,115 +404,128 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
         {mode === 'simple' ? (
           <motion.div 
             key="simple"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            exit={{ opacity: 0, y: -15 }}
             className="space-y-8"
           >
-            {/* Simple View Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 glass rounded-[3rem] p-10 flex flex-col justify-between min-h-[400px] border border-white/5 relative overflow-hidden group">
-                {/* Background Viz */}
-                <div className="absolute inset-0 pointer-events-none opacity-20">
-                  <div className="absolute top-10 right-10 w-32 h-32 rounded-full bg-accent blur-3xl animate-pulse" />
-                  <div className="absolute bottom-10 left-10 w-40 h-40 rounded-full bg-blue-500 blur-3xl opacity-50" />
-                </div>
-                
-                <div className="relative space-y-6">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-mono tracking-[0.4em] uppercase text-accent">Active Forecast</p>
-                    <h3 className="text-8xl font-black italic text-white tracking-tighter">
+            {/* Simple View Content: Hero + Trust Score */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Primary Active Forecast Hero Banner */}
+              <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white rounded-3xl p-8 sm:p-10 flex flex-col justify-between min-h-[380px] border border-slate-800 shadow-md relative overflow-hidden">
+                <div className="relative space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-500/20 border border-cyan-400/30 rounded-full text-xs font-mono font-bold text-cyan-300 uppercase tracking-wider">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Lokaal Gecorrigeerde Weersverwachting</span>
+                  </div>
+
+                  <div className="flex items-baseline gap-4">
+                    <h3 className="text-7xl sm:text-8xl font-black italic text-white tracking-tight">
                       {isLoading ? '--' : `${Math.round(currentMixed?.tempCorrected || 0)}°`}
                     </h3>
+                    <span className="text-lg font-mono font-bold text-cyan-300">Celsius</span>
                   </div>
                   
-                  <p className="text-xl font-medium text-sand-50/70 max-w-lg leading-relaxed">
-                    {isLoading ? 'Modellen worden gesynchroniseerd...' : (
+                  <p className="text-base sm:text-lg font-medium text-slate-100 max-w-xl leading-relaxed">
+                    {isLoading ? 'Modellen worden gesynchroniseerd met meetstations...' : (
                       currentMixed?.rain > 3 ? "Regenachtig met verhoogde lokale onzekerheid. Modellen vertonen divergentie." :
-                      currentMixed?.wind > 28 ? "Winderige condities gedetecteerd. Lokale wind-correcties toegepast." :
-                      "Stabiel weerbeeld met hoge model-overeenstemming voor deze locatie."
+                      currentMixed?.wind > 25 ? "Stevige wind gedetecteerd. Lokale kust- en wrijvingscorrecties toegepast." :
+                      "Stabiel en betrouwbaar weerbeeld met hoge model-overeenstemming voor deze kustzone."
                     )}
                   </p>
                 </div>
 
-                <div className="relative pt-8 grid grid-cols-2 md:grid-cols-4 gap-8">
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-mono uppercase text-white/30">Regen</p>
-                    <p className="text-2xl font-bold text-white">{isLoading ? '--' : `${currentMixed?.rain.toFixed(1)} mm`}</p>
+                <div className="pt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-white/10 mt-6">
+                  <div className="space-y-1 bg-white/5 rounded-xl p-3 border border-white/10">
+                    <p className="text-[11px] font-mono uppercase font-bold text-slate-300 flex items-center gap-1.5">
+                      <Droplets className="w-3.5 h-3.5 text-sky-400" />
+                      Neerslag
+                    </p>
+                    <p className="text-2xl font-black text-white">{isLoading ? '--' : `${currentMixed?.rain.toFixed(1)} mm`}</p>
                   </div>
-                  <div className="space-y-1 text-accent">
-                    <p className="text-[9px] font-mono uppercase text-accent/50">Wind</p>
-                    <p className="text-2xl font-bold">{isLoading ? '--' : `${Math.round(currentMixed?.wind || 0)} kn`}</p>
+                  <div className="space-y-1 bg-cyan-950/40 rounded-xl p-3 border border-cyan-500/30">
+                    <p className="text-[11px] font-mono uppercase font-bold text-cyan-300 flex items-center gap-1.5">
+                      <Wind className="w-3.5 h-3.5 text-cyan-300" />
+                      Wind
+                    </p>
+                    <p className="text-2xl font-black text-cyan-200">{isLoading ? '--' : `${Math.round(currentMixed?.wind || 0)} kn`}</p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-mono uppercase text-white/30">Bewolking</p>
-                    <p className="text-2xl font-bold text-white">{isLoading ? '--' : `${Math.round(currentMixed?.cloud || 0)}%`}</p>
+                  <div className="space-y-1 bg-white/5 rounded-xl p-3 border border-white/10">
+                    <p className="text-[11px] font-mono uppercase font-bold text-slate-300 flex items-center gap-1.5">
+                      <Cloud className="w-3.5 h-3.5 text-slate-300" />
+                      Bewolking
+                    </p>
+                    <p className="text-2xl font-black text-white">{isLoading ? '--' : `${Math.round(currentMixed?.cloud || 0)}%`}</p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[9px] font-mono uppercase text-white/30">Vertrouwen</p>
-                    <p className="text-2xl font-bold text-white">{isLoading ? '--' : `${Math.round(currentMixed?.confidence || 0)}%`}</p>
+                  <div className="space-y-1 bg-white/5 rounded-xl p-3 border border-white/10">
+                    <p className="text-[11px] font-mono uppercase font-bold text-slate-300 flex items-center gap-1.5">
+                      <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+                      Vertrouwen
+                    </p>
+                    <p className="text-2xl font-black text-emerald-300">{isLoading ? '--' : `${Math.round(currentMixed?.confidence || 0)}%`}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="glass rounded-[3rem] p-10 border border-white/5 flex flex-col items-center justify-center gap-8 text-center bg-white/[0.02]">
+              {/* Accuracy & Model Trust Score Card */}
+              <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xs flex flex-col items-center justify-center gap-6 text-center text-slate-900">
                 <div className="relative">
-                   <svg className="w-40 h-40 transform -rotate-90">
+                  <svg className="w-36 h-36 transform -rotate-90">
                     <circle
-                      cx="80" cy="80" r="70"
-                      fill="none" stroke="currentColor" strokeWidth="12"
-                      className="text-white/5"
+                      cx="72" cy="72" r="60"
+                      fill="none" stroke="currentColor" strokeWidth="10"
+                      className="text-slate-100"
                     />
                     <circle
-                      cx="80" cy="80" r="70"
-                      fill="none" stroke="currentColor" strokeWidth="12"
-                      strokeDasharray={440}
-                      strokeDashoffset={440 - (440 * (bestModels?.total.totalScore || 0)) / 100}
+                      cx="72" cy="72" r="60"
+                      fill="none" stroke="currentColor" strokeWidth="10"
+                      strokeDasharray={377}
+                      strokeDashoffset={377 - (377 * (bestModels?.total.totalScore || 0)) / 100}
                       strokeLinecap="round"
-                      className="text-accent transition-all duration-1000 ease-out"
+                      className="text-cyan-600 transition-all duration-1000 ease-out"
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <Tooltip content="Het percentage van de tijd dat de gekozen modellen historisch gezien het dichtst bij de werkelijke waarnemingen zaten op deze specifieke coördinaten.">
-                      <div className="flex flex-col items-center">
-                        <span className="text-4xl font-black italic">{isLoading ? '--' : bestModels?.total.totalScore}</span>
-                        <span className="text-[8px] font-mono uppercase text-white/40 tracking-widest mt-1">Trust Score</span>
-                      </div>
-                    </Tooltip>
+                    <span className="text-4xl font-black text-slate-900 italic">
+                      {isLoading ? '--' : bestModels?.total.totalScore}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold uppercase text-slate-500 tracking-wider">
+                      Trust Score
+                    </span>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <h4 className="text-lg font-bold">Accuracy Model</h4>
-                  <p className="text-xs text-white/40 leading-relaxed">
-                    Op basis van {verifyDays} dagen historische vergelijking is <strong>{bestModels?.total.model.name || '...'}</strong> het meest betrouwbaar voor deze coördinaten.
+
+                <div className="space-y-2">
+                  <h4 className="text-lg font-bold text-slate-900">Model Nauwkeurigheid</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed max-w-xs">
+                    Op basis van {verifyDays} dagen historische verificatie presteert <strong className="text-slate-900 font-bold">{bestModels?.total.model.name || '...'}</strong> het meest accuraat op deze coördinaten.
                   </p>
                   {bestModels?.temp.biasTemp !== undefined && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-                      <TrendingUp className="w-3 h-3 text-accent" />
-                      <span className="text-[9px] font-mono uppercase text-white/60">Local Bias: {bestModels.temp.biasTemp.toFixed(1)}°C</span>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-800 rounded-full border border-slate-200 text-xs font-mono font-semibold mt-2">
+                      <TrendingUp className="w-3.5 h-3.5 text-cyan-700" />
+                      <span>Lokale Bias: {bestModels.temp.biasTemp > 0 ? `+${bestModels.temp.biasTemp.toFixed(1)}` : bestModels.temp.biasTemp.toFixed(1)}°C</span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Simple Timeline Card */}
-            <div className="glass rounded-[2rem] p-8 border border-white/5 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <BarChart3 className="w-4 h-4 text-accent" />
-                  <h4 className="text-sm font-bold uppercase tracking-widest">7-daagse Mixed Forecast</h4>
+            {/* 7-Day Timeline Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <BarChart3 className="w-5 h-5 text-cyan-700" />
+                  <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">7-Daagse Gekalibreerde Weersverwachting</h4>
                 </div>
-                <p className="text-[10px] font-mono text-white/30 uppercase">Tik op een dag voor details</p>
+                <p className="text-xs font-mono font-semibold text-slate-500">Tik op een dag voor de 24-uurs details</p>
               </div>
 
-              <div className="flex overflow-x-auto pb-4 gap-4 no-scrollbar snap-x md:grid md:grid-cols-4 lg:grid-cols-7 md:pb-0">
+              <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar snap-x md:grid md:grid-cols-4 lg:grid-cols-7 md:pb-0">
                 {mixedForecast.map((d, i) => (
                   <button 
                     key={d.date} 
                     onClick={() => {
                       setSelectedDayIndex(i);
-                      // Scroll slightly to ensure drilldown is visible on small screens
                       if (window.innerWidth < 768) {
                         setTimeout(() => {
                           const drilldown = document.getElementById('hourly-drilldown');
@@ -505,36 +534,38 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
                       }
                     }}
                     className={cn(
-                      "glass-dark border rounded-2xl p-6 space-y-4 transition-all group text-left relative flex-shrink-0 w-[140px] md:w-auto snap-center",
-                      selectedDayIndex === i ? "border-accent bg-accent/5 ring-1 ring-accent/20" : "border-white/5 hover:border-accent/30"
+                      "rounded-2xl p-4 sm:p-5 space-y-3 transition-all text-left relative flex-shrink-0 w-[145px] md:w-auto snap-center cursor-pointer border",
+                      selectedDayIndex === i 
+                        ? "border-cyan-600 bg-cyan-50/70 shadow-sm ring-2 ring-cyan-600/20" 
+                        : "border-slate-200 bg-slate-50/60 hover:bg-white hover:border-slate-300 shadow-2xs"
                     )}
                   >
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-mono text-white/30 uppercase">{format(parseISO(d.date), 'EEE d MMM', { locale: nl })}</p>
-                      <p className="text-3xl font-black italic group-hover:text-accent transition-colors">{Math.round(d.tempCorrected)}°</p>
+                    <div className="space-y-0.5">
+                      <p className={cn(
+                        "text-xs font-mono uppercase font-bold",
+                        selectedDayIndex === i ? "text-cyan-950 font-black" : "text-slate-600"
+                      )}>
+                        {format(parseISO(d.date), 'EEE d MMM', { locale: nl })}
+                      </p>
+                      <p className="text-3xl font-black italic text-slate-900">{Math.round(d.tempCorrected)}°</p>
                     </div>
-                    <div className="space-y-2">
-                       <div className="flex items-center gap-2">
-                        <Droplets className="w-3 h-3 text-blue-400/50" />
-                        <span className="text-[10px] font-mono text-white/60">{d.rain.toFixed(1)}mm</span>
+
+                    <div className="space-y-1.5 pt-1 border-t border-slate-200/60">
+                      <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-blue-700">
+                        <Droplets className="w-3.5 h-3.5 text-blue-600" />
+                        <span>{d.rain.toFixed(1)} mm</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Wind className="w-3 h-3 text-accent/50" />
-                        <span className="text-[10px] font-mono text-white/60">{Math.round(d.wind)}kn</span>
+                      <div className="flex items-center gap-1.5 text-xs font-mono font-semibold text-cyan-800">
+                        <Wind className="w-3.5 h-3.5 text-cyan-700" />
+                        <span>{Math.round(d.wind)} kn</span>
                       </div>
                     </div>
-                    {selectedDayIndex === i && (
-                      <motion.div 
-                        layoutId="active-indicator"
-                        className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-accent rotate-45 border-r border-b border-white/10 hidden md:block" 
-                      />
-                    )}
                   </button>
                 ))}
               </div>
 
               {/* 24h Drilldown for selected day */}
-              <div id="hourly-drilldown" className="relative group/drilldown">
+              <div id="hourly-drilldown" className="relative pt-4">
                 <AnimatePresence mode="wait">
                   {mixedForecast[selectedDayIndex] && (
                     <motion.div 
@@ -542,129 +573,135 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="pt-10 space-y-8"
+                      className="space-y-6"
                     >
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-4 border-accent pl-6">
-                        <div className="space-y-1">
-                          <h5 className="text-xl font-black italic uppercase tracking-tight">
-                            Details: {format(parseISO(mixedForecast[selectedDayIndex].date), 'EEEE d MMMM', { locale: nl })}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-4 border-cyan-600 pl-4 bg-slate-50 p-4 rounded-r-2xl border border-slate-200">
+                        <div className="space-y-0.5">
+                          <h5 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                            Uur-tot-Uur: {format(parseISO(mixedForecast[selectedDayIndex].date), 'EEEE d MMMM', { locale: nl })}
                           </h5>
-                          <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em]">Atmos IQ Calibrated Hourly Stream</p>
+                          <p className="text-xs font-mono font-bold text-cyan-800 uppercase tracking-wider">
+                            Atmos IQ Gekalibreerde Tijdlijn
+                          </p>
                         </div>
                         <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <p className="text-[9px] font-mono text-white/20 uppercase">Confidence</p>
-                            <p className="text-lg font-bold text-accent">{Math.round(mixedForecast[selectedDayIndex].confidence)}%</p>
+                          <div>
+                            <p className="text-[10px] font-mono text-slate-500 uppercase font-bold">Betrouwbaarheid</p>
+                            <p className="text-lg font-black text-cyan-800">{Math.round(mixedForecast[selectedDayIndex].confidence)}%</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-[9px] font-mono text-white/20 uppercase">Model Mix</p>
-                            <p className="text-xs font-mono text-white/60">HYBRID-CALIB</p>
+                          <div>
+                            <p className="text-[10px] font-mono text-slate-500 uppercase font-bold">Model Mix</p>
+                            <p className="text-xs font-mono font-bold text-slate-800">HYBRID-CALIB</p>
                           </div>
                         </div>
                       </div>
 
+                      {/* 3 Hourly Visual Charts */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                         <div className="glass-dark border border-white/5 rounded-[2rem] p-8 h-[280px] relative overflow-hidden group/chart">
-                            <div className="absolute top-6 left-8 flex items-center gap-3 z-10">
-                              <Thermometer className="w-4 h-4 text-accent" />
-                              <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Temperatuur (°C)</span>
-                            </div>
-                            <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({ 
-                                time: format(parseISO(t), 'HH:mm'), 
-                                temp: mixedForecast[selectedDayIndex].hourly.temp[idx] 
-                              }))}>
-                                 <defs>
-                                  <linearGradient id="colorHourlyTemp" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#ffd166" stopOpacity={0.2}/>
-                                    <stop offset="95%" stopColor="#ffd166" stopOpacity={0}/>
-                                  </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                                <XAxis 
-                                  dataKey="time" 
-                                  axisLine={false} 
-                                  tickLine={false} 
-                                  tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 9, fontFamily: 'monospace' }}
-                                  interval={3}
-                                />
-                                <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
-                                <ChartTooltip 
-                                  cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
-                                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', fontSize: '10px' }} 
-                                />
-                                <Area type="monotone" dataKey="temp" stroke="#ffd166" fill="url(#colorHourlyTemp)" strokeWidth={3} />
-                              </AreaChart>
-                            </ResponsiveContainer>
-                         </div>
+                        {/* Temperature Chart */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-5 h-[280px] shadow-xs relative overflow-hidden">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Thermometer className="w-4 h-4 text-amber-600" />
+                            <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">Temperatuur (°C)</span>
+                          </div>
+                          <ResponsiveContainer width="100%" height="82%">
+                            <AreaChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({ 
+                              time: format(parseISO(t), 'HH:mm'), 
+                              temp: mixedForecast[selectedDayIndex].hourly.temp[idx] 
+                            }))}>
+                              <defs>
+                                <linearGradient id="colorHourlyTempLight" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.02}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis 
+                                dataKey="time" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'monospace' }}
+                                interval={3}
+                              />
+                              <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
+                              <ChartTooltip 
+                                cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '12px', fontSize: '11px', color: '#0f172a', fontWeight: 'bold' }} 
+                              />
+                              <Area type="monotone" dataKey="temp" stroke="#d97706" fill="url(#colorHourlyTempLight)" strokeWidth={2.5} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
 
-                         <div className="glass-dark border border-white/5 rounded-[2rem] p-8 h-[280px] relative overflow-hidden group/chart">
-                            <div className="absolute top-6 left-8 flex items-center gap-3 z-10">
-                              <Wind className="w-4 h-4 text-blue-400" />
-                              <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Wind (KN)</span>
-                            </div>
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({ 
-                                time: format(parseISO(t), 'HH:mm'), 
-                                wind: mixedForecast[selectedDayIndex].hourly.wind[idx]
-                              }))}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                                <XAxis 
-                                  dataKey="time" 
-                                  axisLine={false} 
-                                  tickLine={false} 
-                                  tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 9, fontFamily: 'monospace' }}
-                                  interval={3}
-                                />
-                                <YAxis hide />
-                                <ChartTooltip 
-                                  cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
-                                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', fontSize: '10px' }} 
-                                />
-                                <Line type="stepAfter" dataKey="wind" stroke="#3b82f6" strokeWidth={3} dot={false} />
-                              </LineChart>
-                            </ResponsiveContainer>
-                         </div>
+                        {/* Wind Chart */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-5 h-[280px] shadow-xs relative overflow-hidden">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Wind className="w-4 h-4 text-cyan-700" />
+                            <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">Windsnelheid (Knopen)</span>
+                          </div>
+                          <ResponsiveContainer width="100%" height="82%">
+                            <LineChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({ 
+                              time: format(parseISO(t), 'HH:mm'), 
+                              wind: mixedForecast[selectedDayIndex].hourly.wind[idx]
+                            }))}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis 
+                                dataKey="time" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'monospace' }}
+                                interval={3}
+                              />
+                              <YAxis hide />
+                              <ChartTooltip 
+                                cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }}
+                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '12px', fontSize: '11px', color: '#0f172a', fontWeight: 'bold' }} 
+                              />
+                              <Line type="stepAfter" dataKey="wind" stroke="#0284c7" strokeWidth={2.5} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
 
-                         <div className="glass-dark border border-white/5 rounded-[2rem] p-8 h-[280px] relative overflow-hidden group/chart">
-                            <div className="absolute top-6 left-8 flex items-center gap-3 z-10">
-                              <Droplets className="w-4 h-4 text-purple-500" />
-                              <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Neerslag (MM)</span>
-                            </div>
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({ 
-                                time: format(parseISO(t), 'HH:mm'), 
-                                rain: mixedForecast[selectedDayIndex].hourly.rain[idx] || 0
-                              }))}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                                <XAxis 
-                                  dataKey="time" 
-                                  axisLine={false} 
-                                  tickLine={false} 
-                                  tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 9, fontFamily: 'monospace' }}
-                                  interval={3}
-                                />
-                                <YAxis hide />
-                                <ChartTooltip 
-                                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', fontSize: '10px' }} 
-                                />
-                                <Bar dataKey="rain" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                         </div>
+                        {/* Rain Chart */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-5 h-[280px] shadow-xs relative overflow-hidden">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Droplets className="w-4 h-4 text-purple-700" />
+                            <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">Neerslag (mm/uur)</span>
+                          </div>
+                          <ResponsiveContainer width="100%" height="82%">
+                            <BarChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({ 
+                              time: format(parseISO(t), 'HH:mm'), 
+                              rain: mixedForecast[selectedDayIndex].hourly.rain[idx] || 0
+                            }))}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis 
+                                dataKey="time" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#64748b', fontSize: 10, fontFamily: 'monospace' }}
+                                interval={3}
+                              />
+                              <YAxis hide />
+                              <ChartTooltip 
+                                cursor={{ fill: '#f8fafc' }}
+                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '12px', fontSize: '11px', color: '#0f172a', fontWeight: 'bold' }} 
+                              />
+                              <Bar dataKey="rain" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
 
-                      {/* Hourly matrix snippet */}
-                      <div className="overflow-x-auto glass rounded-2xl border border-white/5">
+                      {/* 24-Hour Matrix Table Snippet */}
+                      <div className="overflow-x-auto bg-slate-50 rounded-2xl border border-slate-200 shadow-2xs">
                         <div className="flex min-w-max p-2">
                           {mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => (
-                            <div key={t} className="flex-1 min-w-[60px] p-4 text-center space-y-3 border-r border-white/5 last:border-0 group-hover:bg-white/[0.01] transition-colors">
-                              <p className="text-[9px] font-mono text-white/20 uppercase">{format(parseISO(t), 'HH:mm')}</p>
-                              <p className="text-sm font-bold text-white">{Math.round(mixedForecast[selectedDayIndex].hourly.temp[idx])}°</p>
-                              <div className="space-y-1">
-                                <div className="text-[8px] font-mono text-blue-400/50">{Math.round(mixedForecast[selectedDayIndex].hourly.wind[idx])}k</div>
-                                <div className="text-[8px] font-mono text-purple-500/50">{mixedForecast[selectedDayIndex].hourly.rain[idx].toFixed(1)}</div>
+                            <div key={t} className="flex-1 min-w-[64px] p-3 text-center space-y-2 border-r border-slate-200 last:border-0 hover:bg-white transition-colors">
+                              <p className="text-[10px] font-mono font-bold text-slate-500 uppercase">{format(parseISO(t), 'HH:mm')}</p>
+                              <p className="text-sm font-black text-slate-900">{Math.round(mixedForecast[selectedDayIndex].hourly.temp[idx])}°</p>
+                              <div className="space-y-0.5">
+                                <div className="text-[10px] font-mono font-bold text-cyan-800">{Math.round(mixedForecast[selectedDayIndex].hourly.wind[idx])}kn</div>
+                                <div className="text-[10px] font-mono font-bold text-purple-700">{mixedForecast[selectedDayIndex].hourly.rain[idx].toFixed(1)}mm</div>
                               </div>
                             </div>
                           ))}
@@ -679,155 +716,154 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
         ) : (
           <motion.div 
             key="pro"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
             className="space-y-8"
           >
             {/* Pro IQ Content */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Stats Column */}
-              <div className="glass rounded-[2rem] p-6 border border-white/5 space-y-6 bg-white/[0.02]">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/30">Atmospheric Data</h4>
-                  <Layers className="w-4 h-4 text-white/10" />
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">Atmosferische Data</h4>
+                  <Layers className="w-4 h-4 text-slate-400" />
                 </div>
                 <div className="space-y-3">
                   {[
                     { label: 'Temperatuur', val: `${currentMixed?.tempCorrected.toFixed(1)}°C`, sub: `Bias ${bestModels?.temp.biasTemp.toFixed(1)}°` },
                     { label: 'Neerslag', val: `${currentMixed?.rain.toFixed(1)} mm`, sub: `${bestModels?.rain.rainHitRate.toFixed(2)} hit rate` },
-                    { label: 'Wind Snelheid', val: `${Math.round(currentMixed?.wind || 0)} kn`, sub: `${bestModels?.wind.maeWind.toFixed(1)} MAE` },
-                    { label: 'Bewolking', val: `${Math.round(currentMixed?.cloud || 0)}%`, sub: 'Coverage' },
-                    { label: 'Model Trust', val: `${bestModels?.total.totalScore}/100`, sub: bestModels?.total.model.name }
+                    { label: 'Windsnelheid', val: `${Math.round(currentMixed?.wind || 0)} kn`, sub: `${bestModels?.wind.maeWind.toFixed(1)} MAE` },
+                    { label: 'Bewolking', val: `${Math.round(currentMixed?.cloud || 0)}%`, sub: 'Dekking' },
+                    { label: 'Model Vertrouwen', val: `${bestModels?.total.totalScore}/100`, sub: bestModels?.total.model.name }
                   ].map(item => (
-                    <div key={item.label} className="p-4 rounded-2xl glass-dark border border-white/5 space-y-1">
+                    <div key={item.label} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
                       <div className="flex justify-between items-center">
-                        <span className="text-[9px] font-mono uppercase text-white/30">{item.label}</span>
-                        <span className="text-[8px] font-mono text-accent">{item.sub}</span>
+                        <span className="text-[10px] font-mono font-bold uppercase text-slate-500">{item.label}</span>
+                        <span className="text-[10px] font-mono font-bold text-cyan-800">{item.sub}</span>
                       </div>
-                      <p className="text-xl font-bold text-white">{item.val}</p>
+                      <p className="text-xl font-black text-slate-900">{item.val}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Visualization Center */}
+              {/* Visualization Center: Conflict Vector Space */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="glass rounded-[2.5rem] p-8 border border-white/5 h-full relative overflow-hidden">
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-white/[0.03] rounded-full" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] border border-white/[0.04] rounded-full" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] border border-white/[0.05] rounded-full" />
-                    {/* Radar Sweep Effect */}
-                    <div 
-                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full animate-spin duration-[10s] linear" 
-                      style={{ background: 'conic-gradient(from 0deg, transparent 300deg, rgba(65, 180, 255, 0.1) 360deg)' }}
-                    />
-                  </div>
-
-                  <div className="relative h-full flex flex-col">
-                    <div className="flex justify-between items-start mb-8">
-                       <div className="space-y-1">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                          <Cpu className="w-4 h-4" /> Conflict Field
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs h-full relative overflow-hidden flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="space-y-0.5">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                          <Cpu className="w-4 h-4 text-cyan-700" />
+                          <span>Model Conflict Veld</span>
                         </h4>
-                        <p className="text-[10px] font-mono text-white/30 uppercase">Multi-model vector space</p>
+                        <p className="text-xs font-mono font-semibold text-slate-500 uppercase">Multi-model vector convergentie</p>
                       </div>
                       <div className={cn(
-                        "px-3 py-1 rounded-full text-[9px] font-mono uppercase border",
-                        (bestModels?.total.totalScore || 0) > 80 ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-amber-500/20 text-amber-400 bg-amber-500/5"
+                        "px-3 py-1 rounded-full text-xs font-mono font-bold uppercase border",
+                        (bestModels?.total.totalScore || 0) > 80 
+                          ? "border-emerald-300 text-emerald-800 bg-emerald-50" 
+                          : "border-amber-300 text-amber-800 bg-amber-50"
                       )}>
-                        {bestModels?.total.totalScore && bestModels.total.totalScore > 80 ? 'Low Divergence' : 'Moderate Divergence'}
+                        {bestModels?.total.totalScore && bestModels.total.totalScore > 80 ? 'Lage Divergentie (Hoge consensus)' : 'Matige Divergentie'}
                       </div>
                     </div>
 
-                    <div className="flex-1 min-h-[300px] relative">
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="w-4 h-4 bg-accent rounded-full shadow-[0_0_30px_rgba(65,180,255,1)] relative z-10" />
+                    <div className="min-h-[220px] relative flex items-center justify-center my-4 bg-slate-50/70 rounded-2xl border border-slate-200">
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-[180px] h-[180px] border border-slate-300 rounded-full" />
+                        <div className="w-[120px] h-[120px] border border-slate-300 rounded-full" />
+                        <div className="w-[60px] h-[60px] border border-slate-300 rounded-full" />
                       </div>
 
-                      {/* Floating model nodes */}
-                      <div className="absolute top-10 left-10 p-4 glass-dark rounded-2xl border border-white/5 space-y-1 z-20">
-                        <span className="text-[8px] font-mono text-white/30 uppercase">Temp Model</span>
-                        <p className="text-xs font-bold">{bestModels?.temp.model.name.split(' ').slice(-1)}</p>
+                      {/* Center Point */}
+                      <div className="w-5 h-5 bg-cyan-600 rounded-full shadow-md z-10 flex items-center justify-center text-white text-[9px] font-bold">
+                        ★
                       </div>
-                      <div className="absolute bottom-12 right-6 p-4 glass-dark rounded-2xl border border-white/5 space-y-1 z-20">
-                        <span className="text-[8px] font-mono text-white/30 uppercase">Wind Model</span>
-                        <p className="text-xs font-bold">{bestModels?.wind.model.name.split(' ').slice(-1)}</p>
+
+                      {/* Floating Model Pills */}
+                      <div className="absolute top-4 left-4 p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-0.5 z-20">
+                        <span className="text-[9px] font-mono font-bold text-slate-500 uppercase block">Beste Temp</span>
+                        <p className="text-xs font-bold text-slate-900">{bestModels?.temp.model.name.replace('Open-Meteo ', '').replace(' seamless', '')}</p>
                       </div>
-                      <div className="absolute top-24 right-12 p-4 glass-dark rounded-2xl border border-white/10 space-y-1 z-20">
-                        <span className="text-[8px] font-mono text-white/30 uppercase">Rain Model</span>
-                        <p className="text-xs font-bold">{bestModels?.rain.model.name.split(' ').slice(-1)}</p>
+                      <div className="absolute bottom-4 right-4 p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-0.5 z-20">
+                        <span className="text-[9px] font-mono font-bold text-slate-500 uppercase block">Beste Wind</span>
+                        <p className="text-xs font-bold text-slate-900">{bestModels?.wind.model.name.replace('Open-Meteo ', '').replace(' seamless', '')}</p>
+                      </div>
+                      <div className="absolute top-4 right-4 p-2.5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-0.5 z-20">
+                        <span className="text-[9px] font-mono font-bold text-slate-500 uppercase block">Beste Neerslag</span>
+                        <p className="text-xs font-bold text-slate-900">{bestModels?.rain.model.name.replace('Open-Meteo ', '').replace(' seamless', '')}</p>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="pt-8 grid grid-cols-3 gap-8 border-t border-white/5">
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-mono text-white/20 uppercase">RMS Error</span>
-                        <p className="text-lg font-bold">{bestModels?.total.maeTemp.toFixed(2)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-mono text-white/20 uppercase">Hit Probability</span>
-                        <p className="text-lg font-bold text-accent">{Math.round((bestModels?.rain.rainHitRate || 0) * 100)}%</p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-mono text-white/20 uppercase">Sync Level</span>
-                        <p className="text-lg font-bold">100%</p>
-                      </div>
+                  <div className="pt-4 grid grid-cols-3 gap-4 border-t border-slate-200">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Temp Foutmarge</span>
+                      <p className="text-base font-black text-slate-900">{bestModels?.total.maeTemp.toFixed(2)}°C</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Hit Kans</span>
+                      <p className="text-base font-black text-cyan-800">{Math.round((bestModels?.rain.rainHitRate || 0) * 100)}%</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Synchronisatie</span>
+                      <p className="text-base font-black text-emerald-700">100%</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Signals Column */}
-              <div className="glass rounded-[2rem] p-6 border border-white/5 space-y-8 bg-white/[0.02]">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/30">AI Signals</h4>
-                  <Brain className="w-4 h-4 text-accent/20" />
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">AI Signalen</h4>
+                  <Brain className="w-4 h-4 text-cyan-700" />
                 </div>
                 
-                <div className="space-y-6">
-                  {/* Confidence Decay */}
-                  <div className="space-y-4">
+                <div className="space-y-5">
+                  <div className="space-y-3">
                     {[
                       { l: 'Vandaag', v: currentMixed?.confidence || 0 },
                       { l: '+3 Dagen', v: mixedForecast[3]?.confidence || 0 },
                       { l: '+7 Dagen', v: mixedForecast[6]?.confidence || 0 }
                     ].map(sig => (
-                      <div key={sig.l} className="space-y-2">
-                        <div className="flex justify-between text-[9px] font-mono uppercase">
-                          <span className="text-white/40">{sig.l}</span>
-                          <span className="text-accent">{Math.round(sig.v)}%</span>
+                      <div key={sig.l} className="space-y-1">
+                        <div className="flex justify-between text-xs font-mono font-bold">
+                          <span className="text-slate-600">{sig.l}</span>
+                          <span className="text-cyan-800">{Math.round(sig.v)}%</span>
                         </div>
-                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${sig.v}%` }}
-                            className="h-full bg-accent"
+                            className="h-full bg-cyan-600"
                           />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="p-4 glass-dark rounded-2xl border border-white/5 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-3 h-3 text-emerald-400" />
-                        <span className="text-[9px] font-mono uppercase text-emerald-400">Stable Bias</span>
+                  <div className="space-y-2.5 pt-2">
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs font-mono">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Stabiele Bias</span>
                       </div>
-                      <p className="text-[11px] leading-relaxed text-white/60">
-                        Het temp-model vertoont een constante bias van {bestModels?.temp.biasTemp.toFixed(1)}°C. Verhoging van lokale nauwkeurigheid geactiveerd.
+                      <p className="text-xs leading-relaxed text-emerald-950 font-medium">
+                        Het temp-model vertoont een constante correctie van {bestModels?.temp.biasTemp.toFixed(1)}°C voor verhoogde kustprecisie.
                       </p>
                     </div>
-                    {(bestModels?.total.totalScore || 0) < 70 && (
-                      <div className="p-4 glass-dark rounded-2xl border border-amber-500/10 space-y-2 bg-amber-500/5">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-3 h-3 text-amber-500" />
-                          <span className="text-[9px] font-mono uppercase text-amber-500">Anomaly Check</span>
+
+                    {(bestModels?.total.totalScore || 0) < 75 && (
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
+                        <div className="flex items-center gap-1.5 text-amber-800 font-bold text-xs font-mono">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Verhoogde Neerslagvariantie</span>
                         </div>
-                        <p className="text-[11px] leading-relaxed text-white/60">
-                          Hoge neerslag-fluctuatie gedetecteerd in historische sets. Neerslaggegevens hebben verlaagde prioriteit in totaalscore.
+                        <p className="text-xs leading-relaxed text-amber-950 font-medium">
+                          Modellen tonen hogere spreiding in neerslagtijdstip.
                         </p>
                       </div>
                     )}
@@ -836,52 +872,48 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 bg-accent/5 p-4 rounded-2xl border border-accent/20">
-              <Zap className="w-4 h-4 text-accent" />
-              <p className="text-[11px] font-mono uppercase text-white/60">Klik op een dag voor een uurlijkse diepte-analyse.</p>
-            </div>
-
-            <div className="glass rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl">
-              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+            {/* Model Historical Matrix Table */}
+            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <BarChart3 className="w-4 h-4 text-accent" />
-                  <h4 className="text-sm font-bold uppercase tracking-widest">Model Historical Matrix</h4>
+                  <BarChart3 className="w-5 h-5 text-cyan-700" />
+                  <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">Model Historische Matrix & Benchmark</h4>
                 </div>
-                <div className="flex items-center gap-4">
-                   <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span className="text-[10px] font-mono text-white/40 uppercase">Optimized</span>
-                   </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-mono font-bold text-slate-600 uppercase">Geoptimaliseerd</span>
                 </div>
               </div>
+
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-[11px] font-mono">
-                  <thead className="bg-white/5 uppercase text-white/40 tracking-widest border-b border-white/5">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-100 uppercase text-slate-700 font-bold tracking-wider border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-4">Model Engine</th>
-                      <th className="px-6 py-4">Total Score</th>
-                      <th className="px-6 py-4">Temp MAE</th>
-                      <th className="px-6 py-4">Temp Bias</th>
-                      <th className="px-6 py-4">Rain Hit Rate</th>
-                      <th className="px-6 py-4">Miss/False</th>
-                      <th className="px-6 py-4">Wind Accuracy</th>
+                      <th className="px-6 py-3.5">Weermodel</th>
+                      <th className="px-6 py-3.5">Totaal Score</th>
+                      <th className="px-6 py-3.5">Temp MAE</th>
+                      <th className="px-6 py-3.5">Temp Bias</th>
+                      <th className="px-6 py-3.5">Regen Hit Rate</th>
+                      <th className="px-6 py-3.5">Miss / Vals</th>
+                      <th className="px-6 py-3.5">Wind Nauwkeurigheid</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className="divide-y divide-slate-100">
                     {[...rankings].sort((a, b) => b.totalScore - a.totalScore).map((r, i) => (
-                      <tr key={r.model.id} className="hover:bg-white/[0.02] transition-colors group">
-                        <td className="px-6 py-4 font-bold text-white flex items-center gap-2">
-                          <div className={cn("w-1 h-4 rounded-full", i === 0 ? "bg-accent" : "bg-white/10")} />
+                      <tr key={r.model.id} className="hover:bg-slate-50/80 transition-colors text-slate-800">
+                        <td className="px-6 py-4 font-bold text-slate-900 flex items-center gap-2">
+                          <div className={cn("w-1.5 h-4 rounded-full", i === 0 ? "bg-cyan-600" : "bg-slate-300")} />
                           {shortModel(r.model.name)}
+                          {i === 0 && <span className="ml-1 text-[10px] bg-cyan-100 text-cyan-900 px-2 py-0.5 rounded-full font-bold">WINNAAR</span>}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={cn(i === 0 ? "text-accent font-black" : "text-white/60")}>{r.totalScore}</span>
+                          <span className={cn("font-bold text-sm", i === 0 ? "text-cyan-800 font-black" : "text-slate-700")}>{r.totalScore}</span>
                         </td>
-                        <td className="px-6 py-4 text-white/60">{r.maeTemp.toFixed(2)}°C</td>
-                        <td className="px-6 py-4 text-white/60">{r.biasTemp.toFixed(2)}°C</td>
-                        <td className="px-6 py-4 font-bold text-emerald-400">{Math.round(r.rainHitRate * 100)}%</td>
-                        <td className="px-6 py-4 text-white/40">{r.misses}/{r.falseAlarms}</td>
-                        <td className="px-6 py-4 text-white/60">{r.maeWind.toFixed(1)} kn</td>
+                        <td className="px-6 py-4 text-slate-700">{r.maeTemp.toFixed(2)}°C</td>
+                        <td className="px-6 py-4 text-slate-700">{r.biasTemp.toFixed(2)}°C</td>
+                        <td className="px-6 py-4 font-bold text-emerald-700">{Math.round(r.rainHitRate * 100)}%</td>
+                        <td className="px-6 py-4 text-slate-500">{r.misses}/{r.falseAlarms}</td>
+                        <td className="px-6 py-4 text-slate-700">{r.maeWind.toFixed(1)} kn</td>
                       </tr>
                     ))}
                   </tbody>
@@ -889,224 +921,18 @@ export function WeatherPanel({ spot }: WeatherPanelProps) {
               </div>
             </div>
 
-            {/* Matrix Hourly Detail (Mirrored from Simple view but for Pro context) */}
-            <AnimatePresence mode="wait">
-              {mixedForecast[selectedDayIndex] && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="glass rounded-[2rem] p-8 border border-accent/20 bg-accent/5 space-y-6"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-accent/20 flex items-center justify-center flex-shrink-0">
-                        <BarChart3 className="w-6 h-6 text-accent" />
-                      </div>
-                      <div>
-                        <h4 className="text-2xl md:text-3xl font-black italic uppercase text-white leading-none tracking-tighter">
-                          {format(parseISO(mixedForecast[selectedDayIndex].date), 'EEEE', { locale: nl })}
-                          <span className="block text-accent text-sm md:text-base not-italic tracking-normal mt-1">
-                            {format(parseISO(mixedForecast[selectedDayIndex].date), 'd MMMM', { locale: nl })}
-                          </span>
-                        </h4>
-                        <p className="text-[9px] font-mono uppercase text-white/30 tracking-[0.3em] mt-2">Diepte Voorspelling / 24 Uur</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 overflow-x-auto pb-4 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0 no-scrollbar snap-x snap-mandatory">
-                      {mixedForecast.map((d, i) => (
-                        <button
-                          key={d.date}
-                          onClick={() => setSelectedDayIndex(i)}
-                          className={cn(
-                            "w-11 h-11 rounded-2xl flex items-center justify-center text-[11px] font-mono transition-all border flex-shrink-0 snap-center",
-                            selectedDayIndex === i 
-                              ? "bg-accent border-accent text-marine-950 font-bold shadow-lg shadow-accent/20" 
-                              : "glass border-white/5 text-white/30 hover:bg-white/5 hover:text-white"
-                          )}
-                        >
-                          {format(parseISO(d.date), 'EE').charAt(0)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[300px]">
-                    <div className="glass-dark rounded-2xl p-6 border border-white/5">
-                      <p className="text-[10px] font-mono uppercase text-white/30 mb-4">Temperatuur verloop (°C)</p>
-                      <ResponsiveContainer width="100%" height="90%">
-                        <AreaChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({
-                          time: format(parseISO(t), 'HH:mm'),
-                          temp: mixedForecast[selectedDayIndex].hourly.temp[idx]
-                        }))}>
-                          <defs>
-                            <linearGradient id="colorTempHourPro" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#ffd166" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#ffd166" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <XAxis 
-                            dataKey="time" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            interval={3}
-                            tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 9 }}
-                          />
-                          <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
-                          <ChartTooltip 
-                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                            itemStyle={{ color: '#ffd166', textTransform: 'uppercase', fontSize: '10px' }}
-                          />
-                          <Area type="monotone" dataKey="temp" stroke="#ffd166" fill="url(#colorTempHourPro)" strokeWidth={3} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="glass-dark rounded-2xl p-6 border border-white/5 relative">
-                      <div className="flex items-center justify-between mb-4">
-                        <p className="text-[10px] font-mono uppercase text-white/30">Wind (kn) & Regen (mm)</p>
-                        <div className="flex gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-blue-400" />
-                            <span className="text-[8px] font-mono text-white/20 uppercase">Wind</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-purple-500" />
-                            <span className="text-[8px] font-mono text-white/20 uppercase">Regen</span>
-                          </div>
-                        </div>
-                      </div>
-                      <ResponsiveContainer width="100%" height="80%">
-                        <LineChart data={mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => ({
-                          time: format(parseISO(t), 'HH:mm'),
-                          wind: mixedForecast[selectedDayIndex].hourly.wind[idx],
-                          rain: mixedForecast[selectedDayIndex].hourly.rain[idx] || 0
-                        }))}>
-                          <XAxis 
-                            dataKey="time" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            interval={3}
-                            tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 9 }}
-                          />
-                          <YAxis hide />
-                          <ChartTooltip 
-                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                            itemStyle={{ textTransform: 'uppercase', fontSize: '10px' }}
-                          />
-                          <Line type="stepAfter" dataKey="wind" stroke="#3b82f6" strokeWidth={3} dot={false} />
-                          <Line type="monotone" dataKey="rain" stroke="#a855f7" strokeWidth={3} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* Pro Hourly Matrix */}
-                  <div className="overflow-x-auto glass rounded-2xl border border-white/5 bg-black/20">
-                    <div className="flex min-w-max p-2">
-                      {mixedForecast[selectedDayIndex].hourly.time.map((t, idx) => (
-                        <div key={t} className="flex-1 min-w-[64px] p-4 text-center space-y-3 border-r border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
-                          <p className="text-[9px] font-mono text-white/20 uppercase">{format(parseISO(t), 'HH:mm')}</p>
-                          <p className="text-sm font-bold text-white">{Math.round(mixedForecast[selectedDayIndex].hourly.temp[idx])}°</p>
-                          <div className="space-y-1">
-                            <div className="text-[9px] font-bold text-blue-400">{Math.round(mixedForecast[selectedDayIndex].hourly.wind[idx])}<span className="text-[7px] ml-0.5 opacity-50">kn</span></div>
-                            <div className="text-[9px] font-bold text-purple-400">{mixedForecast[selectedDayIndex].hourly.rain[idx].toFixed(1)}<span className="text-[7px] ml-0.5 opacity-50">mm</span></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Graph Space */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="glass rounded-[2rem] p-8 border border-white/5 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-white/30">Temperature Calibration</h4>
-                  <p className="text-[9px] font-mono text-accent">Adjusted for local bias</p>
-                </div>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={mixedForecast}>
-                      <defs>
-                        <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ffd166" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#ffd166" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(d) => format(parseISO(d), 'EEE', { locale: nl }).charAt(0)}
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10, fontFamily: 'monospace' }}
-                      />
-                      <YAxis 
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10, fontFamily: 'monospace' }}
-                        domain={['dataMin - 2', 'dataMax + 2']}
-                      />
-                      <ChartTooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
-                        itemStyle={{ color: '#ffd166', textTransform: 'uppercase', fontSize: '10px' }}
-                      />
-                      <Area type="monotone" dataKey="tempCorrected" stroke="#ffd166" fillOpacity={1} fill="url(#colorTemp)" strokeWidth={3} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-               <div className="glass rounded-[2rem] p-8 border border-white/5 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-white/30">Precipitation Variance</h4>
-                  <p className="text-[9px] font-mono text-accent">Confidence decay plotted</p>
-                </div>
-                <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mixedForecast}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={(d) => format(parseISO(d), 'EEE', { locale: nl }).charAt(0)}
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10, fontFamily: 'monospace' }}
-                      />
-                      <YAxis 
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10, fontFamily: 'monospace' }}
-                      />
-                      <ChartTooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
-                        itemStyle={{ color: '#3b82f6', textTransform: 'uppercase', fontSize: '10px' }}
-                      />
-                      <Bar dataKey="rain" radius={[4, 4, 0, 0]}>
-                        {mixedForecast.map((entry, index) => (
-                           <Cell key={`cell-${index}`} fill={index === 0 ? '#3b82f6' : 'rgba(59, 130, 246, 0.4)'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
             {/* Model Mix Logic Footer */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
-                { l: 'Temp Engine', m: bestModels?.temp.model.name, c: '#ffd166' },
-                { l: 'Rain Engine', m: bestModels?.rain.model.name, c: '#3b82f6' },
-                { l: 'Wind Engine', m: bestModels?.wind.model.name, c: '#a855f7' }
+                { l: 'Temperatuur Motor', m: bestModels?.temp.model.name, c: '#0284c7' },
+                { l: 'Neerslag Motor', m: bestModels?.rain.model.name, c: '#7c3aed' },
+                { l: 'Wind Motor', m: bestModels?.wind.model.name, c: '#059669' }
               ].map(eng => (
-                <div key={eng.l} className="flex items-center gap-4 p-4 glass rounded-2xl border border-white/5">
-                  <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: eng.c }} />
+                <div key={eng.l} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="w-2 h-8 rounded-full" style={{ backgroundColor: eng.c }} />
                   <div>
-                    <p className="text-[9px] font-mono uppercase text-white/30">{eng.l}</p>
-                    <p className="text-xs font-bold">{eng.m}</p>
+                    <p className="text-[10px] font-mono uppercase font-bold text-slate-500">{eng.l}</p>
+                    <p className="text-xs font-bold text-slate-900">{eng.m}</p>
                   </div>
                 </div>
               ))}
