@@ -10,3 +10,8 @@ coverage/
 # Capacitor native project (in CI geregenereerd via cap add)
 android/
 ios/
+
+# Lokale preview-render (niet nodig in repo)
+preview/
+preview-dist/
+vite.preview.config.ts
