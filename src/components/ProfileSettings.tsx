@@ -31,12 +31,15 @@ function BoardSilhouette() {
 // surfboard-silhouet als er geen afbeelding is of de afbeelding niet laadt.
 function BoardThumb({ imageUrl, name }: { imageUrl?: string; name?: string }) {
   const [errored, setErrored] = useState(false);
-  const showImg = !!imageUrl && !errored;
+  // Forceer https: de app draait op https, http-afbeeldingen worden anders als
+  // mixed content geblokkeerd.
+  const src = imageUrl ? imageUrl.replace(/^http:\/\//, 'https://') : undefined;
+  const showImg = !!src && !errored;
   return (
     <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
       {showImg ? (
         <img
-          src={imageUrl}
+          src={src}
           alt={name || 'board'}
           loading="lazy"
           referrerPolicy="no-referrer"

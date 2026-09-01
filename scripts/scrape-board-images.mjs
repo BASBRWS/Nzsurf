@@ -31,7 +31,10 @@ function extractImage(html, baseUrl) {
     const m = html.match(re);
     if (m && m[1]) {
       const val = m[1].trim();
-      try { return new URL(val, baseUrl).href; } catch { return val; }
+      let href;
+      try { href = new URL(val, baseUrl).href; } catch { href = val; }
+      // Forceer https (de app draait op https; http = mixed content).
+      return href.replace(/^http:\/\//, 'https://');
     }
   }
   return null;
