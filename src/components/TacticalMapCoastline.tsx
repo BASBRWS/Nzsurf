@@ -29,9 +29,7 @@ interface TacticalMapCoastlineProps {
 // Tactical map coordinates mapped to SVG relative percentages
 const MAP_COORDINATES: Record<string, { x: number; y: number; label: string; score: number; status: 'POOR' | 'FAIR' | 'GOOD' | 'ACTIVE' }> = {
   'scheveningen': { x: 48, y: 44, label: 'Den Haag', score: 4.5, status: 'POOR' },
-  'ouddorp': { x: 38, y: 62, label: 'Ouddorp', score: 4.7, status: 'POOR' },
   'ouddorp-p-noordweg': { x: 36, y: 64, label: 'Ouddorp NW', score: 4.2, status: 'POOR' },
-  'maasvlakte': { x: 42, y: 55, label: 'Rotterdam', score: 3.8, status: 'POOR' },
   'wijk-aan-zee': { x: 56, y: 28, label: 'Wijk aan Zee', score: 5.4, status: 'FAIR' },
   'domburg': { x: 28, y: 74, label: 'Domburg', score: 6.8, status: 'GOOD' },
   'lette-blanche': { x: 22, y: 88, label: 'Lette Blanche', score: 7.5, status: 'GOOD' },

@@ -80,7 +80,7 @@ export function SpotManager({
                   required
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Bijv. Maasvlakte"
+                  placeholder="Bijv. Katwijk aan Zee"
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:border-accent outline-none"
                 />
               </div>

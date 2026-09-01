@@ -182,7 +182,7 @@ export const TacticalAICoach: React.FC<TacticalAICoachProps> = ({
             type="text"
             value={customQuery}
             onChange={(e) => setCustomQuery(e.target.value)}
-            placeholder="Vraag de AI coach (bijv. 'Kan ik beter naar Ouddorp gaan?')..."
+            placeholder="Vraag de AI coach (bijv. 'Kan ik beter naar Domburg gaan?')..."
             className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500 transition-colors font-sans shadow-xs"
           />
           <button

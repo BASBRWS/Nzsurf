@@ -2,18 +2,6 @@ import { SurfSpot, UserProfile } from "./types";
 
 export const DEFAULT_SPOTS: SurfSpot[] = [
   {
-    id: 'ouddorp',
-    name: 'Ouddorp (Flaauwe Werk)',
-    lat: 51.815,
-    lng: 3.91,
-    type: 'beachbreak',
-    bestWind: ['ZO', 'O', 'Z'],
-    bestSwell: ['NW', 'WNW', 'W', 'N'],
-    coastlineAngle: 300,
-    tideStation: 'Ouddorp',
-    bathymetryProfile: 'sandbanks'
-  },
-  {
     id: 'ouddorp-p-noordweg',
     name: 'Ouddorp (P Noordweg)',
     lat: 51.8253,
@@ -24,17 +12,6 @@ export const DEFAULT_SPOTS: SurfSpot[] = [
     coastlineAngle: 300,
     tideStation: 'Ouddorp',
     bathymetryProfile: 'sandbanks'
-  },
-  {
-    id: 'maasvlakte',
-    name: 'Maasvlakte 2 (Slufter)',
-    lat: 51.95,
-    lng: 3.98,
-    type: 'beachbreak',
-    bestWind: ['ZO', 'O', 'NO'],
-    bestSwell: ['WNW', 'NW', 'N'],
-    coastlineAngle: 310,
-    bathymetryProfile: 'deep_water_approach'
   },
   {
     id: 'scheveningen',
@@ -94,7 +71,7 @@ export const DEFAULT_SPOTS: SurfSpot[] = [
 export const INITIAL_USER: UserProfile = {
   weight: 75,
   skillLevel: 'intermediate',
-  favoriteSpotId: 'ouddorp',
+  favoriteSpotId: 'ouddorp-p-noordweg',
   boards: [
     { id: '1', name: 'Mijn Fish', type: 'fish', volume: 35, length: "5'10" },
     { id: '2', name: 'Longboard', type: 'longboard', volume: 65, length: "9'2" }
