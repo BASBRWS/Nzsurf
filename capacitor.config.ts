@@ -17,6 +17,10 @@ const config: CapacitorConfig = {
     // serverClientId = de Web-OAuth-client van het Firebase-project.
     GoogleAuth: {
       scopes: ['profile', 'email'],
+      // De Android-plugin leest de client-ID uit `clientId` (met fallback naar de
+      // string-resource server_client_id) — NIET uit serverClientId. Daarom staat
+      // de Web-OAuth-client hier onder `clientId`. serverClientId houden we voor web.
+      clientId: '112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com',
       serverClientId: '112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com',
       forceCodeForRefreshToken: false,
     },
