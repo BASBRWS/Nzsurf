@@ -38,6 +38,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Bepaal versie
+        id: version
+        run: |
+          VN=$(node -p "require('./package.json').version")
+          echo "name=$VN" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Versie $VN (build ${{ github.run_number }})"
+
       - name: Build web assets
         run: bunx vite build
         env:
@@ -45,6 +53,7 @@ jobs:
           # gedeployde Express-backend om de AI-features in de APK te activeren.
           # Leeg = de app gebruikt de offline adviesmotor.
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_BUILD_NUMBER: ${{ github.run_number }}
 
       - name: Add Android platform
         # Het native android/-project staat niet in git; Capacitor genereert het
@@ -60,6 +69,14 @@ jobs:
         # gegenereerde android/-project.
         run: bunx capacitor-assets generate --android
 
+      - name: Zet versienummer in Android-build
+        # android/ is in CI geregenereerd, dus we patchen versionName/versionCode
+        # hier: versionName uit package.json, versionCode = buildnummer (oplopend).
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ steps.version.outputs.code }}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
+          grep -nE "versionCode|versionName" android/app/build.gradle
+
       - name: Build debug APK
         run: |
           cd android
@@ -72,15 +89,17 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nzsurf-apk
+          name: nzsurf-apk-v${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
           path: nzsurf-latest.apk
 
       - name: Publish to latest-build release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-build
-          name: NzSurf latest build
+          name: NzSurf v${{ steps.version.outputs.name }} (build ${{ steps.version.outputs.code }})
           body: |
             Automatische debug-build van de NzSurf Android-app.
+
+            **Versie:** ${{ steps.version.outputs.name }} (versionCode ${{ steps.version.outputs.code }})
             Commit: ${{ github.sha }}
           files: nzsurf-latest.apk
