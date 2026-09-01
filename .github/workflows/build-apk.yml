@@ -55,6 +55,11 @@ jobs:
       - name: Capacitor sync (Android)
         run: bunx cap sync android
 
+      - name: Generate app icons & splash
+        # Bakt het NZ-logo (assets/) als launcher-icoon en splashscherm in het
+        # gegenereerde android/-project.
+        run: bunx capacitor-assets generate --android
+
       - name: Build debug APK
         run: |
           cd android
