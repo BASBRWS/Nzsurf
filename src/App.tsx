@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SharedSpot } from './types';
 import { INITIAL_USER, DEFAULT_SPOTS } from './constants';
-import { getSurfAdvice, generateLocalSurfAdvice } from './services/geminiService';
+import { getSurfAdvice } from './services/geminiService';
 import { fetchForecast } from './services/weatherService';
 import { ForecastGrid } from './components/ForecastGrid';
 import { ProfileSettings } from './components/ProfileSettings';
@@ -24,7 +24,6 @@ import { CommunitySection } from './components/CommunitySection';
 import { FeedbackModal } from './components/FeedbackModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
 import { CompactDailyForecast } from './components/CompactDailyForecast';
-import { SurfReportCard } from './components/SurfReportCard';
 import { ThemeSelector, ThemeStyle, normalizeThemeId } from './components/ThemeSelector';
 import { Waves, Wind, Thermometer, Map as MapIcon, User as UserIcon, Settings, Info, LogOut, Navigation, Share2, Camera, Zap, ChevronDown, Cloud, Beaker, MessageSquare, Users, LayoutList, Grid } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -219,17 +218,6 @@ export default function App() {
   const selectedSpot = useMemo(() =>
     allSpots.find(s => s.id === selectedSpotId) || allSpots[0]
   , [selectedSpotId, allSpots]);
-
-  // Score voor het report-blok: gebruik het live AI-advies zodra dat er is,
-  // anders direct de offline adviesmotor zodat de gauge nooit op 0 blijft.
-  const heroAdvice = useMemo(() => {
-    if (advice) return advice;
-    if (selectedSpot && forecast[0]) {
-      try { return generateLocalSurfAdvice(user, selectedSpot, forecast[0], []); }
-      catch { return null; }
-    }
-    return null;
-  }, [advice, selectedSpot, forecast, user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -895,15 +883,8 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="max-w-screen-2xl mx-auto w-full space-y-8"
+              className="max-w-screen-2xl mx-auto w-full"
             >
-              {/* Zelfde surf-report-samenvatting bovenaan de weer-tab */}
-              <SurfReportCard
-                spot={selectedSpot}
-                forecast={forecast[0] || null}
-                advice={heroAdvice}
-                onDetails={forecast[0] ? () => handleCellClick(forecast[0]) : undefined}
-              />
               <WeatherPanel spot={selectedSpot} />
             </motion.div>
           )}
@@ -916,14 +897,6 @@ export default function App() {
               exit={{ opacity: 0 }}
               className="space-y-8"
             >
-              {/* Surf-report-blok in de stijl van een moderne weer-app */}
-              <SurfReportCard
-                spot={selectedSpot}
-                forecast={forecast[0] || null}
-                advice={heroAdvice}
-                onDetails={forecast[0] ? () => handleCellClick(forecast[0]) : undefined}
-              />
-
               {/* Spot Selector & View Mode Switcher Header */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass rounded-3xl p-4 sm:p-6 border border-white/10 shadow-lg">
                 <div className="flex items-center gap-3.5">
