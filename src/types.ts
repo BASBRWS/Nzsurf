@@ -7,6 +7,7 @@ export interface Board {
   type: 'shortboard' | 'fish' | 'hybrid' | 'funboard' | 'longboard' | 'softtop';
   volume: number; // in liters
   length: string; // e.g. "6'0"
+  imageUrl?: string; // productfoto (og:image uit de dataset), optioneel
 }
 
 export interface Wetsuit {

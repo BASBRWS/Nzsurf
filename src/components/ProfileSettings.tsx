@@ -17,6 +17,39 @@ interface ProfileSettingsProps {
   onShareSpot: (spot: SurfSpot) => void;
 }
 
+// Placeholder-silhouet als er (nog) geen productfoto is.
+function BoardSilhouette() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-7 h-7 text-cyan-600/70" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2c2.4 3 3.4 6.6 3.4 10S14.4 19 12 22C9.6 19 8.6 15.4 8.6 12S9.6 5 12 2Z" />
+      <line x1="12" y1="4.5" x2="12" y2="19.5" strokeWidth="1" opacity="0.5" />
+    </svg>
+  );
+}
+
+// Thumbnail voor een board: toont de productfoto, met nette fallback naar een
+// surfboard-silhouet als er geen afbeelding is of de afbeelding niet laadt.
+function BoardThumb({ imageUrl, name }: { imageUrl?: string; name?: string }) {
+  const [errored, setErrored] = useState(false);
+  const showImg = !!imageUrl && !errored;
+  return (
+    <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+      {showImg ? (
+        <img
+          src={imageUrl}
+          alt={name || 'board'}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="w-full h-full object-cover"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        <BoardSilhouette />
+      )}
+    </div>
+  );
+}
+
 function BoardDatabaseSelector({ onAdd, onCancel }: { onAdd: (b: Board) => void, onCancel: () => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -62,12 +95,16 @@ function BoardDatabaseSelector({ onAdd, onCancel }: { onAdd: (b: Board) => void,
     else if (sizeData.lengte_cm > 270) boardType = 'longboard';
     else if (sizeData.lengte_cm > 210) boardType = 'funboard';
     
+    // Productfoto (og:image) uit de verrijkte dataset, indien aanwezig.
+    const imageUrl = sizeData.afbeelding_url || data.boards_by_id?.[sizeData.board_id]?.afbeelding_url;
+
     onAdd({
       id: Math.random().toString(36).substr(2, 9),
       name: `${selectedBrand} ${selectedModel}`,
       type: boardType,
       volume: volume,
-      length: sizeData.lengte_imperial || sizeData.maat_label
+      length: sizeData.lengte_imperial || sizeData.maat_label,
+      imageUrl
     });
   };
 
@@ -495,14 +532,15 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                         isSelected ? "border-cyan-600/40 bg-cyan-600/[0.03]" : "border-slate-200 hover:border-slate-300"
                       )}
                     >
-                      {/* Top Row: Board Name, Active Toggle & Delete Button */}
+                      {/* Top Row: Thumbnail, Board Name, Active Toggle & Delete Button */}
                       <div className="flex items-center justify-between gap-3">
+                        <BoardThumb imageUrl={board.imageUrl} name={board.name} />
                         <div className="flex-1 min-w-0">
                           <label className="text-[9px] font-mono uppercase tracking-widest text-slate-400 block mb-1">
                             Naam / Model
                           </label>
-                          <input 
-                            value={board.name} 
+                          <input
+                            value={board.name}
                             placeholder="Naam van board (bijv. Pyzel Ghost, Torq 7'6)"
                             onChange={(e) => {
                               const newBoards = user.boards.map(b => b.id === board.id ? { ...b, name: e.target.value } : b);

@@ -1,0 +1,44 @@
+name: Scrape board images
+
+# Eenmalige (handmatige) verrijking: haalt per board de og:image uit bron_url en
+# commit de bijgewerkte dataset (public/surfboard-dataset-TOTAAL-1024.json) terug.
+# Draait alleen via "Run workflow". Daarna bouwt build-apk.yml de app opnieuw met
+# de afbeeldingen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Ook boards die al een afbeelding hebben opnieuw ophalen"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Scrape og:image per board
+        run: node scripts/scrape-board-images.mjs ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit verrijkte dataset
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- public/surfboard-dataset-TOTAAL-1024.json; then
+            echo "Geen wijzigingen in de dataset."
+          else
+            git add public/surfboard-dataset-TOTAAL-1024.json
+            git commit -m "data: board-afbeeldingen (og:image) toegevoegd via scrape"
+            git push
+          fi
