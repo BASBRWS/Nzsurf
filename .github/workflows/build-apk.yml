@@ -65,6 +65,16 @@ jobs:
       - name: Capacitor sync (Android)
         run: bunx cap sync android
 
+      - name: Web-client-ID als string-resource (server_client_id)
+        # De Google-Auth-plugin valt op Android terug op R.string.server_client_id.
+        # We zetten die expliciet zodat requestIdToken altijd de juiste Web-client
+        # gebruikt (voorkomt DEVELOPER_ERROR/10).
+        run: |
+          STR=android/app/src/main/res/values/strings.xml
+          CID="112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com"
+          sed -i "s#</resources>#    <string name=\"server_client_id\">$CID</string>\n</resources>#" "$STR"
+          grep -n "server_client_id" "$STR"
+
       - name: Generate app icons & splash
         # Bakt het NZ-logo (assets/) als launcher-icoon en splashscherm in het
         # gegenereerde android/-project.
