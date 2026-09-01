@@ -88,22 +88,24 @@ jobs:
           sed -i "s/versionName \"1.0\"/versionName \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
           grep -nE "versionCode|versionName" android/app/build.gradle
 
-      - name: Vaste debug-keystore (stabiele SHA-1 voor Google-login)
-        # Native Google-login vereist een vaste SHA-1 die in Firebase geregistreerd
-        # staat. De runner maakt anders elke build een willekeurige debug.keystore.
-        # Zet de secret DEBUG_KEYSTORE_B64 (base64 van de keystore); staat die niet,
-        # dan bouwt de build gewoon door met de standaard keystore (Google-login
-        # werkt dan nog niet, de rest wel).
+      - name: Vaste debug-keystore + signingConfig (stabiele SHA-1)
+        # Native Google-login vereist een VASTE SHA-1 die in Firebase staat. Alleen
+        # de keystore naar ~/.android kopiëren bleek onbetrouwbaar (Gradle/AGP zoekt
+        # de debug-keystore soms elders en genereert een eigen key). Daarom zetten we
+        # de keystore op een vast pad in de module én injecteren we expliciet een
+        # signingConfig, zodat assembleDebug gegarandeerd onze keystore gebruikt.
         env:
           DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
         run: |
-          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
-            mkdir -p ~/.android
-            echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
-            echo "Vaste debug-keystore geplaatst."
-          else
-            echo "Geen DEBUG_KEYSTORE_B64 secret; standaard keystore wordt gebruikt."
+          if [ -z "$DEBUG_KEYSTORE_B64" ]; then
+            echo "Geen DEBUG_KEYSTORE_B64 secret; standaard signing (Google-login werkt dan niet)."
+            exit 0
           fi
+          echo "$DEBUG_KEYSTORE_B64" | base64 -d > android/app/nzsurf-debug.keystore
+          echo "SHA-1 van de gebruikte keystore:"
+          keytool -list -v -keystore android/app/nzsurf-debug.keystore -storepass android -alias androiddebugkey 2>/dev/null | grep "SHA1:" || true
+          node scripts/inject-signing.mjs
+          grep -n "signingConfigs\|nzsurf-debug.keystore" android/app/build.gradle || true
 
       - name: Build debug APK
         run: |

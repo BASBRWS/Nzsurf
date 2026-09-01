@@ -38,25 +38,15 @@ const WEB_CLIENT_ID = '112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.google
 
 export async function signInWithGoogleSmart(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
-    try {
-      if (!googleAuthInitialized) {
-        GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
-        googleAuthInitialized = true;
-      }
-      const result: any = await GoogleAuth.signIn();
-      const idToken = result?.authentication?.idToken;
-      // TIJDELIJKE DIAGNOSE: maak zichtbaar wat de plugin teruggeeft.
-      alert('DIAG stap 1 — velden: ' + Object.keys(result || {}).join(',') +
-            ' | auth: ' + Object.keys(result?.authentication || {}).join(',') +
-            ' | idToken? ' + (idToken ? ('ja, len ' + idToken.length) : 'NEE'));
-      if (!idToken) throw new Error('Geen idToken ontvangen van Google');
-      const credential = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(auth, credential);
-      alert('DIAG stap 2 — Firebase-login gelukt: ' + (auth.currentUser?.email || '?'));
-    } catch (e: any) {
-      alert('DIAG fout — ' + (e?.code ? e.code + ': ' : '') + (e?.message || String(e)));
-      throw e;
+    if (!googleAuthInitialized) {
+      GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
+      googleAuthInitialized = true;
     }
+    const result: any = await GoogleAuth.signIn();
+    const idToken = result?.authentication?.idToken;
+    if (!idToken) throw new Error('Geen idToken ontvangen van Google');
+    const credential = GoogleAuthProvider.credential(idToken);
+    await signInWithCredential(auth, credential);
   } else {
     await signInWithPopup(auth, googleProvider);
   }
