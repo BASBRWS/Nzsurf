@@ -149,8 +149,13 @@ export function SurfReportCard({
           <div>
             <div className="text-2xl font-black leading-tight tracking-tight">{day}</div>
             <div className="text-white/70 text-sm font-semibold">{date}</div>
-            <div className="mt-1 inline-flex items-center gap-1.5 text-[12px] bg-white/15 rounded-full px-2.5 py-1 font-semibold">
-              <Waves className="w-3.5 h-3.5" /> {spot?.name ?? 'Spot'}
+            <div className="mt-1 flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 text-[12px] bg-white/15 rounded-full px-2.5 py-1 font-semibold">
+                <Waves className="w-3.5 h-3.5" /> {spot?.name ?? 'Spot'}
+              </div>
+              <span className="text-[10px] font-semibold text-white/50 tracking-wide">
+                v{__APP_VERSION__}{__BUILD_NUMBER__ ? `+${__BUILD_NUMBER__}` : ''}
+              </span>
             </div>
           </div>
           <ScoreGauge score={score} />
