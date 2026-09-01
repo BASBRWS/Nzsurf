@@ -36,7 +36,9 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        # Geen --frozen-lockfile: een AI Studio-export past bun.lock vaak aan,
+        # en dan mag de install de lockfile bijwerken i.p.v. te falen.
+        run: bun install
 
       - name: Bepaal versie
         id: version
