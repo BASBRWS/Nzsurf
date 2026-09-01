@@ -1,9 +1,10 @@
 import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SpotReport } from "../types";
 import { logAppError } from "./loggerService";
 import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils";
+import { apiUrl } from "../lib/api";
 
 async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
-  const response = await fetch('/api/gemini/generateContent', {
+  const response = await fetch(apiUrl('/api/gemini/generateContent'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options)
