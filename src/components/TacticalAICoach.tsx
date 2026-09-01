@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { SurfSpot, ForecastData, UserProfile } from '../types';
 import { getSurfAdvice } from '../services/geminiService';
+import { WaveTubeLoader } from './WaveTubeLoader';
 
 interface TacticalAICoachProps {
   spot: SurfSpot;
@@ -151,30 +152,40 @@ export const TacticalAICoach: React.FC<TacticalAICoachProps> = ({
         </div>
 
         {/* Detailed Dutch AI Tactical Coach Analysis Box */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 relative space-y-3 shadow-xs">
-          <div className="flex items-center gap-2 text-cyan-700">
-            <Brain className="w-4 h-4" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider">
-              Noordzee AI Coach Synthese
-            </span>
+        {isLoading ? (
+          <div className="p-8 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
+            <WaveTubeLoader 
+              size="md" 
+              title="AI Coach berekent sessie-analyse..." 
+              subtitle="Swell, getijden en boardmatch worden live gesimuleerd."
+            />
           </div>
+        ) : (
+          <div className="p-5 rounded-2xl bg-white border border-slate-200 relative space-y-3 shadow-xs">
+            <div className="flex items-center gap-2 text-cyan-700">
+              <Brain className="w-4 h-4" />
+              <span className="text-xs font-mono font-bold uppercase tracking-wider">
+                Noordzee AI Coach Synthese
+              </span>
+            </div>
 
-          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
-            {aiAnalysisText}
-          </p>
+            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
+              {aiAnalysisText}
+            </p>
 
-          <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[10px] font-mono text-slate-400">
-            <span>Model: Gemini 2.5 Pro Neural Marine</span>
-            <button 
-              onClick={handleAskAI} 
-              disabled={isLoading}
-              className="text-cyan-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <RotateCcw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Opnieuw analyseren</span>
-            </button>
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[10px] font-mono text-slate-400">
+              <span>Model: Gemini 2.5 Pro Neural Marine</span>
+              <button 
+                onClick={handleAskAI} 
+                disabled={isLoading}
+                className="text-cyan-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Opnieuw analyseren</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Interactive Custom Question to AI Coach */}
         <form onSubmit={handleAskAI} className="flex gap-2">

@@ -9,6 +9,7 @@ import {
   Compass, ArrowUpRight
 } from 'lucide-react';
 import { DetailedCharts } from './DetailedCharts';
+import { WaveTubeLoader } from './WaveTubeLoader';
 import { Tooltip } from './ui/Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -74,28 +75,28 @@ export function AdviceModal({
 
   const getSuitabilityIcon = (suitability: string) => {
     switch (suitability) {
-      case 'perfect': return <CheckCircle2 className="w-7 h-7 text-emerald-400" />;
-      case 'good': return <Activity className="w-7 h-7 text-accent" />;
-      case 'challenging': return <AlertCircle className="w-7 h-7 text-amber-400" />;
-      case 'dangerous': return <Ban className="w-7 h-7 text-red-400" />;
-      default: return <Zap className="w-7 h-7 text-accent" />;
+      case 'perfect': return <CheckCircle2 className="w-7 h-7 text-emerald-600" />;
+      case 'good': return <Activity className="w-7 h-7 text-cyan-600" />;
+      case 'challenging': return <AlertCircle className="w-7 h-7 text-amber-600" />;
+      case 'dangerous': return <Ban className="w-7 h-7 text-rose-600" />;
+      default: return <Zap className="w-7 h-7 text-cyan-600" />;
     }
   };
 
   const getWindTypeBadge = (type?: string) => {
     switch (type) {
       case 'offshore':
-        return { label: 'Offshore (Aflandig)', class: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30' };
+        return { label: 'Offshore (Aflandig)', class: 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold' };
       case 'side-offshore':
-        return { label: 'Side-Offshore', class: 'bg-cyan-500/15 text-sky-800 dark:text-cyan-300 border-sky-300 dark:border-cyan-500/30' };
+        return { label: 'Side-Offshore', class: 'bg-cyan-50 text-cyan-900 border-cyan-300 font-bold' };
       case 'cross-shore':
-        return { label: 'Cross-shore', class: 'bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-500/30' };
+        return { label: 'Cross-shore', class: 'bg-blue-50 text-blue-900 border-blue-300 font-bold' };
       case 'side-onshore':
-        return { label: 'Side-Onshore', class: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/30' };
+        return { label: 'Side-Onshore', class: 'bg-amber-50 text-amber-900 border-amber-300 font-bold' };
       case 'onshore':
-        return { label: 'Onshore (Aanlandig)', class: 'bg-orange-500/15 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-500/30' };
+        return { label: 'Onshore (Aanlandig)', class: 'bg-orange-50 text-orange-900 border-orange-300 font-bold' };
       default:
-        return { label: type || 'Variabel', class: 'bg-slate-500/10 text-slate-700 dark:text-white/60 border-slate-300 dark:border-white/10' };
+        return { label: type || 'Variabel', class: 'bg-slate-100 text-slate-800 border-slate-300 font-bold' };
     }
   };
 
@@ -120,19 +121,19 @@ export function AdviceModal({
 
     const finalScore = Math.max(1, Math.min(10, Math.round(score * 10) / 10));
     let label = 'Matig';
-    let badgeClass = 'rating-pill-poor font-bold';
-    let dotClass = 'bg-amber-400';
+    let badgeClass = 'bg-amber-50 text-amber-900 border-amber-300 font-bold';
+    let dotClass = 'bg-amber-500';
     if (finalScore >= 7.8) {
       label = 'Top';
-      badgeClass = 'rating-pill-good font-bold';
-      dotClass = 'bg-emerald-400';
+      badgeClass = 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold';
+      dotClass = 'bg-emerald-500';
     } else if (finalScore >= 6.0) {
       label = 'Goed';
-      badgeClass = 'rating-pill-fair font-bold';
-      dotClass = 'bg-cyan-400';
+      badgeClass = 'bg-cyan-50 text-cyan-900 border-cyan-300 font-bold';
+      dotClass = 'bg-cyan-500';
     } else if (finalScore <= 3.8) {
       label = 'Kabbel / Flat';
-      badgeClass = 'rating-pill-flat font-bold';
+      badgeClass = 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
       dotClass = 'bg-slate-400';
     }
 
@@ -180,31 +181,31 @@ export function AdviceModal({
           initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
-          className="bg-white/95 backdrop-blur-2xl rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-5xl max-h-[94vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl relative border border-slate-200 z-10 text-slate-800"
+          className="bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-5xl h-[92dvh] sm:h-[90vh] flex flex-col overflow-hidden shadow-2xl relative border border-slate-200 z-10 text-slate-800"
         >
           {/* Header */}
-          <div className="modal-header p-4 sm:p-6 md:p-8 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/80">
-            <div className="space-y-1 sm:space-y-1.5 min-w-0">
+          <div className="modal-header p-4 sm:p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50 shrink-0">
+            <div className="space-y-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-[10px] font-mono tracking-widest uppercase text-cyan-700 font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-[10px] font-mono tracking-widest uppercase text-cyan-800 font-bold">
                   Uur-voor-Uur Analyse
                 </span>
                 <span className="text-slate-300 text-xs">•</span>
-                <span className="text-[11px] font-mono text-slate-600 uppercase tracking-wider font-bold">
+                <span className="text-[11px] font-mono text-slate-700 uppercase tracking-wider font-bold truncate max-w-[200px] sm:max-w-none">
                   {spot.name}
                 </span>
                 {spot.type && (
-                  <span className="text-[10px] font-mono text-slate-500 uppercase bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-mono text-slate-600 uppercase bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 font-semibold">
                     {spot.type}
                   </span>
                 )}
               </div>
 
-              <div className="flex items-baseline gap-3">
-                <h2 className="modal-title text-xl sm:text-2xl md:text-3xl font-black text-slate-900 capitalize tracking-tight font-tactical">
+              <div className="flex items-baseline gap-2.5">
+                <h2 className="modal-title text-lg sm:text-2xl md:text-3xl font-black text-slate-900 capitalize tracking-tight font-tactical">
                   {formattedDayStr}
                 </h2>
-                <span className="text-cyan-600 font-mono font-bold text-base sm:text-lg">
+                <span className="text-cyan-700 font-mono font-bold text-base sm:text-lg">
                   {selectedHourStr}
                 </span>
               </div>
@@ -251,7 +252,10 @@ export function AdviceModal({
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   <span className="hidden sm:inline">AI Coach</span>
                   <span className="sm:hidden">AI</span>
-                  {advice && (
+                  {loading && (
+                    <span className="w-2 h-2 rounded-full bg-cyan-500 animate-ping absolute -top-0.5 -right-0.5" />
+                  )}
+                  {!loading && advice && (
                     <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white absolute -top-0.5 -right-0.5" />
                   )}
                 </button>
@@ -259,7 +263,7 @@ export function AdviceModal({
 
               <button 
                 onClick={onClose}
-                className="modal-close-btn p-2 sm:p-2.5 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center text-slate-600 hover:text-slate-900 border border-slate-200 cursor-pointer"
+                className="modal-close-btn p-2 sm:p-2.5 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center text-slate-700 hover:text-slate-900 border border-slate-200 cursor-pointer"
                 title="Sluiten (Esc)"
               >
                 <X className="w-5 h-5" />
@@ -268,10 +272,10 @@ export function AdviceModal({
           </div>
 
           {/* Hourly Scrubber Bar (Horizontal Timeline of the day) */}
-          <div className="px-4 sm:px-6 py-2.5 bg-slate-50 border-b border-slate-200 overflow-x-auto scrollbar-hide">
+          <div className="px-3 sm:px-6 py-2.5 bg-slate-50/90 border-b border-slate-200 overflow-x-auto shrink-0 scrollbar-thin">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1 mr-1">
-                <Clock className="w-3 h-3" /> Uren:
+              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1 mr-1">
+                <Clock className="w-3 h-3 text-slate-400" /> Uren:
               </span>
               {dayHours.map((hourItem) => {
                 const hourDate = parseISO(hourItem.timestamp);
@@ -284,15 +288,15 @@ export function AdviceModal({
                     key={hourItem.timestamp}
                     onClick={() => handleHourSelect(hourItem)}
                     className={cn(
-                      "px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono transition-all flex items-center gap-1.5 border cursor-pointer",
+                      "px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono transition-all flex items-center gap-1.5 border cursor-pointer shrink-0",
                       isSelected
-                        ? "bg-cyan-600 border-cyan-600 text-white font-bold shadow-md scale-105"
-                        : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900"
+                        ? "bg-slate-900 border-slate-900 text-white font-bold shadow-md scale-105"
+                        : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 font-medium"
                     )}
                   >
-                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", isSelected ? "bg-white" : quick.dotClass)} />
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", isSelected ? "bg-cyan-400" : quick.dotClass)} />
                     <span className="font-bold">{hourFormatted}</span>
-                    <span className="opacity-70 text-[10px]">{hourItem.waveHeight.toFixed(1)}m</span>
+                    <span className={cn("text-[10px]", isSelected ? "text-cyan-200" : "text-slate-400")}>{hourItem.waveHeight.toFixed(1)}m</span>
                   </button>
                 );
               })}
@@ -300,16 +304,16 @@ export function AdviceModal({
           </div>
 
           {/* Modal Body Content */}
-          <div className="modal-body p-4 sm:p-6 md:p-8 space-y-6 overflow-y-auto flex-1 custom-scroll bg-white">
+          <div className="modal-body p-4 sm:p-6 md:p-8 pb-14 sm:pb-10 space-y-6 overflow-y-auto flex-1 custom-scroll bg-white">
             
             {/* Active Selected Hour Telemetry Spotlight */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">
                     Live Telemetrie om <strong className="text-cyan-700 text-sm font-black">{selectedHourStr}</strong>
                   </span>
-                  <span className={cn("text-[10px] font-mono px-2 py-0.5 rounded-full border", activeHourScore.badgeClass)}>
+                  <span className={cn("text-[10px] font-mono px-2.5 py-0.5 rounded-full border shadow-2xs", activeHourScore.badgeClass)}>
                     Conditie: {activeHourScore.label} ({activeHourScore.score}/10)
                   </span>
                 </div>
@@ -317,7 +321,7 @@ export function AdviceModal({
                 {!advice && !loading && (
                   <button
                     onClick={handleTriggerAI}
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-xs font-mono font-bold uppercase tracking-wider text-cyan-800 transition-all cursor-pointer shadow-xs"
+                    className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-xs font-mono font-bold uppercase tracking-wider text-cyan-900 transition-all cursor-pointer shadow-2xs"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     <span>Vraag AI Coach Toelichting</span>
@@ -332,7 +336,7 @@ export function AdviceModal({
                     <span className="flex items-center gap-1.5 text-cyan-700 font-bold">
                       <Waves className="w-4 h-4" /> Swell & Golf
                     </span>
-                    <span>{swellCompass.label}</span>
+                    <span className="font-semibold">{swellCompass.label}</span>
                   </div>
                   <div className="space-y-0.5">
                     <div className="flex items-baseline gap-1">
@@ -355,22 +359,22 @@ export function AdviceModal({
                     <span className="flex items-center gap-1.5 text-orange-700 font-bold">
                       <Wind className="w-4 h-4" /> Wind
                     </span>
-                    <span>{windCompass.label} ({forecast.windDirection}°)</span>
+                    <span className="font-semibold">{windCompass.label} ({forecast.windDirection}°)</span>
                   </div>
                   <div className="space-y-0.5">
                     <div className="flex items-baseline gap-1">
                       <span className="text-2xl sm:text-3xl font-black text-slate-900">{Math.round(forecast.windSpeed)}</span>
                       <span className="text-xs font-mono text-slate-500 uppercase">knopen</span>
-                      <span className="text-xs font-mono text-amber-700 ml-1">({windBft} Bft)</span>
+                      <span className="text-xs font-mono text-amber-800 font-bold ml-1">({windBft} Bft)</span>
                     </div>
-                    <div className="flex items-center gap-1.5 pt-0.5">
+                    <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
                       <div 
                         className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 shrink-0 transition-transform duration-500"
                         style={{ transform: `rotate(${forecast.windDirection}deg)` }}
                       >
                         <Navigation className="w-2.5 h-2.5 fill-current text-cyan-600" />
                       </div>
-                      <span className={cn("text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border", windBadge.class)}>
+                      <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded border", windBadge.class)}>
                         {windBadge.label}
                       </span>
                     </div>
@@ -387,7 +391,7 @@ export function AdviceModal({
                     <span className="flex items-center gap-1.5 text-blue-700 font-bold">
                       <Zap className="w-4 h-4" /> Getij & Water
                     </span>
-                    <span>{spot.isAtlantic ? 'Atlantisch' : 'Noordzee'}</span>
+                    <span className="font-semibold">{spot.isAtlantic ? 'Atlantisch' : 'Noordzee'}</span>
                   </div>
                   <div className="space-y-0.5">
                     <div className="flex items-baseline gap-1">
@@ -402,31 +406,31 @@ export function AdviceModal({
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] font-mono text-slate-500">
                     <span>Wetsuit Advies</span>
-                    <span className="text-slate-800 font-bold">{forecast.waterTemp < 12 ? '5/4mm + boots' : forecast.waterTemp < 16 ? '4/3mm' : '3/2mm'}</span>
+                    <span className="text-slate-900 font-bold">{forecast.waterTemp < 12 ? '5/4mm + boots' : forecast.waterTemp < 16 ? '4/3mm' : '3/2mm'}</span>
                   </div>
                 </div>
 
                 {/* 4. ZONKRACHT & ZONNEBRAND */}
                 <div className="modal-subcard p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 relative overflow-hidden group">
                   <div className="flex items-center justify-between text-[10px] font-mono uppercase text-slate-500">
-                    <span className="flex items-center gap-1.5 text-amber-600 font-bold">
+                    <span className="flex items-center gap-1.5 text-amber-700 font-bold">
                       <Sun className="w-4 h-4" /> Zon & Zonnebrand
                     </span>
-                    <span className={cn("text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border", getUvPillClasses(sunscreen.level).badge)}>
+                    <span className={cn("text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border", getUvPillClasses(sunscreen.level).badge)}>
                       UV {sunscreen.uvIndex}
                     </span>
                   </div>
                   <div className="space-y-0.5">
-                    <p className="text-sm font-bold text-slate-900 leading-tight">
+                    <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
                       {sunscreen.shortAdvice}
                     </p>
                     <p className="text-[11px] text-slate-600 font-mono">
-                      Aanbevolen: <strong className="text-amber-700">{sunscreen.spfRecommendation}</strong>
+                      Aanbevolen: <strong className="text-amber-800 font-bold">{sunscreen.spfRecommendation}</strong>
                     </p>
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] font-mono text-slate-500">
                     <span>Waterreflectie</span>
-                    <span className="text-amber-700 font-bold">+30% blootstelling</span>
+                    <span className="text-amber-800 font-bold">+30% blootstelling</span>
                   </div>
                 </div>
               </div>
@@ -436,10 +440,10 @@ export function AdviceModal({
                 <div className={cn(
                   "p-3.5 sm:p-4 rounded-2xl border flex items-start gap-3",
                   forecast.currentRisk.level === 'high'
-                    ? "bg-red-50 border-red-200 text-red-800"
-                    : "bg-amber-50 border-amber-200 text-amber-800"
+                    ? "bg-rose-50 border-rose-200 text-rose-900"
+                    : "bg-amber-50 border-amber-200 text-amber-900"
                 )}>
-                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
                   <div className="text-xs leading-relaxed">
                     <strong className="font-bold block uppercase tracking-wider text-[11px]">Veiligheidsnotitie / Stroming:</strong>
                     <span>{forecast.currentRisk.description}</span>
@@ -456,15 +460,15 @@ export function AdviceModal({
                   <div className={cn(
                     "p-3.5 sm:p-4 rounded-2xl border flex items-start gap-3",
                     kiteAlert.intensity === 'extreme'
-                      ? "bg-red-50 border-red-200 text-red-800"
-                      : "bg-amber-50 border-amber-200 text-amber-800"
+                      ? "bg-rose-50 border-rose-200 text-rose-900"
+                      : "bg-amber-50 border-amber-200 text-amber-900"
                   )}>
                     <Wind className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
                     <div className="text-xs leading-relaxed space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <strong className="font-bold uppercase tracking-wider text-[11px] text-amber-800 flex items-center gap-1.5">
+                        <strong className="font-bold uppercase tracking-wider text-[11px] text-amber-900 flex items-center gap-1.5">
                           <span>🪁 Kite Waarschuwing</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-mono">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 font-mono font-bold">
                             {kiteAlert.badgeLabel} • {kiteAlert.windKnots} kn / {kiteAlert.windBft} Bft
                           </span>
                         </strong>
@@ -472,7 +476,7 @@ export function AdviceModal({
                       <p className="text-slate-800 font-medium">
                         {kiteAlert.fullWarning}
                       </p>
-                      <p className="text-[10px] font-mono text-slate-500 pt-0.5">
+                      <p className="text-[10px] font-mono text-slate-600 pt-0.5">
                         Geldt voor: {kiteAlert.zoneDescription}
                       </p>
                     </div>
@@ -484,9 +488,9 @@ export function AdviceModal({
             {/* TAB CONTENT */}
             {activeTab === 'hourly' && (
               <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <div className="flex items-center gap-2">
-                    <TableIcon className="w-4 h-4 text-cyan-600" />
+                    <TableIcon className="w-4 h-4 text-cyan-700" />
                     <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 font-tactical">
                       Uur-voor-Uur Matrix ({dayHours.length} uren)
                     </h3>
@@ -500,7 +504,7 @@ export function AdviceModal({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-mono uppercase tracking-wider text-slate-500">
+                        <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-mono uppercase tracking-wider text-slate-600">
                           <th className="py-3 px-3 sm:px-4 font-bold">Tijd</th>
                           <th className="py-3 px-3 sm:px-4 font-bold">Golven & Swell</th>
                           <th className="py-3 px-3 sm:px-4 font-bold">Wind</th>
@@ -528,7 +532,7 @@ export function AdviceModal({
                               className={cn(
                                 "transition-colors cursor-pointer group",
                                 isSelected
-                                  ? "bg-cyan-50/70 font-medium"
+                                  ? "bg-cyan-50/80 font-medium"
                                   : "hover:bg-slate-50"
                               )}
                             >
@@ -536,7 +540,7 @@ export function AdviceModal({
                               <td className="py-3 px-3 sm:px-4 font-mono">
                                 <div className="flex items-center gap-2">
                                   <span className={cn("w-2 h-2 rounded-full shrink-0", isSelected ? "bg-cyan-600 ring-2 ring-cyan-200" : quick.dotClass)} />
-                                  <span className={cn("font-bold text-sm", isSelected ? "text-cyan-700" : "text-slate-900")}>
+                                  <span className={cn("font-bold text-sm", isSelected ? "text-cyan-800" : "text-slate-900")}>
                                     {hourStr}
                                   </span>
                                 </div>
@@ -583,7 +587,7 @@ export function AdviceModal({
                               {/* UV */}
                               <td className="py-3 px-3 sm:px-4 hidden sm:table-cell">
                                 {hSunscreen.uvIndex >= 1 ? (
-                                  <span className="text-[10px] font-mono text-amber-700 font-bold flex items-center gap-1">
+                                  <span className="text-[10px] font-mono text-amber-800 font-bold flex items-center gap-1">
                                     <Sun className="w-3 h-3 text-amber-500" />
                                     UV {hSunscreen.uvIndex}
                                   </span>
@@ -612,7 +616,7 @@ export function AdviceModal({
             {activeTab === 'charts' && (
               <div className="space-y-4 pt-2">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-cyan-600" />
+                  <BarChart3 className="w-4 h-4 text-cyan-700" />
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 font-tactical">
                     Verloopgrafieken voor {formattedDayStr}
                   </h3>
@@ -628,10 +632,10 @@ export function AdviceModal({
             )}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-cyan-600" />
+                  <Bot className="w-5 h-5 text-cyan-700" />
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 font-tactical">
                     <span>AI Surfcoach & Setup Match</span>
-                    <span className="text-[10px] font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                    <span className="text-[10px] font-mono text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 font-bold">
                       Optionele Toelichting
                     </span>
                   </h3>
@@ -640,35 +644,31 @@ export function AdviceModal({
                 {advice && !loading && (
                   <button
                     onClick={handleTriggerAI}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-mono font-bold uppercase tracking-wider text-slate-700 hover:text-slate-900 transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-mono font-bold uppercase tracking-wider text-slate-800 transition-all cursor-pointer shadow-2xs"
                     title="Herbereken AI advies"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3.5 h-3.5 text-cyan-700" />
                     <span>Opnieuw genereren</span>
                   </button>
                 )}
               </div>
 
-              {/* If advice is currently generating */}
+              {/* If advice is currently generating -> Custom Wave Tube Loader */}
               {loading && (
-                <div className="p-8 sm:p-12 rounded-[2rem] bg-slate-50 border border-cyan-200 flex flex-col items-center justify-center text-center gap-4">
-                  <div className="w-10 h-10 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-slate-900 font-mono uppercase tracking-wider">
-                      AI Coach analyseert condities...
-                    </p>
-                    <p className="text-xs text-slate-500 max-w-md">
-                      Berekent de beste boardkeuze uit jouw setup, wetsuit-warmte, baïne-risico's en getijdentiming voor {selectedHourStr}.
-                    </p>
-                  </div>
+                <div className="p-8 sm:p-12 rounded-3xl bg-slate-50 border border-cyan-200 flex flex-col items-center justify-center text-center shadow-xs">
+                  <WaveTubeLoader 
+                    size="lg" 
+                    title="AI Coach berekent sessie-analyse..." 
+                    subtitle={`Berekent boardmatch uit je ${user?.boards?.length || 0} surfboards, wetsuit-warmte en baïne-risico's voor ${selectedHourStr}.`}
+                  />
                 </div>
               )}
 
               {/* If advice has NOT yet been requested for this session */}
               {!loading && !advice && (
-                <div className="p-6 sm:p-8 rounded-[2rem] bg-gradient-to-r from-cyan-50/70 via-white to-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-xs">
+                <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-cyan-50/70 via-white to-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-xs">
                   <div className="space-y-2 max-w-xl">
-                    <div className="flex items-center gap-2 text-cyan-700 text-xs font-mono font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-cyan-800 text-xs font-mono font-bold uppercase tracking-wider">
                       <Sparkles className="w-4 h-4 text-amber-500" />
                       <span>Gepersonaliseerde Surfcoach Evaluatie</span>
                     </div>
@@ -682,7 +682,7 @@ export function AdviceModal({
 
                   <button
                     onClick={handleTriggerAI}
-                    className="shrink-0 self-start sm:self-center px-5 sm:px-6 py-3 rounded-2xl bg-slate-900 hover:bg-cyan-600 text-white text-xs font-mono font-bold uppercase tracking-wider shadow-md flex items-center gap-2.5 transition-all transform hover:scale-[1.02] cursor-pointer"
+                    className="shrink-0 self-start sm:self-center px-5 sm:px-6 py-3 rounded-2xl bg-slate-900 hover:bg-cyan-700 text-white text-xs font-mono font-bold uppercase tracking-wider shadow-md flex items-center gap-2.5 transition-all transform hover:scale-[1.02] cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4 text-amber-300" />
                     <span>Genereer AI Advies</span>
@@ -696,7 +696,7 @@ export function AdviceModal({
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="modal-subcard p-6 sm:p-8 rounded-[2rem] bg-slate-50 border border-slate-200 space-y-6 shadow-xs"
+                  className="modal-subcard p-6 sm:p-8 rounded-3xl bg-slate-50 border border-slate-200 space-y-6 shadow-xs"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
                     <div className="flex items-start sm:items-center gap-3.5">
@@ -705,24 +705,24 @@ export function AdviceModal({
                         <h4 className="text-base sm:text-xl font-black text-slate-900 capitalize leading-tight font-tactical">
                           {advice.title || "Sessie Analyse"}
                         </h4>
-                        <p className="text-[10px] font-mono text-slate-500 uppercase mt-0.5">
+                        <p className="text-[10px] font-mono text-slate-600 uppercase mt-0.5 font-bold">
                           Voor {formattedDayStr} om {selectedHourStr}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2.5 self-start sm:self-center">
-                      <div className="px-3.5 py-1.5 bg-emerald-50 text-emerald-800 rounded-full text-xs font-mono font-bold uppercase tracking-wider border border-emerald-200">
+                      <div className="px-3.5 py-1.5 bg-emerald-50 text-emerald-900 rounded-full text-xs font-mono font-bold uppercase tracking-wider border border-emerald-300">
                         Score: {advice.score}/10
                       </div>
-                      <div className="px-3.5 py-1.5 bg-cyan-50 text-cyan-800 rounded-full text-xs font-mono font-bold uppercase tracking-wider border border-cyan-200">
+                      <div className="px-3.5 py-1.5 bg-cyan-50 text-cyan-900 rounded-full text-xs font-mono font-bold uppercase tracking-wider border border-cyan-300">
                         Slagingskans: {advice.chanceOfSuccess}%
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <p className="text-slate-700 text-sm sm:text-base leading-relaxed font-medium">
+                    <p className="text-slate-800 text-sm sm:text-base leading-relaxed font-medium">
                       {advice.description}
                     </p>
                   </div>
@@ -736,3 +736,4 @@ export function AdviceModal({
     </AnimatePresence>
   );
 }
+

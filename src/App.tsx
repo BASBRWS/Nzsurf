@@ -75,6 +75,7 @@ export default function App() {
   const [advice, setAdvice] = useState<SurfAdvice | null>(null);
   const [selectedForecastHour, setSelectedForecastHour] = useState<ForecastData | null>(null);
   const [isAdviceLoading, setIsAdviceLoading] = useState(false);
+  const [isAdviceModalOpen, setIsAdviceModalOpen] = useState(false);
   const [userCoords, setUserCoords] = useState<{ lat: number, lng: number } | null>(null);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   const [permissionReason, setPermissionReason] = useState('');
@@ -292,6 +293,7 @@ export default function App() {
                   isLoggedIn={!!authUser}
                   onSelectForecastHour={async (selectedHourData) => {
                     setSelectedForecastHour(selectedHourData);
+                    setIsAdviceModalOpen(true);
                     setIsAdviceLoading(true);
                     try {
                       const res = await getSurfAdvice(user, selectedSpot, selectedHourData, forecast);
@@ -460,35 +462,46 @@ export default function App() {
         onClose={() => setIsBetaNoticeOpen(false)}
       />
 
-      {advice && (
-        <AdviceModal 
-          advice={advice}
-          isOpen={!!advice}
-          onClose={() => {
-            setAdvice(null);
-            setSelectedForecastHour(null);
-          }}
-          spot={selectedSpot}
-          user={user}
-          forecast={selectedForecastHour || currentForecastData}
-          allForecastData={forecast}
-          loading={isAdviceLoading}
-          onSelectForecastHour={(h) => setSelectedForecastHour(h)}
-          onRequestAdvice={async (hourData) => {
-            if (!hourData && !selectedForecastHour && !currentForecastData) return;
-            setIsAdviceLoading(true);
-            try {
-              const targetHour = hourData || selectedForecastHour || currentForecastData!;
-              const res = await getSurfAdvice(user, selectedSpot, targetHour, forecast);
-              setAdvice(res);
-            } catch (e) {
-              console.error(e);
-            } finally {
-              setIsAdviceLoading(false);
-            }
-          }}
-        />
-      )}
+      <AdviceModal 
+        advice={advice}
+        isOpen={isAdviceModalOpen}
+        onClose={() => {
+          setIsAdviceModalOpen(false);
+          setAdvice(null);
+          setSelectedForecastHour(null);
+        }}
+        spot={selectedSpot}
+        user={user}
+        forecast={selectedForecastHour || currentForecastData}
+        allForecastData={forecast}
+        loading={isAdviceLoading}
+        onSelectForecastHour={async (h) => {
+          setSelectedForecastHour(h);
+          setAdvice(null);
+          setIsAdviceLoading(true);
+          try {
+            const res = await getSurfAdvice(user, selectedSpot, h, forecast);
+            setAdvice(res);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setIsAdviceLoading(false);
+          }
+        }}
+        onRequestAdvice={async (hourData) => {
+          if (!hourData && !selectedForecastHour && !currentForecastData) return;
+          setIsAdviceLoading(true);
+          try {
+            const targetHour = hourData || selectedForecastHour || currentForecastData!;
+            const res = await getSurfAdvice(user, selectedSpot, targetHour, forecast);
+            setAdvice(res);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setIsAdviceLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }
