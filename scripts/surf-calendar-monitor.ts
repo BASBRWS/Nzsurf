@@ -132,7 +132,12 @@ async function main() {
     host: smtp.host, port: smtp.port, secure: smtp.port === 465,
     auth: { user: smtp.user, pass: smtp.pass },
   });
-  const organizerEmail = smtp.from.replace(/^.*<|>.*$/g, '').trim() || smtp.user;
+  // Strato weigert (DMARC) elke From die niet exact de ingelogde mailbox is.
+  // Daarom forceren we het afzenderadres op smtp.user; MAIL_FROM levert alleen de
+  // weergavenaam (bijv. "NzSurf").
+  const senderAddress = smtp.user;
+  const organizerEmail = senderAddress;
+  const fromName = (smtp.from.match(/^\s*"?([^"<]+?)"?\s*</)?.[1] || 'NzSurf').trim();
 
   const today = todayKey();
   const horizonEnd = addDaysKey(today, HORIZON_DAYS);
@@ -182,7 +187,10 @@ async function main() {
 
       try {
         await transporter.sendMail({
-          from: smtp.from, to: user.email, subject: summary, text: description, html,
+          from: { name: fromName, address: senderAddress },
+          sender: senderAddress,
+          envelope: { from: senderAddress, to: user.email },
+          to: user.email, subject: summary, text: description, html,
           icalEvent: { method: 'REQUEST', content: ics, filename: 'surfsessie.ics' },
         });
         await dedupeRef.set({
