@@ -36,7 +36,6 @@ import {
   ChevronDown, 
   Sparkles,
   Compass,
-  Radio,
   Clock,
   MessageSquare,
   Users,
@@ -422,19 +421,6 @@ export default function App() {
             >
               <Plus className="w-3 h-3 text-cyan-400 stroke-[3]" />
               <span className="hidden sm:inline">Spot</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('spots')}
-              className={`
-                px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest border transition-all flex items-center gap-1.5 cursor-pointer
-                ${activeTab === 'spots' 
-                  ? 'bg-cyan-50 text-cyan-800 border-cyan-300 shadow-xs' 
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}
-              `}
-            >
-              <Radio className="w-3 h-3 text-cyan-600" />
-              <span>KAART</span>
             </button>
 
             {authUser ? (
