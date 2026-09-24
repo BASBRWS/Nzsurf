@@ -1,7 +1,0 @@
-node_modules/
-lib/
-*.log
-.env
-
-# Gegenereerd door scripts/sync-functions-logic.sh (bron = ../src). Niet handmatig bewerken.
-src/app/

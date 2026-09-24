@@ -2,15 +2,5 @@
   "firestore": {
     "database": "ai-studio-787dce2c-a378-49f7-90c7-3820f4acdde2",
     "rules": "firestore.rules"
-  },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "predeploy": [
-        "bash scripts/sync-functions-logic.sh",
-        "npm --prefix functions run build"
-      ]
-    }
-  ]
+  }
 }

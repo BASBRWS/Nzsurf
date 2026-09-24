@@ -1,0 +1,43 @@
+name: Surf agenda-monitor
+
+# Draait los van de app/site en mailt een agenda-uitnodiging bij topdagen
+# (score >= 7,0) naar gebruikers die dat in hun profiel aan hebben staan.
+#
+# Tijden zijn UTC. 05:00 en 16:00 UTC ≈ 07:00 en 18:00 NL-tijd (zomertijd).
+# De taak ontdubbelt per gebruiker/spot/dag, dus extra runs sturen niets dubbel.
+
+on:
+  schedule:
+    - cron: "0 5,16 * * *"
+  workflow_dispatch: {}
+
+# Voorkom dat twee runs tegelijk mailen.
+concurrency:
+  group: surf-calendar-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run monitor
+        run: bun run scripts/surf-calendar-monitor.ts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
