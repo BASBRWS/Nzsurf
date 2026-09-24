@@ -17,6 +17,7 @@ import {
 import { SurfSpot, ForecastData, UserProfile } from '../types';
 import { getSurfAdvice } from '../services/geminiService';
 import { WaveTubeLoader } from './WaveTubeLoader';
+import { RichText } from './RichText';
 
 interface TacticalAICoachProps {
   spot: SurfSpot;
@@ -169,9 +170,7 @@ export const TacticalAICoach: React.FC<TacticalAICoachProps> = ({
               </span>
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
-              {aiAnalysisText}
-            </p>
+            <RichText text={aiAnalysisText} className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans" />
 
             <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[10px] font-mono text-slate-400">
               <span>Model: Gemini 2.5 Pro Neural Marine</span>
