@@ -37,18 +37,35 @@ let googleAuthInitialized = false;
 const WEB_CLIENT_ID = '112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com';
 
 export async function signInWithGoogleSmart(): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    if (!googleAuthInitialized) {
-      GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
-      googleAuthInitialized = true;
+  const platform = Capacitor.getPlatform();
+  const isNative = Capacitor.isNativePlatform();
+  // Behandel Android altijd als native (ook als isNativePlatform onverhoopt false
+  // teruggeeft), zodat we nooit de web-popup in de WebView proberen.
+  const useNative = isNative || platform === 'android' || platform === 'ios';
+
+  try {
+    if (useNative) {
+      if (!googleAuthInitialized) {
+        GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
+        googleAuthInitialized = true;
+      }
+      const result: any = await GoogleAuth.signIn();
+      const idToken = result?.authentication?.idToken;
+      if (!idToken) throw new Error('Geen idToken ontvangen van Google');
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
+    } else {
+      await signInWithPopup(auth, googleProvider);
     }
-    const result: any = await GoogleAuth.signIn();
-    const idToken = result?.authentication?.idToken;
-    if (!idToken) throw new Error('Geen idToken ontvangen van Google');
-    const credential = GoogleAuthProvider.credential(idToken);
-    await signInWithCredential(auth, credential);
-  } else {
-    await signInWithPopup(auth, googleProvider);
+  } catch (e: any) {
+    // Tijdelijke diagnose: toont waarom de login faalt (verwijderen zodra opgelost).
+    try {
+      alert(
+        `LOGIN DIAG\nplatform=${platform}\nisNative=${isNative}\nuseNative=${useNative}\n` +
+        `GoogleAuth=${typeof (GoogleAuth as any)?.signIn}\nfout=${e?.code || ''} ${e?.message || e}`
+      );
+    } catch {}
+    throw e;
   }
 }
 
