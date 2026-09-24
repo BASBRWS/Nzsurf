@@ -34,6 +34,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Installeer geen extra pakketten: het standaard 'tools'-pakket is door
+          # Google verwijderd en laat de actie anders crashen. Gradle/AGP haalt de
+          # benodigde SDK-componenten (platforms, build-tools) zelf op tijdens de build.
+          packages: ''
 
       - name: Install dependencies
         # Geen --frozen-lockfile: een AI Studio-export past bun.lock vaak aan,
