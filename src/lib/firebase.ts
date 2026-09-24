@@ -43,29 +43,18 @@ export async function signInWithGoogleSmart(): Promise<void> {
   // teruggeeft), zodat we nooit de web-popup in de WebView proberen.
   const useNative = isNative || platform === 'android' || platform === 'ios';
 
-  try {
-    if (useNative) {
-      if (!googleAuthInitialized) {
-        GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
-        googleAuthInitialized = true;
-      }
-      const result: any = await GoogleAuth.signIn();
-      const idToken = result?.authentication?.idToken;
-      if (!idToken) throw new Error('Geen idToken ontvangen van Google');
-      const credential = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(auth, credential);
-    } else {
-      await signInWithPopup(auth, googleProvider);
+  if (useNative) {
+    if (!googleAuthInitialized) {
+      GoogleAuth.initialize({ clientId: WEB_CLIENT_ID, scopes: ['profile', 'email'], grantOfflineAccess: false });
+      googleAuthInitialized = true;
     }
-  } catch (e: any) {
-    // Tijdelijke diagnose: toont waarom de login faalt (verwijderen zodra opgelost).
-    try {
-      alert(
-        `LOGIN DIAG\nplatform=${platform}\nisNative=${isNative}\nuseNative=${useNative}\n` +
-        `GoogleAuth=${typeof (GoogleAuth as any)?.signIn}\nfout=${e?.code || ''} ${e?.message || e}`
-      );
-    } catch {}
-    throw e;
+    const result: any = await GoogleAuth.signIn();
+    const idToken = result?.authentication?.idToken;
+    if (!idToken) throw new Error('Geen idToken ontvangen van Google');
+    const credential = GoogleAuthProvider.credential(idToken);
+    await signInWithCredential(auth, credential);
+  } else {
+    await signInWithPopup(auth, googleProvider);
   }
 }
 

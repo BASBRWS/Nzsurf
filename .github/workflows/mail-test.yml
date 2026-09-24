@@ -1,0 +1,37 @@
+name: Mail test
+
+# Stuurt één testmail met een voorbeeld-agenda-uitnodiging naar een adres naar keuze
+# (standaard sebastiaan.boom@gmail.com). Alleen handmatig te starten.
+
+on:
+  workflow_dispatch:
+    inputs:
+      to:
+        description: "Ontvanger e-mailadres"
+        required: true
+        default: "sebastiaan.boom@gmail.com"
+
+jobs:
+  mailtest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Send test mail
+        run: bun run scripts/mail-test.ts
+        env:
+          TEST_TO: ${{ github.event.inputs.to }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
