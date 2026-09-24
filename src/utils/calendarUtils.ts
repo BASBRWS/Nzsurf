@@ -4,7 +4,8 @@ import { SurfSpot } from '../types';
 import { DailySummary } from './dailyForecastUtils';
 
 // Drempel waarboven een dag "echt goed" is en we een agenda-afspraak aanbieden.
-export const CALENDAR_ALERT_THRESHOLD = 7.5;
+// Zelfde getal als de server-monitor (functions/) zodat app en e-mail gelijklopen.
+export const CALENDAR_ALERT_THRESHOLD = 7.0;
 
 // Bepaalt of voor deze dag een agenda-afspraak aangeboden wordt:
 // ingelogd + optie aan (default aan) + score >= drempel.

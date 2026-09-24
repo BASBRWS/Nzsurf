@@ -484,9 +484,10 @@ export function ProfileSettings({
               <div className="min-w-0">
                 <div className="text-sm font-bold text-slate-900">Agenda-afspraak bij topdagen</div>
                 <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-                  Toont een <span className="font-semibold text-emerald-700">"Zet in agenda"</span>-knop wanneer de surf echt goed is
-                  (score ≥ {CALENDAR_ALERT_THRESHOLD.toFixed(1)}). Eén tik zet een vooringevulde afspraak in je Google Agenda.
-                  Werkt als je met Google bent ingelogd.
+                  Bij echt goede surf (score ≥ {CALENDAR_ALERT_THRESHOLD.toFixed(1)}) krijg je automatisch een
+                  <span className="font-semibold text-emerald-700"> agenda-uitnodiging per e-mail</span> — ook als de app dicht is.
+                  In de app zie je bij zulke dagen bovendien een <span className="font-semibold text-emerald-700">"Zet in agenda"</span>-knop.
+                  Werkt als je met Google bent ingelogd (we gebruiken je Google-e-mailadres).
                 </p>
               </div>
               <div className="relative shrink-0">
