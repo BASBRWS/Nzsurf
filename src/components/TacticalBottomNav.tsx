@@ -52,7 +52,7 @@ export const TacticalBottomNav: React.FC<TacticalBottomNavProps> = ({
                 key={item.id}
                 onClick={() => onSelectTab(item.id)}
                 className={`
-                  relative flex flex-col items-center justify-center py-1.5 px-3 rounded-full transition-all duration-200 cursor-pointer
+                  relative flex flex-col items-center justify-center py-1.5 px-1 flex-1 min-w-0 rounded-full transition-all duration-200 cursor-pointer
                   ${isActive ? 'text-cyan-700 font-bold' : 'text-slate-500 hover:text-slate-800'}
                 `}
               >
@@ -64,7 +64,7 @@ export const TacticalBottomNav: React.FC<TacticalBottomNavProps> = ({
                   />
                 )}
                 <Icon className="w-5 h-5 relative z-10" />
-                <span className="text-[9px] font-mono tracking-wider mt-0.5 relative z-10 font-bold">
+                <span className="text-[9px] font-mono tracking-wider mt-0.5 relative z-10 font-bold truncate max-w-full">
                   {item.label}
                 </span>
                 {item.id === 'spots' && (
@@ -93,7 +93,7 @@ export const TacticalBottomNav: React.FC<TacticalBottomNavProps> = ({
                 key={item.id}
                 onClick={() => onSelectTab(item.id)}
                 className={`
-                  relative flex flex-col items-center justify-center py-1.5 px-3 rounded-full transition-all duration-200 cursor-pointer
+                  relative flex flex-col items-center justify-center py-1.5 px-1 flex-1 min-w-0 rounded-full transition-all duration-200 cursor-pointer
                   ${isActive ? 'text-cyan-700 font-bold' : 'text-slate-500 hover:text-slate-800'}
                 `}
               >
@@ -105,7 +105,7 @@ export const TacticalBottomNav: React.FC<TacticalBottomNavProps> = ({
                   />
                 )}
                 <Icon className="w-5 h-5 relative z-10" />
-                <span className="text-[9px] font-mono tracking-wider mt-0.5 relative z-10 font-bold">
+                <span className="text-[9px] font-mono tracking-wider mt-0.5 relative z-10 font-bold truncate max-w-full">
                   {item.label}
                 </span>
               </button>
