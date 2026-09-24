@@ -3,16 +3,126 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Remix Remix: Noordzee Surf Advies</title>
-    <meta name="description" content="Gepersonaliseerd surfadvies voor de Noordzee op basis van jouw gear, niveau en de actuele weersomstandigheden." />
-    <meta property="og:title" content="Remix Remix: Noordzee Surf Advies" />
-    <meta property="og:description" content="Gepersonaliseerd surfadvies voor de Noordzee op basis van jouw gear, niveau en de actuele weersomstandigheden." />
+    <title>nzsurf | Surf Voorspelling & Live Golfhoogte Noordzee</title>
+    <meta name="description" content="Live surf voorspelling, golfhoogte, wind en getijden voor de Nederlandse Noordzee. Gedetailleerde spot forecasts voor Ouddorp, Scheveningen, Domburg en Wijk aan Zee met AI surfcoach." />
+    <meta name="keywords" content="surf voorspelling, surfvoorspelling noordzee, surf forecast nederland, golfhoogte noordzee, surfen ouddorp, surfen scheveningen, surfen domburg, surfen wijk aan zee, noordzee golven, surfweer, getijden surfen, live golfhoogte, surfcoach, noordzeesurf" />
+    <meta name="author" content="nzsurf" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://www.noordzeesurf.nl/" />
+
+    <!-- Geo Meta Tags for Regional Google Search -->
+    <meta name="geo.region" content="NL" />
+    <meta name="geo.placename" content="Noordzee, Nederland" />
+    <meta name="geo.position" content="51.8253;3.8874" />
+    <meta name="ICBM" content="51.8253, 3.8874" />
+
+    <!-- OpenGraph / Facebook / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.noordzeesurf.nl/" />
+    <meta property="og:site_name" content="nzsurf - Noordzee Surf Voorspelling" />
+    <meta property="og:title" content="nzsurf | Surf Voorspelling & Live Golfhoogte Noordzee" />
+    <meta property="og:description" content="Live surf voorspelling, golfhoogte, wind en getijden voor de Nederlandse Noordzee. Gedetailleerde spot forecasts voor Ouddorp, Scheveningen, Domburg en Wijk aan Zee met AI surfcoach." />
+    <meta property="og:image" content="https://www.noordzeesurf.nl/logo2.png" />
+    <meta property="og:locale" content="nl_NL" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://www.noordzeesurf.nl/" />
+    <meta name="twitter:title" content="nzsurf | Surf Voorspelling & Live Golfhoogte Noordzee" />
+    <meta name="twitter:description" content="Live surf voorspelling, golfhoogte, wind en getijden voor de Nederlandse Noordzee. Gedetailleerde spot forecasts voor Ouddorp, Scheveningen, Domburg en Wijk aan Zee." />
+    <meta name="twitter:image" content="https://www.noordzeesurf.nl/logo2.png" />
+
+    <!-- Schema.org Structured Data (JSON-LD) for Search Engine Rich Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://www.noordzeesurf.nl/#website",
+          "url": "https://www.noordzeesurf.nl/",
+          "name": "nzsurf - Noordzee Surf Voorspelling",
+          "description": "Live surf voorspelling, golfhoogte, wind en getijden voor de Nederlandse Noordzee.",
+          "inLanguage": "nl-NL"
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://www.noordzeesurf.nl/#app",
+          "name": "nzsurf",
+          "url": "https://www.noordzeesurf.nl/",
+          "applicationCategory": "SportsApplication",
+          "operatingSystem": "All",
+          "description": "Gepersonaliseerd surfadvies, realtime golfhoogte, windrichting en getijden voor Noordzee surfspots zoals Ouddorp, Scheveningen, Domburg en Wijk aan Zee.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "EUR"
+          },
+          "areaServed": [
+            { "@type": "AdministrativeArea", "name": "Zuid-Holland" },
+            { "@type": "AdministrativeArea", "name": "Zeeland" },
+            { "@type": "AdministrativeArea", "name": "Noord-Holland" },
+            { "@type": "Country", "name": "Nederland" }
+          ]
+        },
+        {
+          "@type": "ItemList",
+          "name": "Noordzee Surf Spots & Voorspelling",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Ouddorp (P Noordweg) Surf Voorspelling",
+              "description": "Beachbreak in Zuid-Holland/Zeeland. Beste wind: ZO, O, Z. Beste swell: NW, WNW, W, N."
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Scheveningen (Noord) Surf Voorspelling",
+              "description": "Beachbreak bij Den Haag / Zuid-Holland. Beste wind: O, ZO, NO. Beste swell: NW, WNW."
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "name": "Domburg Surf Voorspelling",
+              "description": "Klassieke Zeeuwse beachbreak bij Walcheren. Beste wind: ZO, Z. Beste swell: NW, N."
+            },
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "name": "Wijk aan Zee Surf Voorspelling",
+              "description": "Noordpier beachbreak in Noord-Holland. Beste wind: O, ZO. Beste swell: NW, W."
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@300;400;600;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Crawlable semantic fallback for search engines before React hydrates -->
+    <div id="root">
+      <div style="padding: 24px; font-family: sans-serif; max-width: 800px; margin: 0 auto; color: #1e293b;">
+        <h1 style="font-size: 24px; font-weight: 800; color: #0891b2;">nzsurf | Noordzee Surf Voorspelling & Live Golfhoogte</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #475569;">
+          Live surf voorspelling, actuele golfhoogte, windkracht, swell periode en getijden voor alle bekende Nederlandse surfspots langs de Noordzee. Inclusief persoonlijk boardadvies, wetsuit-keuze en AI surfcoach.
+        </p>
+        <h2 style="font-size: 18px; font-weight: 700; margin-top: 20px;">Populaire Noordzee Surfspots:</h2>
+        <ul style="line-height: 1.8; color: #334155;">
+          <li><strong>Ouddorp (P Noordweg):</strong> Zuid-Holland / Goeree-Overflakkee — actuele zandbank condities en kitesurf zone monitoring.</li>
+          <li><strong>Scheveningen (Noord & Haven):</strong> Den Haag — betrouwbare golfhoogte en havenhoofd swell bescherming.</li>
+          <li><strong>Domburg:</strong> Zeeland — krachtige golven bij aflandige zuidoostenwind.</li>
+          <li><strong>Wijk aan Zee (Noordpier):</strong> Noord-Holland — beschutting tegen zuidwestenwind en cleane lijnen.</li>
+        </ul>
+        <p style="font-size: 14px; color: #64748b; margin-top: 16px;">
+          Applicatie wordt geladen...
+        </p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

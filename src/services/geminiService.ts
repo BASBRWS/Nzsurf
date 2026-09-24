@@ -4,16 +4,25 @@ import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils
 import { apiUrl } from "../lib/api";
 
 async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
-  const response = await fetch(apiUrl('/api/gemini/generateContent'), {
+  const url = apiUrl('/api/gemini/generateContent');
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options)
   });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'API request failed');
+
+  const rawText = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    throw new Error(`Server endpoint gaf geen JSON terug (HTTP ${response.status}): ${rawText.slice(0, 120)}`);
   }
-  return response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.error || `API request failed with status ${response.status}`);
+  }
+  return data;
 }
 
 /**
@@ -224,9 +233,10 @@ export function generateLocalSurfAdvice(
     thoughts.push(`🪁 **Kite Waarschuwing (P Noordweg Zone):** ${kiteAlert.fullWarning}`);
   }
 
-  // Nearby spots reminder
-  if (nearbySpots.length > 0) {
-    const backupSpotNames = nearbySpots.slice(0, 2).map(s => s.name).join(' en ');
+  // Nearby spots reminder (only if valid named spots exist)
+  const validNearbySpots = (nearbySpots || []).filter(s => s && typeof s.name === 'string' && s.name.trim().length > 0 && s.id !== spot?.id);
+  if (validNearbySpots.length > 0) {
+    const backupSpotNames = validNearbySpots.slice(0, 2).map(s => s.name).join(' en ');
     thoughts.push(`📍 **Alternatieve Spots:** Als de condities op ${spot?.name || 'deze spot'} toch tegenvallen, kun je uitwijken naar **${backupSpotNames}**.`);
   }
 
@@ -287,7 +297,7 @@ export async function analyzeSpotPhoto(
 
   try {
     const response = await callGenerateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.7-flash",
       contents: [
         {
           inlineData: {
@@ -343,7 +353,7 @@ export async function analyzeWaveVideo(
 
   try {
     const response = await callGenerateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.7-flash",
       contents: [
         ...frames.map(frame => ({
           inlineData: {
@@ -377,9 +387,10 @@ export async function getSurfAdvice(
   const board = user.boards?.find(b => b.id === user.selectedBoardId) || user.boards?.[0];
   const wetsuit = user.wetsuits?.find(w => w.id === user.selectedWetsuitId) || user.wetsuits?.[0];
 
-  const nearbyInfo = nearbySpots.length > 0 
+  const validNearbySpots = (nearbySpots || []).filter(s => s && typeof s.name === 'string' && s.name.trim().length > 0 && s.id !== spot?.id);
+  const nearbyInfo = validNearbySpots.length > 0 
     ? `ER ZIJN ANDERE SPOTS DICHTBIJ (BINNEN 5KM VAN DE GEBRUIKER): 
-       ${nearbySpots.map(s => `- ${s.name} (${s.type}, beste wind: ${(s.bestWind || []).join(', ')})`).join('\n')}`
+       ${validNearbySpots.map(s => `- ${s.name} (${s.type || 'beachbreak'}, beste wind: ${(s.bestWind || []).join(', ')})`).join('\n')}`
     : '';
 
   const isSoulac = spot.id === 'soulac-sandaya' || spot.name.toLowerCase().includes('soulac');
@@ -507,14 +518,26 @@ export async function getSurfAdvice(
     ${isOuddorpNoordwegKiteZone(spot) ? `- KITESURF MONITORING ZONE: Deze spot ligt op of binnen 100m N / 200m Z van Ouddorp P Noordweg. Als de wind >= 12 knopen is (${forecast.windSpeed || 0} knopen), vermeld dan altijd een duidelijke kite-waarschuwing: de spot staat dan vol met kiters, let op kiterlijnen en drukte in de branding.` : ''}
 
     ---
-    GEEF JE ANALYSE IN JSON FORMAAT MET DE DEZE VELDEN: score, title, description, suitability, chanceOfSuccess.
-    Geen extra tekst of markdown blokken buiten JSON.
+    GEEF JE ANALYSE IN JSON FORMAAT MET DE DEZE VELDEN:
+    - "score": getal tussen 1 en 10
+    - "title": korte pakkende titel (bijv. "Sessie Analyse: Ideaal voor Softtop")
+    - "description": volledige analyse in duidelijke Nederlandse Markdown alinea's (gescheiden door dubbele newlines \\n\\n):
+      • 🏄 **Setup Keuze:** Boardmatch uit eigen setup met motivatie.
+      • 🤿 **Wetsuit Advies:** Dikte en comfort bij ${forecast.waterTemp || 12}°C.
+      • 🌊 **Golf- & Windanalyse:** Wat voor golven te verwachten zijn en beste getijmoment.
+      • ⚠️ **Veiligheid & Kitesurfers:** Alleen indien van toepassing.
+      • 📍 **Alternatieve Spots:** Alleen indien er reële alternatieve spots zijn vermeld.
+    - "suitability": één van "perfect" | "good" | "challenging" | "flat"
+    - "chanceOfSuccess": slagingskans percentage tussen 0 en 100
+
+    Belangrijk: Geef UITSLUITEND een geldig JSON object terug zonder extra markdown formatting eromheen.
   `;
 
-  // Attempt 1: Call Primary Model (gemini-3.5-flash) per standard guidelines
+  // Attempt 1: Call Primary Model (gemini-3.7-flash) per standard guidelines
+  console.log(`🌊 [SURF-ADVICE] Start adviesverzoek voor spot: "${spot.name}" (Tijdstip: ${forecast.timestamp || 'huidig'})...`);
   try {
     const response = await callGenerateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.7-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -525,21 +548,26 @@ export async function getSurfAdvice(
     const cleanedJson = text.replace(/```json|```/g, "").trim();
     const data = JSON.parse(cleanedJson);
     
-    return {
+    const adviceResult: SurfAdvice = {
       score: data.score || 0,
       title: data.title || "Geen advies beschikbaar",
       description: data.description || "Er kon geen advies worden gegenereerd.",
       suitability: data.suitability || "flat",
       chanceOfSuccess: data.chanceOfSuccess,
-      recommendedBoardId: board?.id
+      recommendedBoardId: board?.id,
+      source: 'gemini-primary',
+      generatedAt: new Date().toISOString()
     };
-  } catch (primaryError) {
+
+    console.log(`✨ [SURF-ADVICE] ✅ Succesvol gegenereerd door Primaire AI (Gemini 3.7 Flash) voor "${spot.name}" | Score: ${adviceResult.score}/10 | Titel: "${adviceResult.title}"`);
+    return adviceResult;
+  } catch (primaryError: any) {
+    console.warn(`⚠️ [SURF-ADVICE] Primaire AI (Gemini 3.7 Flash) mislukt (${primaryError?.message || primaryError}). Start backup AI (Gemini 3.1 Flash-Lite)...`);
     // Log the primary error
-    await logAppError("gemini_primary_model_error", "Failed generating advice using primary gemini-3.5-flash", { spotId: spot.id, spotName: spot.name, userEmail: user.favoriteSpotId }, primaryError);
+    await logAppError("gemini_primary_model_error", "Failed generating advice using primary gemini-3.7-flash", { spotId: spot.id, spotName: spot.name, userEmail: user.favoriteSpotId }, primaryError);
 
     // Attempt 2: Secondary model (gemini-3.1-flash-lite) for cost/latency optimization/backup
     try {
-      console.warn("Primary Gemini model failed. Attempting secondary backup (gemini-3.1-flash-lite)...");
       const backupResponse = await callGenerateContent({
         model: "gemini-3.1-flash-lite",
         contents: prompt,
@@ -552,31 +580,45 @@ export async function getSurfAdvice(
       const cleanedJson = text.replace(/```json|```/g, "").trim();
       const data = JSON.parse(cleanedJson);
       
-      return {
+      const backupResult: SurfAdvice = {
         score: data.score || 0,
         title: data.title || "Geen advies beschikbaar (Backup AI)",
         description: data.description || "Er is een lokaal-ondersteund advies berekend door de back-up AI.",
         suitability: data.suitability || "flat",
         chanceOfSuccess: data.chanceOfSuccess,
-        recommendedBoardId: board?.id
+        recommendedBoardId: board?.id,
+        source: 'gemini-backup',
+        generatedAt: new Date().toISOString()
       };
-    } catch (secondaryError) {
+
+      console.log(`🔄 [SURF-ADVICE] ✅ Succesvol gegenereerd door Backup AI (Gemini 3.1 Flash-Lite) voor "${spot.name}" | Score: ${backupResult.score}/10 | Titel: "${backupResult.title}"`);
+      return backupResult;
+    } catch (secondaryError: any) {
+      console.warn(`⚠️ [SURF-ADVICE] Backup AI ook niet beschikbaar (${secondaryError?.message || secondaryError}). Schakelt over naar Offline Noordzee Redundancy Motor...`);
       // Log the secondary error 
       await logAppError("gemini_secondary_model_error", "Failed generating advice using secondary gemini-3.1-flash-lite", { spotId: spot.id, spotName: spot.name }, secondaryError);
 
       // Attempt 3: Ultimate Fallback Rule-based engine (Robust Offline/Heuristic Backup)
       try {
-        console.warn("All Gemini AI models failed. Triggering offline rule-based redundancy...");
         const localAdvice = generateLocalSurfAdvice(user, spot, forecast, nearbySpots);
-        return localAdvice;
+        const resolvedLocalAdvice: SurfAdvice = {
+          ...localAdvice,
+          source: 'rule-based-offline',
+          generatedAt: new Date().toISOString()
+        };
+        console.log(`🛡️ [SURF-ADVICE] ✅ Succesvol gegenereerd door Offline Noordzee Heuristische Motor voor "${spot.name}" | Score: ${resolvedLocalAdvice.score}/10 | Titel: "${resolvedLocalAdvice.title}"`);
+        return resolvedLocalAdvice;
       } catch (fallbackError) {
         // If everything fails, return basic safe fallback description
         await logAppError("heuristic_fallback_error", "Critical error in local advisory redundancy simulator", { spotId: spot.id }, fallbackError);
+        console.error(`💥 [SURF-ADVICE] Kritieke fout bij genereren advies voor "${spot.name}":`, fallbackError);
         return {
           score: 0,
           title: "Fout bij genereren advies",
           description: "Zowel de live AI als de lokale back-up adviseur konden geen data verwerken. Controleer je internetverbinding.",
-          suitability: "flat"
+          suitability: "flat",
+          source: 'fallback',
+          generatedAt: new Date().toISOString()
         };
       }
     }

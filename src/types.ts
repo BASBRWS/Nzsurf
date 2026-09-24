@@ -174,6 +174,8 @@ export interface SurfAdvice {
   recommendedBoardId?: string;
   suitability: 'perfect' | 'good' | 'challenging' | 'dangerous' | 'flat';
   chanceOfSuccess?: number; // 0-100
+  source?: 'gemini-primary' | 'gemini-backup' | 'rule-based-offline' | 'fallback';
+  generatedAt?: string;
 }
 
 export interface PostComment {

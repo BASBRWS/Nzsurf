@@ -10,17 +10,38 @@ async function startServer() {
   // Middleware to parse large JSON bodies (e.g. base64 images)
   app.use(express.json({ limit: "50mb" }));
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
   // API Routes
   app.post("/api/gemini/generateContent", async (req, res) => {
+    const startTime = Date.now();
+    const { model, contents, config } = req.body;
+    const targetModel = model || "gemini-3.7-flash";
+
+    console.log(`[AI-SERVER] 📥 Adviesverzoek ontvangen voor model: ${targetModel}`);
+
     try {
-      const { model, contents, config } = req.body;
-      const response = await ai.models.generateContent({ model, contents, config });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn(`[AI-SERVER] ⚠️ GEMINI_API_KEY ontbreekt in server environment.`);
+        return res.status(503).json({ 
+          error: "GEMINI_API_KEY is niet geconfigureerd in de serveromgeving." 
+        });
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+
+      const response = await ai.models.generateContent({ 
+        model: targetModel, 
+        contents, 
+        config 
+      });
+
+      const durationMs = Date.now() - startTime;
+      console.log(`[AI-SERVER] ✅ Advies succesvol gegenereerd via ${targetModel} in ${durationMs}ms`);
       res.json({ text: response.text });
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
-      res.status(500).json({ error: error.message });
+      const durationMs = Date.now() - startTime;
+      console.error(`[AI-SERVER] ❌ Fout bij aanroepen ${targetModel} na ${durationMs}ms:`, error?.message || error);
+      res.status(500).json({ error: error?.message || "Fout bij verwerken Gemini verzoek" });
     }
   });
 
@@ -30,6 +51,14 @@ async function startServer() {
       if (!base64Image) {
         return res.status(400).json({ error: "No image provided" });
       }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        // Safe fallback if moderation API key is missing
+        return res.json({ isSafe: true, reason: "Moderatie overgeslagen (geen API sleutel)" });
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
 
       // Format expected by Gemini: just the raw base64 data, without data URL prefix
       let base64Data = base64Image;
@@ -68,7 +97,7 @@ async function startServer() {
       res.json(resultJson);
     } catch (error: any) {
       console.error("Image Moderation Error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error?.message || "Fout bij beeldmoderatie" });
     }
   });
 

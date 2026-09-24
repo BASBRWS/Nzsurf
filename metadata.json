@@ -1,6 +1,6 @@
 {
-  "name": "Remix Remix: Noordzee Surf Advies",
-  "description": "Gepersonaliseerd surfadvies voor de Noordzee op basis van jouw gear, niveau en de actuele weersomstandigheden.",
+  "name": "nzsurf",
+  "description": "Live surf voorspelling, golfhoogte, wind en getijden voor de Nederlandse Noordzee. Gedetailleerde spot forecasts voor Ouddorp, Scheveningen, Domburg en Wijk aan Zee met AI surfcoach.",
   "requestFramePermissions": [
     "geolocation",
     "camera"

@@ -2,7 +2,7 @@ import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { SurfSpot, ForecastData } from '../types';
-import { Locate, MapPin, Eye, Wind, Waves, Navigation, Sparkles, Crosshair } from 'lucide-react';
+import { Locate, MapPin, Eye, Wind, Waves, Navigation, Sparkles, Crosshair, Plus, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { isOuddorpNoordwegKiteZone } from '../utils/kiteAlertUtils';
 
@@ -19,7 +19,9 @@ interface SpotMapProps {
   selectedSpotId: string;
   onSelectSpot: (spotId: string) => void;
   onCustomSpot?: (lat: number, lng: number) => void;
+  onOpenAddSpot?: () => void;
   onUpdateSpotLocation?: (id: string, lat: number, lng: number) => void;
+  onDeleteSpot?: (id: string) => void;
   forecasts?: Record<string, any>;
   userCoords?: { lat: number, lng: number } | null;
 }
@@ -29,6 +31,7 @@ function DraggableMarker({
   isSelected, 
   onSelect, 
   onDrag,
+  onDelete,
   forecast 
 }: { 
   key?: string;
@@ -36,9 +39,11 @@ function DraggableMarker({
   isSelected: boolean; 
   onSelect: (id: string) => void;
   onDrag?: (id: string, lat: number, lng: number) => void;
+  onDelete?: (id: string) => void;
   forecast?: any;
 }) {
   const markerRef = React.useRef<L.Marker>(null);
+  const isCustom = spot.id.startsWith('custom-') || spot.id.startsWith('shared-');
   
   const eventHandlers = React.useMemo(() => ({
     dragend() {
@@ -60,8 +65,8 @@ function DraggableMarker({
               ${forecast.waveHeight}m • ${forecast.swellPeriod}s
             </div>
           ` : ''}
-          <div class="w-6 h-6 ${isSelected ? 'bg-cyan-500 text-white ring-4 ring-cyan-500/30' : 'bg-slate-900 text-white hover:bg-cyan-600'} rounded-full border-2 border-white shadow-xl flex items-center justify-center transition-all ${isSelected ? 'scale-125' : 'hover:scale-110'}">
-            <div class="w-2 h-2 ${isSelected ? 'bg-white' : 'bg-cyan-400'} rounded-full"></div>
+          <div class="w-6 h-6 ${isSelected ? 'bg-cyan-500 text-white ring-4 ring-cyan-500/30' : isCustom ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-900 text-white hover:bg-cyan-600'} rounded-full border-2 border-white shadow-xl flex items-center justify-center transition-all ${isSelected ? 'scale-125' : 'hover:scale-110'}">
+            <div class="w-2 h-2 ${isSelected ? 'bg-white' : isCustom ? 'bg-white' : 'bg-cyan-400'} rounded-full"></div>
           </div>
         </div>
       </div>
@@ -73,7 +78,7 @@ function DraggableMarker({
 
   return (
     <Marker
-      draggable={spot.id.startsWith('custom-') || spot.id.startsWith('shared-')}
+      draggable={isCustom}
       eventHandlers={eventHandlers}
       position={[spot.lat, spot.lng]}
       icon={iconWithData}
@@ -81,18 +86,27 @@ function DraggableMarker({
     >
       <Popup className="custom-popup">
         <div className="p-4 min-w-[220px] bg-white/95 backdrop-blur-xl rounded-2xl border border-slate-200 shadow-2xl text-slate-900">
-          <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center justify-between gap-4 mb-2">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-cyan-600" />
               <h4 className="text-sm font-black font-tactical text-slate-900 uppercase tracking-wider">{spot.name}</h4>
             </div>
             <div className="flex items-center gap-1 flex-wrap">
+              {isCustom && (
+                <span className="text-[8px] font-mono bg-cyan-100 border border-cyan-300 text-cyan-900 px-1.5 py-0.5 rounded font-bold uppercase">
+                  Eigen Spot
+                </span>
+              )}
               {isOuddorpNoordwegKiteZone(spot) && forecast && (forecast.windSpeed || 0) >= 12 && (
                 <span className="text-[8px] font-mono bg-amber-50 border border-amber-300 text-amber-800 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-0.5">
                   <Wind className="w-2.5 h-2.5" /> Kitezone
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="text-[9px] font-mono text-slate-400 uppercase mb-3">
+            {spot.lat.toFixed(4)}°N • {spot.lng.toFixed(4)}°E
           </div>
           
           {forecast && (
@@ -108,12 +122,29 @@ function DraggableMarker({
             </div>
           )}
 
-          <button 
-            onClick={() => onSelect(spot.id)}
-            className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs py-2 rounded-xl font-black font-tactical uppercase tracking-widest transition-all shadow-md cursor-pointer"
-          >
-            Selecteer Deze Spot
-          </button>
+          <div className="space-y-1.5">
+            <button 
+              onClick={() => onSelect(spot.id)}
+              className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs py-2 rounded-xl font-black font-tactical uppercase tracking-widest transition-all shadow-md cursor-pointer"
+            >
+              Selecteer Deze Spot
+            </button>
+
+            {isCustom && onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Weet je zeker dat je spot "${spot.name}" wilt verwijderen?`)) {
+                    onDelete(spot.id);
+                  }
+                }}
+                className="w-full bg-red-50 hover:bg-red-100 text-red-600 text-[10px] py-1.5 rounded-xl font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Verwijder Spot</span>
+              </button>
+            )}
+          </div>
         </div>
       </Popup>
     </Marker>
@@ -136,7 +167,9 @@ export function SpotMap({
   selectedSpotId, 
   onSelectSpot, 
   onCustomSpot,
+  onOpenAddSpot,
   onUpdateSpotLocation,
+  onDeleteSpot,
   forecasts,
   userCoords
 }: SpotMapProps) {
@@ -160,8 +193,8 @@ export function SpotMap({
 
   return (
     <div className="space-y-3">
-      {/* Header Info */}
-      <div className="flex items-center justify-between px-2">
+      {/* Header Info & Quick Add Action */}
+      <div className="flex items-center justify-between px-2 flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-600 shadow-sm">
             <Locate className="w-4 h-4" />
@@ -171,14 +204,45 @@ export function SpotMap({
               Interactieve Kustkaart
             </h3>
             <p className="text-sm font-black font-tactical uppercase text-slate-800 tracking-wide">
-              Noordzee & Spot Locaties
+              Noordzee & Spot Locaties ({spots.length})
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold bg-white/80 px-2.5 py-1 rounded-full border border-slate-200 shadow-sm">
-          <Eye className="w-3.5 h-3.5 text-cyan-600" />
-          <span>Realtime Kaart</span>
+
+        <div className="flex items-center gap-2">
+          {onOpenAddSpot && (
+            <button
+              onClick={onOpenAddSpot}
+              className="px-3 py-1.5 rounded-full text-xs font-tactical font-black uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 flex items-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>Nieuwe Spot</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold bg-white/80 px-2.5 py-1 rounded-full border border-slate-200 shadow-sm">
+            <Eye className="w-3.5 h-3.5 text-cyan-600" />
+            <span>Realtime</span>
+          </div>
         </div>
+      </div>
+
+      {/* Interactive Helper Banner */}
+      <div className="px-4 py-2 rounded-2xl bg-cyan-50/80 border border-cyan-200/90 text-cyan-900 text-xs flex items-center justify-between gap-2 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <Crosshair className="w-4 h-4 text-cyan-600 shrink-0" />
+          <span className="font-medium">
+            <strong>Tip:</strong> Klik ergens op de kustlijn op de kaart om direct een nieuwe surfspot aan te maken!
+          </span>
+        </div>
+        {onOpenAddSpot && (
+          <button 
+            onClick={onOpenAddSpot}
+            className="text-[10px] font-mono font-bold uppercase text-cyan-700 hover:text-cyan-900 underline shrink-0 cursor-pointer"
+          >
+            Of vul coördinaten in
+          </button>
+        )}
       </div>
 
       {/* Map Container with Light Theming */}
@@ -186,24 +250,39 @@ export function SpotMap({
         
         {/* Floating Quick Select Drawer (Top Right on desktop) */}
         <div className="absolute top-4 right-4 z-[1000] hidden sm:flex flex-col gap-1.5 max-h-[70%] overflow-y-auto no-scrollbar scrollbar-hide">
-          {spots.map(spot => (
+          {onOpenAddSpot && (
             <button
-              key={spot.id}
-              onClick={() => onSelectSpot(spot.id)}
-              className={cn(
-                "px-3.5 py-1.5 rounded-full text-[10px] font-mono uppercase tracking-wider border transition-all shadow-md whitespace-nowrap text-right flex items-center gap-2 justify-end backdrop-blur-xl cursor-pointer",
-                selectedSpotId === spot.id 
-                  ? "bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-cyan-500/20" 
-                  : "bg-white/85 text-slate-700 border-slate-200/80 hover:bg-white hover:text-slate-900"
-              )}
+              onClick={onOpenAddSpot}
+              className="px-3.5 py-1.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-slate-900 text-white hover:bg-cyan-600 border border-slate-800 transition-all shadow-md flex items-center gap-1.5 justify-center cursor-pointer"
             >
-              <span>{spot.name}</span>
-              <div className={cn(
-                "w-2 h-2 rounded-full",
-                selectedSpotId === spot.id ? "bg-slate-950" : "bg-slate-300"
-              )} />
+              <Plus className="w-3 h-3 text-cyan-400" />
+              <span>+ Spot Toevoegen</span>
             </button>
-          ))}
+          )}
+
+          {spots.map(spot => {
+            const isCustom = spot.id.startsWith('custom-') || spot.id.startsWith('shared-');
+            return (
+              <button
+                key={spot.id}
+                onClick={() => onSelectSpot(spot.id)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-full text-[10px] font-mono uppercase tracking-wider border transition-all shadow-md whitespace-nowrap text-right flex items-center gap-2 justify-end backdrop-blur-xl cursor-pointer",
+                  selectedSpotId === spot.id 
+                    ? "bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-cyan-500/20" 
+                    : isCustom
+                    ? "bg-amber-50/90 text-amber-900 border-amber-300 hover:bg-amber-100"
+                    : "bg-white/85 text-slate-700 border-slate-200/80 hover:bg-white hover:text-slate-900"
+                )}
+              >
+                <span>{spot.name}</span>
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  selectedSpotId === spot.id ? "bg-slate-950" : isCustom ? "bg-amber-500" : "bg-slate-300"
+                )} />
+              </button>
+            );
+          })}
         </div>
 
         <MapContainer 
@@ -225,6 +304,7 @@ export function SpotMap({
               isSelected={spot.id === selectedSpotId}
               onSelect={onSelectSpot}
               onDrag={onUpdateSpotLocation}
+              onDelete={onDeleteSpot}
               forecast={forecasts?.[spot.id]}
             />
           ))}
@@ -245,20 +325,35 @@ export function SpotMap({
         {/* Spot selection bottom bar on mobile */}
         <div className="absolute bottom-3 left-3 right-3 z-[1000]">
           <div className="bg-white/90 backdrop-blur-xl p-2 rounded-2xl border border-slate-200/90 shadow-xl flex items-center gap-2 overflow-x-auto no-scrollbar scrollbar-hide">
-            {spots.map(spot => (
+            {onOpenAddSpot && (
               <button
-                key={spot.id}
-                onClick={() => onSelectSpot(spot.id)}
-                className={cn(
-                  "px-3 py-1.5 rounded-xl text-[10px] font-bold font-tactical uppercase tracking-wider border transition-all whitespace-nowrap shrink-0 cursor-pointer",
-                  selectedSpotId === spot.id 
-                    ? "bg-cyan-500 text-slate-950 border-cyan-400 shadow-md" 
-                    : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
-                )}
+                onClick={onOpenAddSpot}
+                className="px-3 py-1.5 rounded-xl text-[10px] font-bold font-tactical uppercase tracking-wider bg-slate-900 text-white border border-slate-800 flex items-center gap-1 shrink-0 cursor-pointer"
               >
-                {spot.name}
+                <Plus className="w-3 h-3 text-cyan-400" />
+                <span>+ Spot</span>
               </button>
-            ))}
+            )}
+
+            {spots.map(spot => {
+              const isCustom = spot.id.startsWith('custom-') || spot.id.startsWith('shared-');
+              return (
+                <button
+                  key={spot.id}
+                  onClick={() => onSelectSpot(spot.id)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-[10px] font-bold font-tactical uppercase tracking-wider border transition-all whitespace-nowrap shrink-0 cursor-pointer",
+                    selectedSpotId === spot.id 
+                      ? "bg-cyan-500 text-slate-950 border-cyan-400 shadow-md" 
+                      : isCustom
+                      ? "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100"
+                      : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                  )}
+                >
+                  {spot.name}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -16,6 +16,10 @@ interface ProfileSettingsProps {
   allSpots: SurfSpot[];
   currentForecast: ForecastData | null;
   onShareSpot: (spot: SurfSpot) => void;
+  onOpenAddSpot?: () => void;
+  onDeleteSpot?: (id: string) => void;
+  onSelectSpot?: (id: string) => void;
+  selectedSpotId?: string;
 }
 
 // Placeholder-silhouet als er (nog) geen productfoto is.
@@ -177,7 +181,17 @@ function BoardDatabaseSelector({ onAdd, onCancel }: { onAdd: (b: Board) => void,
   );
 }
 
-export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onShareSpot }: ProfileSettingsProps) {
+export function ProfileSettings({ 
+  user, 
+  onUpdate, 
+  allSpots, 
+  currentForecast, 
+  onShareSpot,
+  onOpenAddSpot,
+  onDeleteSpot,
+  onSelectSpot,
+  selectedSpotId
+}: ProfileSettingsProps) {
   const [activeSubTab, setActiveSubTab] = useState<'settings' | 'report' | 'activity' | 'admin' | 'beta'>('settings');
   const [userReports, setUserReports] = useState<SpotReportType[]>([]);
   const [showBoardSelector, setShowBoardSelector] = useState(false);
@@ -793,52 +807,128 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
           </section>
 
           <section className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-cyan-600" />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-cyan-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Opgeslagen Locaties</h3>
+                  <p className="text-[10px] font-mono text-slate-400">Jouw custom surfspots en favoriete nodes</p>
+                </div>
               </div>
-              <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Opgeslagen Locaties</h3>
+
+              {onOpenAddSpot && (
+                <button
+                  type="button"
+                  onClick={onOpenAddSpot}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black font-tactical text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:shadow transition-all self-start sm:self-auto cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Nieuwe Spot Aanmaken</span>
+                </button>
+              )}
             </div>
 
             <div className="space-y-3">
               {(!user.savedSpots || user.savedSpots.length === 0) ? (
-                <p className="text-[10px] font-mono text-slate-400 italic uppercase tracking-widest text-center py-8">Geen locaties opgeslagen.</p>
+                <div className="p-8 rounded-2xl bg-white/80 border border-dashed border-slate-300 text-center space-y-3">
+                  <p className="text-xs font-mono text-slate-500 uppercase tracking-wider">Nog geen eigen spots opgeslagen</p>
+                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                    Maak een custom spot aan met GPS-coördinaten of klik direct op de kaart om getijden, golven en AI-advies voor jouw geheime bank te zien.
+                  </p>
+                  {onOpenAddSpot && (
+                    <button
+                      type="button"
+                      onClick={onOpenAddSpot}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-800 font-tactical font-black text-xs uppercase tracking-wider hover:bg-cyan-100 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Eerste Spot Toevoegen</span>
+                    </button>
+                  )}
+                </div>
               ) : (
-                user.savedSpots.map((spot) => (
-                  <div key={spot.id} className="flex items-center gap-4 p-4 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 group hover:border-slate-300 transition-all">
-                    <div className="flex-1 space-y-1">
-                      <input 
-                        value={spot.name} 
-                        onChange={(e) => {
-                          const newSpots = user.savedSpots?.map(s => s.id === spot.id ? { ...s, name: e.target.value } : s);
-                          onUpdate({ ...user, savedSpots: newSpots });
-                        }}
-                        className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 w-full"
-                      />
-                      <div className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">
-                        LOC: {spot.lat.toFixed(4)}N / {spot.lng.toFixed(4)}E
+                user.savedSpots.map((spot) => {
+                  const isSelected = selectedSpotId === spot.id;
+                  const isCustom = spot.id.startsWith('custom-') || spot.id.startsWith('shared-');
+
+                  return (
+                    <div 
+                      key={spot.id} 
+                      className={cn(
+                        "flex items-center gap-3 sm:gap-4 p-4 rounded-2xl bg-white/90 backdrop-blur-md shadow-sm border transition-all group",
+                        isSelected ? "border-cyan-400 ring-2 ring-cyan-100 bg-cyan-50/20" : "border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input 
+                            value={spot.name} 
+                            onChange={(e) => {
+                              const newSpots = user.savedSpots?.map(s => s.id === spot.id ? { ...s, name: e.target.value } : s);
+                              onUpdate({ ...user, savedSpots: newSpots });
+                            }}
+                            className="bg-transparent border-none p-0 text-sm font-bold text-slate-900 focus:ring-0 w-auto min-w-[120px]"
+                            title="Klik om naam te wijzigen"
+                          />
+                          {isCustom && (
+                            <span className="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                              Eigen Spot
+                            </span>
+                          )}
+                          {isSelected && (
+                            <span className="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded bg-cyan-100 border border-cyan-300 text-cyan-900 font-bold">
+                              Actief
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">
+                          LOC: {spot.lat.toFixed(4)}N / {spot.lng.toFixed(4)}E • Type: {spot.type || 'beachbreak'}
+                        </div>
                       </div>
-                    </div>
-                      <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all">
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {onSelectSpot && !isSelected && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectSpot(spot.id)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-cyan-50 hover:text-cyan-800 text-[10px] font-mono uppercase font-bold text-slate-600 transition-colors cursor-pointer"
+                            title="Kies als actieve voorspelling"
+                          >
+                            Kiezen
+                          </button>
+                        )}
                         <button 
+                          type="button"
                           onClick={() => onShareSpot(spot)}
-                          className="p-2 text-slate-600 md:text-slate-400 hover:text-cyan-600 transition-colors"
+                          className="p-2 text-slate-400 hover:text-cyan-600 transition-colors rounded-lg hover:bg-slate-100"
+                          title="Deel spot"
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
                         <button 
+                          type="button"
                           onClick={() => {
-                            const newSpots = user.savedSpots?.filter(s => s.id !== spot.id);
-                            onUpdate({ ...user, savedSpots: newSpots });
+                            if (window.confirm(`Weet je zeker dat je spot "${spot.name}" wilt verwijderen?`)) {
+                              if (onDeleteSpot) {
+                                onDeleteSpot(spot.id);
+                              } else {
+                                const newSpots = user.savedSpots?.filter(s => s.id !== spot.id);
+                                onUpdate({ ...user, savedSpots: newSpots });
+                              }
+                            }
                           }}
-                          className="p-2 text-slate-600 md:text-slate-400 hover:text-red-400 transition-colors"
+                          className="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+                          title="Verwijder spot"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
-                  </div>
-                ))
+                    </div>
+                  );
+                })
               )}
             </div>
           </section>

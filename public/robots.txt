@@ -1,0 +1,6 @@
+# robots.txt for nzsurf (https://www.noordzeesurf.nl/)
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://www.noordzeesurf.nl/sitemap.xml
