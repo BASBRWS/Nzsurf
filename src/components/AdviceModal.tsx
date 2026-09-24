@@ -9,6 +9,7 @@ import {
   Compass, ArrowUpRight
 } from 'lucide-react';
 import { DetailedCharts } from './DetailedCharts';
+import { RichText } from './RichText';
 import { WaveTubeLoader } from './WaveTubeLoader';
 import { Tooltip } from './ui/Tooltip';
 import { motion, AnimatePresence } from 'motion/react';
@@ -722,9 +723,7 @@ export function AdviceModal({
                   </div>
 
                   <div className="space-y-4">
-                    <p className="text-slate-800 text-sm sm:text-base leading-relaxed font-medium">
-                      {advice.description}
-                    </p>
+                    <RichText text={advice.description} className="text-slate-800 text-sm sm:text-base leading-relaxed font-medium" />
                   </div>
                 </motion.div>
               )}
