@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ForecastData, SurfSpot, UserProfile } from '../types';
 import { processDailyForecasts, DailySummary } from '../utils/dailyForecastUtils';
 import { isOuddorpNoordwegKiteZone } from '../utils/kiteAlertUtils';
+import { shouldOfferCalendar, buildSurfCalendarUrl, openExternalUrl } from '../utils/calendarUtils';
 import { 
   Sun, 
   CloudSun, 
@@ -28,7 +29,8 @@ import {
   Gauge,
   Activity,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  CalendarPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -626,13 +628,26 @@ export function CompactDailyForecast({
                     {spot.name} • {day.hourlyData.length} datapunten
                   </span>
 
-                  <button
-                    onClick={() => onSelectForecastHour(day.bestHourData)}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-cyan-600 text-xs font-mono font-bold uppercase tracking-wider text-white transition-all shadow-sm cursor-pointer"
-                  >
-                    <span>Uur-voor-uur Details</span>
-                    <ChevronRight className="w-4 h-4 shrink-0" />
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    {shouldOfferCalendar(day, isLoggedIn, user.calendarAlertsEnabled) && (
+                      <button
+                        onClick={() => openExternalUrl(buildSurfCalendarUrl(day, spot))}
+                        title="Zet deze topsessie in je Google Agenda"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-mono font-bold uppercase tracking-wider text-white transition-all shadow-sm cursor-pointer"
+                      >
+                        <CalendarPlus className="w-4 h-4 shrink-0" />
+                        <span>Zet in agenda</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => onSelectForecastHour(day.bestHourData)}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-cyan-600 text-xs font-mono font-bold uppercase tracking-wider text-white transition-all shadow-sm cursor-pointer"
+                    >
+                      <span>Uur-voor-uur Details</span>
+                      <ChevronRight className="w-4 h-4 shrink-0" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
