@@ -4,7 +4,8 @@ import { SpotReport } from './SpotReport';
 import { AdminPanel } from './AdminPanel';
 import { auth, db } from '../lib/firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { Settings, Camera, Shield, User, Waves, MapPin, Plus, Trash2, Share2, ChevronRight, History, AlertTriangle, RefreshCw, Thermometer, Ruler, CheckCircle2, Database, X } from 'lucide-react';
+import { Settings, Camera, Shield, User, Waves, MapPin, Plus, Trash2, Share2, ChevronRight, History, AlertTriangle, RefreshCw, Thermometer, Ruler, CheckCircle2, Database, X, CalendarCheck } from 'lucide-react';
+import { CALENDAR_ALERT_THRESHOLD } from '../utils/calendarUtils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -205,6 +206,7 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
 
   const updateWeight = (weight: number) => onUpdate({ ...user, weight });
   const updateSkill = (skillLevel: SkillLevel) => onUpdate({ ...user, skillLevel });
+  const updateCalendarAlerts = (enabled: boolean) => onUpdate({ ...user, calendarAlertsEnabled: enabled });
 
   const currentUserEmail = auth.currentUser?.email?.toLowerCase() || user.email?.toLowerCase();
   const isAdmin = currentUserEmail === 'sebastiaan.boom@gmail.com' || currentUserEmail === 'sebastiaan.boom2@gmail.com';
@@ -450,6 +452,41 @@ export function ProfileSettings({ user, onUpdate, allSpots, currentForecast, onS
                 </select>
               </div>
             </div>
+          </section>
+
+          {/* Meldingen: agenda-afspraak bij topdagen */}
+          <section className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
+                <CalendarCheck className="w-4 h-4 text-cyan-600" />
+              </div>
+              <h3 className="text-sm font-mono uppercase tracking-[0.2em] text-slate-500">Agenda & Meldingen</h3>
+            </div>
+
+            <label
+              htmlFor="calendarAlerts"
+              className="flex items-center justify-between gap-4 bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 rounded-2xl px-5 py-4 cursor-pointer hover:border-cyan-400 transition-colors"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-slate-900">Agenda-afspraak bij topdagen</div>
+                <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                  Toont een <span className="font-semibold text-emerald-700">"Zet in agenda"</span>-knop wanneer de surf echt goed is
+                  (score ≥ {CALENDAR_ALERT_THRESHOLD.toFixed(1)}). Eén tik zet een vooringevulde afspraak in je Google Agenda.
+                  Werkt als je met Google bent ingelogd.
+                </p>
+              </div>
+              <div className="relative shrink-0">
+                <input
+                  id="calendarAlerts"
+                  type="checkbox"
+                  className="peer sr-only"
+                  checked={user.calendarAlertsEnabled !== false}
+                  onChange={(e) => updateCalendarAlerts(e.target.checked)}
+                />
+                <div className="w-11 h-6 rounded-full bg-slate-300 peer-checked:bg-emerald-500 transition-colors" />
+                <div className="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+            </label>
           </section>
 
           <section className="space-y-6">
