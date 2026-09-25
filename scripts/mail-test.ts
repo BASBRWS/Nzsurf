@@ -52,6 +52,9 @@ async function main() {
     auth: { user: smtp.user, pass: smtp.pass },
   });
 
+  // Niet-geheime vormcontrole (GitHub maskeert de geheime waarden zelf).
+  console.log(`Diag: SMTP_USER bevat '@': ${smtp.user.includes('@')} | domein: ${smtp.user.split('@')[1] || '(geen domein!)'}`);
+  console.log(`Diag: MAIL_FROM domein: ${(smtp.from.match(/@([^>\s]+)/)?.[1]) || '(geen adres in MAIL_FROM — alleen naam, dat is ok)'}`);
   console.log(`Versturen naar ${to} via ${smtp.host}:${smtp.port} als ${senderAddress} ...`);
   const info = await transporter.sendMail({
     from: { name: fromName, address: senderAddress },
