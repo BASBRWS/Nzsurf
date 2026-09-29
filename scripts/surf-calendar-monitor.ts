@@ -19,6 +19,7 @@ import { SurfSpot, UserProfile } from '../src/types';
 import { DEFAULT_SPOTS } from '../src/constants';
 import { fetchForecast } from '../src/services/weatherService';
 import { processDailyForecasts, DailySummary } from '../src/utils/dailyForecastUtils';
+import { computeEventWindow } from '../src/utils/calendarUtils';
 
 // ── Instellingen ────────────────────────────────────────────────────────────
 const MONITOR_THRESHOLD = 7.0; // gelijk aan de in-app knop
@@ -92,18 +93,6 @@ function resolveSpot(user: UserProfile): SurfSpot {
   }
   return DEFAULT_SPOTS[0];
 }
-function resolveWindow(day: DailySummary): { start: Date; end: Date } {
-  const range = day.bestWindow?.timeRange;
-  const m = range ? range.match(/(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/) : null;
-  if (m) {
-    const [, sh, sm, eh, em] = m;
-    const start = new Date(`${day.dateStr}T${sh.padStart(2, '0')}:${sm}:00`);
-    const end = new Date(`${day.dateStr}T${eh.padStart(2, '0')}:${em}:00`);
-    if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) return { start, end };
-  }
-  const start = parseISO(day.bestHourData.timestamp);
-  return { start, end: new Date(start.getTime() + 2 * 60 * 60 * 1000) };
-}
 function todayKey(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -170,7 +159,7 @@ async function main() {
       const dedupeRef = db.collection('calendarAlertsSent').doc(dedupeId);
       if ((await dedupeRef.get()).exists) continue;
 
-      const { start, end } = resolveWindow(day);
+      const { start, end } = computeEventWindow(day, spot);
       const prettyDate = format(parseISO(day.dateStr), 'EEEE d MMMM', { locale: nl });
       const summary = `🏄 Surfen bij ${spot.name} — ${day.ratingLabel} (${day.ratingScore.toFixed(1)}/10)`;
       const description = buildDescription(day, spot);

@@ -4,6 +4,12 @@ Deze functie zit al in de GitHub-code (APK). Om hem óók in de **site** te krij
 voeg je onderstaande 4 wijzigingen toe in je AI Studio-project. Volgorde maakt niet uit,
 maar begin met **stap 1** (nieuw bestand), want de andere stappen verwijzen ernaar.
 
+> **Makkelijkste weg:** heb je AI Studio aan GitHub gekoppeld, sync dan gewoon
+> vanaf GitHub — dan komt de meest actuele `calendarUtils.ts` mee (inclusief de
+> regel dat de afspraak alleen tussen **10:00 en zonsondergang** valt). De code
+> hieronder is de handmatige plak-variant; als die afwijkt van de repo, is de
+> repo leidend.
+
 ---
 
 ## Stap 1 — NIEUW bestand: `src/utils/calendarUtils.ts`
