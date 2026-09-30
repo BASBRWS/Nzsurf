@@ -1,0 +1,10 @@
+# Routeert de mooie API-paden naar de PHP-proxy.
+#   /noordzeesurf/api/gemini/generateContent  -> api-proxy.php?__path=gemini/generateContent
+#   /noordzeesurf/api/moderate-image          -> api-proxy.php?__path=moderate-image
+RewriteEngine On
+RewriteRule ^api/(.*)$ api-proxy.php?__path=$1 [QSA,L]
+
+# Voorkom dat een eventueel sleutelbestand publiek opvraagbaar is.
+<FilesMatch "\.(txt|key|env|md)$">
+  Require all denied
+</FilesMatch>
