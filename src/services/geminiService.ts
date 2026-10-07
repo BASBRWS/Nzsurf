@@ -45,87 +45,113 @@ export function generateLocalSurfAdvice(
   const weight = user?.weight > 0 ? user.weight : 75;
 
   let suitability: 'perfect' | 'good' | 'challenging' | 'dangerous' | 'flat' = 'good';
+  let score = 5;
   let title = "Sessie Beoordeling: Redelijk";
   let thoughts: string[] = [
     "⚠️ *Let op: Dit advies is berekend o.b.v. jouw profiel en geregistreerde gear.*"
   ];
 
-  // Basis = dezelfde conditie-score als de live telemetrie (surf-kwaliteit, los
-  // van persoon/gear), zodat het advies niet wild afwijkt van die getoonde score.
-  let base = 5.0;
-  if (waveHeight >= 0.7 && waveHeight <= 2.2) base += 2.0;
-  else if (waveHeight >= 0.4 && waveHeight < 0.7) base += 1.0;
-  else if (waveHeight < 0.3) base -= 2.5;
-  else if (waveHeight > 2.5) base -= 1.0;
-
-  if (swellPeriod >= 8) base += 1.5;
-  else if (swellPeriod >= 6) base += 0.5;
-  else if (swellPeriod <= 4) base -= 1.0;
-
-  if (forecast?.windType === 'offshore') base += 2.0;
-  else if (forecast?.windType === 'side-offshore') base += 1.0;
-  else if (forecast?.windType === 'side-onshore') base -= 0.5;
-  else if (forecast?.windType === 'onshore') base += windSpeed > 16 ? -2.0 : -1.0;
-
-  base = Math.max(1, Math.min(10, base));
-
-  // Beschrijvende thoughts (wind & periode)
+  // 1. Wave Height / Period evaluation
   if (waveHeight < 0.25) {
+    suitability = 'flat';
+    score = 2;
+    title = "Sessie Beoordeling: Flat / Te Klein";
     thoughts.push("De golven zijn nagenoeg nihil of te klein voor een fatsoenlijke rit. Perfecte dag voor suppen of peddel-training!");
-  } else {
-    if (forecast?.windType === 'offshore') thoughts.push("Geweldig! Er waait een cleane offshore wind, wat de golven mooi open houdt en ritsen creëert.");
-    else if (forecast?.windType === 'side-offshore') thoughts.push("De side-offshore wind zorgt voor redelijk georganiseerde en goed berijdbare golven.");
-    else if (forecast?.windType === 'side-onshore') thoughts.push(windSpeed > 16 ? `Stevige side-onshore wind (${windSpeed} kn) maakt de zee rommelig en vraagt kracht om positie te houden.` : "Lichte side-onshore wind; nog redelijk berijdbaar.");
-    else if (forecast?.windType === 'onshore') thoughts.push(windSpeed > 15 ? "Er staat een stevige onshore wind wat de zee erg rommelig (choppy) maakt." : "Lichte onshore wind zorgt voor wat kabbel, maar is nog wel berijdbaar.");
-
-    if (swellPeriod >= 8) thoughts.push(`Goede swellperiode van ${swellPeriod}s zorgt voor krachtigere en beter gevormde golven.`);
-    else if (swellPeriod <= 5) thoughts.push(`Korte periode (${swellPeriod}s). De golven hebben weinig kracht en volgen elkaar erg snel op.`);
-  }
-
-  // Getij (thought + lichte aanpassing)
-  let tideAdj = 0;
-  const tideHeight = forecast?.tideHeight || 0;
-  if (spot.isAtlantic) {
-    if (tideHeight >= 3.0) { tideAdj = -1.5; thoughts.push(`🌊 **Getijden Advies (Vloed):** Vrijwel volle vloed (${tideHeight}m). Op Atlantische beachbreaks leidt dit tot volle/dichtklappende golven of een zware shorebreak. Mid-tide opkomend is veruit beter.`); }
-    else if (tideHeight >= 1.5) { tideAdj = 1; thoughts.push(`🌊 **Getijden Advies (Mid-tide):** Gunstige getijdenfase (${tideHeight}m)! Mid-tide opkomend water laat de Atlantische swell het mooist breken op de buitenste zandbanken.`); }
-    else { thoughts.push(`🌊 **Getijden Advies (Laagtij / Eb):** Rond laagtij (${tideHeight}m) kunnen golven snel en hol dichtklappen op het ondiepe zand. Wees alert op de baïnes (muistromen).`); }
-  } else {
-    if (tideHeight >= 1.8) { tideAdj = -1; thoughts.push(`🌊 **Getijden Advies (Hoogtij):** Bij hoogtij (${tideHeight}m) kunnen golven wat dikker worden en korter op het strand breken.`); }
-    else if (tideHeight >= 0.5) { tideAdj = 1; thoughts.push(`🌊 **Getijden Advies (Mid-tide):** Uitstekend getijde-venster (${tideHeight}m) voor de Nederlandse Noordzeekust.`); }
-  }
-
-  // Niveau-afstemming (persoonlijk, begrensd)
-  let skillAdj = 0;
-  if (skill === 'beginner') {
-    if (waveHeight >= 0.4 && waveHeight <= 1.0) { skillAdj = 0.8; thoughts.push("De golfhoogte is ideaal voor jouw beginnersniveau om balans en bochten te oefenen."); }
-    else if (waveHeight > 1.2) { skillAdj = -1.8; thoughts.push("De golven zijn aan de hoge en krachtige kant voor een beginner. Ga alleen als je je 100% comfortabel voelt, liefst met begeleiding."); }
-  } else if (skill === 'intermediate') {
-    if (waveHeight >= 0.6 && waveHeight <= 1.5) { skillAdj = 0.6; thoughts.push("Heerlijke condities voor een intermediate surfer om ritten te verlengen en bochten in te zetten."); }
-    else if (waveHeight > 1.8) { skillAdj = -0.8; thoughts.push("De golven zijn aan de flinke kant. Een mooie uitdaging, maar let goed op stromingen."); }
-  } else {
-    if (waveHeight >= 0.8 && waveHeight <= 2.0) { skillAdj = 0.8; thoughts.push("Uitstekende condities voor jouw niveau! Genoeg muur en secties om manoeuvres uit te voeren."); }
-  }
-
-  // Veiligheid: gebruik de ECHTE risicobeschrijving (geen onterechte "extreem hoge golven").
-  let riskAdj = 0;
-  if (forecast?.currentRisk?.level === 'high') {
-    riskAdj = -1.5;
-    thoughts.push(`⚠️ **Veiligheid:** ${forecast.currentRisk.description} Houd extra marge en ga bij voorkeur niet alleen het water op.`);
-  } else if (forecast?.currentRisk?.level === 'medium') {
-    riskAdj = -0.5;
-    thoughts.push(`⚠️ **Let op:** ${forecast.currentRisk.description}`);
-  }
-
-  let score = base + tideAdj + skillAdj + riskAdj;
-
-  // Harde gevaar-cap uitsluitend bij écht zware condities (niet bij matige golven).
-  if (waveHeight > 2.5 || (forecast?.currentRisk?.level === 'high' && waveHeight > 2.0)) {
+  } else if (forecast?.currentRisk?.level === 'high' || waveHeight > 2.2) {
     suitability = 'dangerous';
-    score = Math.min(score, 3);
-    thoughts.push(`🛑 **Zware condities:** golven van ${waveHeight.toFixed(1)}m${forecast?.currentRisk?.level === 'high' ? ' met sterke stroming' : ''}. Alleen voor zeer ervaren surfers; twijfel je, blijf dan aan wal.`);
-  }
+    score = 2;
+    title = "Sessie Beoordeling: Gevaarlijke Condities";
+    thoughts.push(`Extreem hoge golven (${waveHeight}m) of actuele risicowaarschuwingen maken surfen momenteel te riskant voor reguliere sessies. Veiligheid eerst!`);
+  } else {
+    // Suitability calculations
+    let windBonus = 0;
+    if (forecast?.windType === 'offshore') {
+      windBonus = 2;
+      thoughts.push("Geweldig! Er waait een cleane offshore wind, wat de golven mooi open houdt en ritsen creëert.");
+    } else if (forecast?.windType === 'side-offshore') {
+      windBonus = 1;
+      thoughts.push("De side-offshore wind zorgt voor redelijk georganiseerde en goed berijdbare golven.");
+    } else if (forecast?.windType === 'onshore') {
+      if (windSpeed > 15) {
+        windBonus = -2;
+        thoughts.push("Er staat een stevige onshore wind wat de zee erg rommelig (choppy) maakt.");
+      } else {
+        windBonus = -1;
+        thoughts.push("Lichte onshore wind zorgt voor wat kabbel, maar is nog wel berijdbaar.");
+      }
+    }
 
-  score = Math.max(1, Math.min(10, Math.round(score)));
+    // Swell period
+    let periodBonus = 0;
+    if (swellPeriod >= 8) {
+      periodBonus = 2;
+      thoughts.push(`Goede swellperiode van ${swellPeriod}s zorgt voor krachtigere en beter gevormde golven.`);
+    } else if (swellPeriod <= 5) {
+      periodBonus = -1;
+      thoughts.push(`Korte periode (${swellPeriod}s). De golven hebben weinig kracht en volgen elkaar erg snel op.`);
+    }
+
+    // Tide evaluation (Getijdeneffect)
+    let tideBonus = 0;
+    const tideHeight = forecast?.tideHeight || 0;
+    if (spot.isAtlantic) {
+      if (tideHeight >= 3.0) {
+        tideBonus = -2;
+        thoughts.push(`🌊 **Getijden Advies (Vloed):** Momenteel is het (vrijwel) volle vloed (${tideHeight}m). Op Atlantische beachbreaks (zoals Soulac Plage) veroorzaakt dit te diep water boven de zandbanken, wat leidt tot volle/dichtklappende golven of een zware shorebreak tegen het strand. Mid-tide opkomend is veruit beter.`);
+      } else if (tideHeight >= 1.5 && tideHeight < 3.0) {
+        tideBonus = 1;
+        thoughts.push(`🌊 **Getijden Advies (Mid-tide):** Gunstige getijdenfase (${tideHeight}m)! Mid-tide opkomend water laat de Atlantische swell het mooist breken op de buitenste zandbanken.`);
+      } else {
+        thoughts.push(`🌊 **Getijden Advies (Laagtij / Eb):** Rond laagtij (${tideHeight}m) kunnen de golven snel en hol dichtklappen op het ondiepe zand. Wees alert op de baïnes (muistromen).`);
+      }
+    } else {
+      if (tideHeight >= 1.8) {
+        tideBonus = -1;
+        thoughts.push(`🌊 **Getijden Advies (Hoogtij):** Bij hoogtij (${tideHeight}m) kunnen de golven wat dikker worden en korter op het strand breken.`);
+      } else if (tideHeight >= 0.5 && tideHeight < 1.8) {
+        tideBonus = 1;
+        thoughts.push(`🌊 **Getijden Advies (Mid-tide):** Uitstekend getijde-venster (${tideHeight}m) voor de Nederlandse Noordzeekust.`);
+      }
+    }
+
+    // Match with user skill
+    let skillScore = 5;
+    if (skill === 'beginner') {
+      if (waveHeight >= 0.4 && waveHeight <= 1.0) {
+        skillScore = 8;
+        suitability = 'good';
+        thoughts.push("De golfhoogte is ideaal voor jouw beginnersniveau om balans en bochten te oefenen.");
+      } else if (waveHeight > 1.2) {
+        skillScore = 4;
+        suitability = 'challenging';
+        thoughts.push("De golven zijn aan de hoge en krachtige kant voor een beginner. Ga alleen als je je 100% comfortabel voelt.");
+      } else {
+        skillScore = 6;
+      }
+    } else if (skill === 'intermediate') {
+      if (waveHeight >= 0.6 && waveHeight <= 1.5) {
+        skillScore = 8;
+        suitability = 'good';
+        thoughts.push("Heerlijke condities voor een intermediate surfer om ritten te verlengen en bochten in te zetten.");
+      } else if (waveHeight > 1.8) {
+        skillScore = 5;
+        suitability = 'challenging';
+        thoughts.push("De golven zijn aan de flinke kant. Een mooie uitdaging, maar let goed op stromingen.");
+      } else {
+        skillScore = 6;
+      }
+    } else { // advanced & pro
+      if (waveHeight >= 0.8 && waveHeight <= 2.0) {
+        skillScore = 9;
+        suitability = windBonus >= 1 ? 'perfect' : 'good';
+        thoughts.push("Uitstekende condities voor jouw niveau! Genoeg muur en secties om manoeuvres uit te voeren.");
+      } else {
+        skillScore = 7;
+      }
+    }
+
+    score = Math.max(1, Math.min(10, Math.round((skillScore + windBonus + periodBonus + tideBonus))));
+  }
 
   // Setup & Board evaluation (evaluate all boards in user's possession)
   let bestBoard = userBoards.find(b => b.id === user.selectedBoardId) || userBoards[0];
