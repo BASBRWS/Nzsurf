@@ -57,11 +57,12 @@ export function generateLocalSurfAdvice(
     score = 2;
     title = "Sessie Beoordeling: Flat / Te Klein";
     thoughts.push("De golven zijn nagenoeg nihil of te klein voor een fatsoenlijke rit. Perfecte dag voor suppen of peddel-training!");
-  } else if (forecast?.currentRisk?.level === 'high' || waveHeight > 2.2) {
+  } else if (waveHeight > 2.5 || (forecast?.currentRisk?.level === 'high' && waveHeight > 2.0)) {
+    // Harde gevaar-cap alleen bij écht zware condities (niet bij matige golven).
     suitability = 'dangerous';
     score = 2;
     title = "Sessie Beoordeling: Gevaarlijke Condities";
-    thoughts.push(`Extreem hoge golven (${waveHeight}m) of actuele risicowaarschuwingen maken surfen momenteel te riskant voor reguliere sessies. Veiligheid eerst!`);
+    thoughts.push(`🛑 **Zware condities:** golven van ${waveHeight}m.${forecast?.currentRisk?.level === 'high' ? ` ${forecast.currentRisk.description}` : ''} Alleen voor zeer ervaren surfers; twijfel je, blijf dan aan wal.`);
   } else {
     // Suitability calculations
     let windBonus = 0;
@@ -79,6 +80,12 @@ export function generateLocalSurfAdvice(
         windBonus = -1;
         thoughts.push("Lichte onshore wind zorgt voor wat kabbel, maar is nog wel berijdbaar.");
       }
+    } else if (forecast?.windType === 'side-onshore') {
+      // Zelfde weging als de tabel/conditie-score.
+      windBonus = -0.5;
+      thoughts.push(windSpeed > 16
+        ? `Stevige side-onshore wind (${windSpeed} kn) maakt de zee rommelig en vraagt kracht om positie te houden.`
+        : "Lichte side-onshore wind; nog redelijk berijdbaar.");
     }
 
     // Swell period
@@ -150,7 +157,17 @@ export function generateLocalSurfAdvice(
       }
     }
 
-    score = Math.max(1, Math.min(10, Math.round((skillScore + windBonus + periodBonus + tideBonus))));
+    // Veiligheid: kleine aftrek met de ECHTE risicoreden i.p.v. een harde cap.
+    let riskBonus = 0;
+    if (forecast?.currentRisk?.level === 'high') {
+      riskBonus = -1.5;
+      thoughts.push(`⚠️ **Veiligheid:** ${forecast.currentRisk.description} Houd extra marge en ga bij voorkeur niet alleen het water op.`);
+    } else if (forecast?.currentRisk?.level === 'medium') {
+      riskBonus = -0.5;
+      thoughts.push(`⚠️ **Let op:** ${forecast.currentRisk.description}`);
+    }
+
+    score = Math.max(1, Math.min(10, Math.round((skillScore + windBonus + periodBonus + tideBonus + riskBonus))));
   }
 
   // Setup & Board evaluation (evaluate all boards in user's possession)
@@ -189,7 +206,11 @@ export function generateLocalSurfAdvice(
       thoughts.push(`🏄 **Setup Keuze:** Uit jouw setup raden we de **${bestBoard.name}** (${bestBoard.type}, ${bestBoard.volume}L) aan voor deze sessie.`);
     } else {
       quiverScoreBonus = -1;
-      thoughts.push(`⚠️ **Setup Mismatch:** Je geregistreerde boards zijn wat krap qua drijfvermogen voor de huidige ${waveHeight}m golfenergie. Met een board met meer volume zou je meer golven pakken.`);
+      if (waveHeight > 1.4) {
+        thoughts.push(`⚠️ **Setup Mismatch:** Je **${bestBoard.name}** (${bestBoard.type}, ${bestBoard.volume}L) is groot en lastig te sturen in deze steile ${waveHeight}m golven (lastig duckdiven, kans op nosedives). Een korter, wendbaarder board past hier beter.`);
+      } else {
+        thoughts.push(`⚠️ **Setup Mismatch:** Je geregistreerde boards zijn wat krap qua drijfvermogen voor de huidige ${waveHeight}m golfenergie. Met een board met meer volume zou je meer golven pakken.`);
+      }
     }
 
     if (userBoards.length > 1) {
