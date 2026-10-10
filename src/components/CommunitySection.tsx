@@ -19,6 +19,11 @@ const SITE_ARTICLES = [
     title: 'Surfen in Ouddorp: wanneer werkt het écht?',
     excerpt: 'Getij, swellrichting, wind, wetsuit en veiligheid — de complete gids voor Ouddorp.',
   },
+  {
+    path: '/blog/surfen-maasvlakte-p6/',
+    title: 'Surfen op de Maasvlakte (P6): de krachtigste golven van Zuid-Holland',
+    excerpt: 'Swell, wind, stroming en veiligheid op de spot voor gevorderden naast de Rotterdamse haven.',
+  },
 ];
 const articleHref = (path: string) =>
   Capacitor.isNativePlatform() ? `https://www.noordzeesurf.nl${path}` : path;
