@@ -25,8 +25,17 @@ interface SwellSector {
   note: string;
 }
 
+interface AreaAnchor {
+  lat: number;
+  lng: number;
+  radiusKm: number;
+}
+
 interface SpotProfile {
   key: string;
+  label: string;          // naam van het gebied (getoond in app en AI)
+  anchors: AreaAnchor[];  // gebied: elke spot binnen een anker erft deze kennis
+  keywords: string[];     // terugval op naam als coördinaten niet matchen
   damping: number;      // fractie van de modelgolfhoogte die de break bereikt
   maxSpotWave?: number; // plafond (m) op de spot, ongeacht de zee
   swellSectors?: SwellSector[];
@@ -82,9 +91,15 @@ const tideAtlantic = (level: number): TideAssessment => {
   return { factor: 1.0, note: 'Mid-tide: de Atlantische swell breekt het mooist op de zandbanken.' };
 };
 
+// Gebiedskennis. Een (nieuw aangemaakte) spot binnen een gebied erft de kennis
+// van dat gebied. Bronnen: goedegolven.nl/kennis (leidend bij tegenspraak) en
+// surfnerd.com (spotlijst, pieren/banken die swell afschermen, getijvoorkeur).
 const PROFILES: SpotProfile[] = [
   {
     key: 'ouddorp',
+    label: 'Ouddorp (Goeree)',
+    anchors: [{ lat: 51.825, lng: 3.887, radiusKm: 8 }],
+    keywords: ['ouddorp', 'goeree', 'kwade hoek', 'westhoofd'],
     damping: 0.9,
     swellSectors: [
       { from: 190, to: 250, exposure: 0.15, note: 'Pure (Z)ZW-swell loopt langs Ouddorp; de spot ligt hiervoor beschut achter de Zeeuwse banken en blijft vrijwel vlak.' },
@@ -103,6 +118,9 @@ const PROFILES: SpotProfile[] = [
   },
   {
     key: 'domburg',
+    label: 'Domburg (Walcheren)',
+    anchors: [{ lat: 51.565, lng: 3.497, radiusKm: 3.5 }],
+    keywords: ['domburg', 'oostkapelle'],
     damping: 0.85,
     maxSpotWave: 1.5,
     swellSectors: [
@@ -122,16 +140,92 @@ const PROFILES: SpotProfile[] = [
   },
   {
     key: 'walcheren',
+    label: 'Walcheren (Westkapelle–Vlissingen)',
+    anchors: [
+      { lat: 51.53, lng: 3.44, radiusKm: 5 },  // Westkapelle
+      { lat: 51.50, lng: 3.48, radiusKm: 4 },  // Zoutelande
+      { lat: 51.46, lng: 3.55, radiusKm: 6 },  // Dishoek / Vlissingen
+    ],
+    keywords: ['westkapelle', 'vlissingen', 'zoutelande', 'dishoek', 'walcheren'],
     damping: 0.8,
     maxSpotWave: 1.5,
     tide: (level) => {
-      if (level >= 0.6) return { factor: 1.0, note: 'Rond hoogwater: Walcheren werkt het best.' };
+      if (level >= 0.6) return { factor: 1.0, note: 'Rond hoogwater: Walcheren werkt het best (max. ~1–1,5 m, ook als het op zee veel groter is).' };
       if (level >= 0.3) return { factor: 0.8, note: 'Mid-tide: redelijk; rond hoogwater is beter.' };
       return { factor: 0.55, note: 'Laagwater: minder goed op Walcheren.' };
     },
   },
   {
+    key: 'schouwen',
+    label: 'Schouwen-Duiveland / Neeltje Jans',
+    anchors: [
+      { lat: 51.71, lng: 3.75, radiusKm: 9 }, // Westenschouwen / Renesse
+      { lat: 51.63, lng: 3.69, radiusKm: 5 }, // Neeltje Jans / Banjaard
+    ],
+    keywords: ['schouwen', 'renesse', 'westenschouwen', 'haamstede', 'neeltje jans', 'banjaard', 'brouwersdam'],
+    damping: 0.8, // banken voor de kust houden een deel van de swell tegen
+    tide: (level) => {
+      if (level >= 0.6) return { factor: 1.0, note: 'Rond hoogwater: het beste venster; door de banken voor de kust vaak kleiner dan elders.' };
+      if (level >= 0.3) return { factor: 0.8, note: 'Mid-tide: redelijk; hoogwater is beter.' };
+      return { factor: 0.55, note: 'Laagwater: de banken houden veel swell tegen.' };
+    },
+  },
+  {
+    key: 'maasvlakte',
+    label: 'Maasvlakte',
+    anchors: [{ lat: 51.97, lng: 4.0, radiusKm: 6 }],
+    keywords: ['maasvlakte'],
+    damping: 1.0, // pakt veel meer swell dan Walcheren (ca. 1,5–2×)
+    tide: (level) => tideDefaultNorthSea(level),
+  },
+  {
+    key: 'hoek-van-holland',
+    label: 'Hoek van Holland',
+    anchors: [{ lat: 51.985, lng: 4.12, radiusKm: 3 }],
+    keywords: ['hoek van holland', 'hvh'],
+    damping: 0.95,
+    swellSectors: [
+      { from: 190, to: 250, exposure: 0.3, note: 'De lange pier schermt ZW-swell af; Hoek van Holland heeft NW-swell nodig.' },
+    ],
+    tide: (level) => {
+      if (level >= 0.6) return { factor: 1.0, note: 'Rond hoogwater: het beste venster bij de pier.' };
+      if (level >= 0.3) return { factor: 0.85, note: 'Mid-tide: redelijk; hoogwater is beter.' };
+      return { factor: 0.65, note: 'Laagwater: minder goed bij de pier.' };
+    },
+  },
+  {
+    key: 'delfland',
+    label: 'Delflandse kust (Vlughtenburg–Kijkduin)',
+    anchors: [
+      { lat: 52.01, lng: 4.13, radiusKm: 3 },  // Vlughtenburg / 's-Gravenzande
+      { lat: 52.035, lng: 4.16, radiusKm: 3 }, // Ter Heijde
+      { lat: 52.07, lng: 4.215, radiusKm: 3 }, // Kijkduin
+    ],
+    keywords: ['ter heijde', 'vlughtenburg', 'gravenzande', 'kijkduin', 'monster'],
+    damping: 1.0,
+    tide: (level) => {
+      if (level > 0.85) return { factor: 0.8, note: 'Rond hoogwater: voller; laag tot mid-tide werkt hier beter.' };
+      if (level < 0.6) return { factor: 1.0, note: 'Laag tot mid-tide: het voorkeursvenster op deze kust.' };
+      return { factor: 0.9, note: 'Mid- tot hoogwater: werkt, maar laag tot mid is vaak beter.' };
+    },
+  },
+  {
+    key: 'scheveningen',
+    label: 'Scheveningen',
+    anchors: [{ lat: 52.11, lng: 4.27, radiusKm: 4 }],
+    keywords: ['scheveningen'],
+    damping: 0.95,
+    tide: (level) => {
+      if (level < 0.25) return { factor: 0.7, note: 'Rond laagwater: golven breken ver uit en klappen snel dicht.' };
+      if (level >= 0.6) return { factor: 1.0, note: 'Mid- tot hoogwater (opkomend): het beste venster bij de pieren.' };
+      return { factor: 0.9, note: 'Mid-tide: goed; richting hoogwater is vaak nog beter.' };
+    },
+  },
+  {
     key: 'wijk-aan-zee',
+    label: 'Wijk aan Zee / IJmuiden',
+    anchors: [{ lat: 52.49, lng: 4.58, radiusKm: 6 }],
+    keywords: ['wijk-aan-zee', 'wijk aan zee', 'ijmuiden'],
     damping: 1.0,
     tide: (level, _trend, period) => {
       if (period >= 8) {
@@ -145,26 +239,88 @@ const PROFILES: SpotProfile[] = [
     },
   },
   {
-    key: 'scheveningen',
-    damping: 0.95,
+    key: 'holland-noord',
+    label: 'Hollandse kust (Noordwijk–Den Helder)',
+    anchors: [
+      { lat: 52.21, lng: 4.40, radiusKm: 9 },  // Katwijk / Noordwijk
+      { lat: 52.38, lng: 4.53, radiusKm: 9 },  // Zandvoort / Bloemendaal
+      { lat: 52.62, lng: 4.62, radiusKm: 12 }, // Castricum / Egmond / Bergen
+      { lat: 52.82, lng: 4.67, radiusKm: 12 }, // Petten / Callantsoog / Den Helder
+    ],
+    keywords: ['noordwijk', 'katwijk', 'zandvoort', 'bloemendaal', 'castricum', 'egmond', 'bergen aan zee', 'schoorl', 'petten', 'callantsoog', 'den helder'],
+    damping: 1.0,
     tide: (level) => {
-      if (level < 0.2) return { factor: 0.75, note: 'Rond laagwater: golven breken ver uit en klappen snel dicht.' };
-      if (level > 0.85) return { factor: 0.85, note: 'Rond hoogwater: voller en dichter op het strand.' };
-      return { factor: 1.0, note: 'Mid-tide: het beste venster.' };
+      if (level < 0.2) return { factor: 0.8, note: 'Rond laagwater: golven breken verder uit en klappen sneller dicht.' };
+      if (level >= 0.4) return { factor: 1.0, note: 'Mid- tot hoogwater: het beste venster op deze kust (W/NW-swell, O-wind).' };
+      return { factor: 0.9, note: 'Opkomend richting mid-tide: wordt beter.' };
     },
+  },
+  {
+    key: 'wadden',
+    label: 'Waddeneilanden',
+    anchors: [
+      { lat: 53.08, lng: 4.75, radiusKm: 15 }, // Texel (Paal 17, De Koog)
+      { lat: 53.30, lng: 5.05, radiusKm: 12 }, // Vlieland
+      { lat: 53.42, lng: 5.40, radiusKm: 15 }, // Terschelling
+      { lat: 53.46, lng: 5.75, radiusKm: 14 }, // Ameland
+      { lat: 53.49, lng: 6.20, radiusKm: 12 }, // Schiermonnikoog
+    ],
+    keywords: ['texel', 'de koog', 'paal 17', 'vlieland', 'terschelling', 'ameland', 'schiermonnikoog'],
+    damping: 1.0, // open ligging, pakt vaak iets meer swell
+    tide: (level) => tideDefaultNorthSea(level),
   },
 ];
 
+function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371, D2R = Math.PI / 180;
+  const dLat = (lat2 - lat1) * D2R, dLng = (lng2 - lng1) * D2R;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * D2R) * Math.cos(lat2 * D2R) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Zoekt het gebied van een spot. Eerst op coördinaten (dichtstbijzijnde anker,
+ * relatief t.o.v. de straal), daarna op naam. Zo erft elke nieuw aangemaakte
+ * spot in een bekend gebied automatisch de kennis van dat gebied.
+ */
 function findProfile(spot: SurfSpot): SpotProfile | undefined {
-  const id = (spot.id || '').toLowerCase();
-  const name = (spot.name || '').toLowerCase();
-  const has = (s: string) => id.includes(s) || name.includes(s);
-  if (has('ouddorp')) return PROFILES.find(p => p.key === 'ouddorp');
-  if (has('domburg')) return PROFILES.find(p => p.key === 'domburg');
-  if (has('westkapelle') || has('vlissingen') || has('zoutelande') || has('dishoek')) return PROFILES.find(p => p.key === 'walcheren');
-  if (has('wijk-aan-zee') || has('wijk aan zee')) return PROFILES.find(p => p.key === 'wijk-aan-zee');
-  if (has('scheveningen')) return PROFILES.find(p => p.key === 'scheveningen');
-  return undefined;
+  if (typeof spot.lat === 'number' && typeof spot.lng === 'number') {
+    let best: { p: SpotProfile; ratio: number } | undefined;
+    for (const p of PROFILES) {
+      for (const a of p.anchors) {
+        const ratio = distanceKm(spot.lat, spot.lng, a.lat, a.lng) / a.radiusKm;
+        if (ratio <= 1 && (!best || ratio < best.ratio)) best = { p, ratio };
+      }
+    }
+    if (best) return best.p;
+  }
+  const text = `${spot.id || ''} ${spot.name || ''}`.toLowerCase();
+  return PROFILES.find(p => p.keywords.some(k => text.includes(k)));
+}
+
+/** Naam van het gebied waarvan de spot de kennis erft (of undefined = algemeen). */
+export function spotKnowledgeArea(spot: SurfSpot): string | undefined {
+  return findProfile(spot)?.label ?? (isAtlanticCoast(spot) ? 'Atlantische kust (algemeen)' : undefined);
+}
+
+/**
+ * Atlantische kust op basis van de vlag óf de coördinaten (Golf van Biskaje,
+ * Iberisch schiereiland, Marokko, west-Ierland/-Engeland). Zo worden ook nieuw
+ * aangemaakte spots in Frankrijk/Portugal goed behandeld.
+ */
+export function isAtlanticCoast(spot: SurfSpot): boolean {
+  if (typeof spot.isAtlantic === 'boolean') return spot.isAtlantic;
+  const { lat, lng } = spot;
+  if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+  if (lat >= 27 && lat < 49 && lng < -0.5 && lng > -20) return true; // Biskaje, Iberië, Marokko
+  if (lat >= 49 && lat < 60 && lng < -4 && lng > -20) return true;   // Cornwall, Wales-west, Ierland
+  return false;
+}
+
+/** Vult afgeleide spotvelden aan (bijv. isAtlantic) voor zelf aangemaakte spots. */
+export function withAreaDefaults(spot: SurfSpot): SurfSpot {
+  if (typeof spot.isAtlantic === 'boolean') return spot;
+  return isAtlanticCoast(spot) ? { ...spot, isAtlantic: true } : spot;
 }
 
 // ── Swellrichting ──────────────────────────────────────────────────────────
@@ -222,7 +378,7 @@ export function assessTide(spot: SurfSpot, level: number | undefined, trend: Tid
   const lv = clamp(level, 0, 1);
   const profile = findProfile(spot);
   if (profile) return profile.tide(lv, trend || 'slack', Math.round(period), swellDeg);
-  return spot.isAtlantic ? tideAtlantic(lv) : tideDefaultNorthSea(lv);
+  return isAtlanticCoast(spot) ? tideAtlantic(lv) : tideDefaultNorthSea(lv);
 }
 
 export function tideLevelLabel(level: number | undefined, trend?: TideTrend): string {

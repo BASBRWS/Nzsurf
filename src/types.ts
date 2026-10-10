@@ -98,6 +98,7 @@ export interface ForecastData {
   spotWaveHeight?: number; // verwachte hoogte op de spot (demping/richting/plafond)
   surfChance?: number; // 0..100 kans dat de spot werkt
   dayTideTurns?: { time: string; isHigh: boolean; height: number }[];
+  knowledgeArea?: string; // gebied waarvan de spot de kennis erft (bijv. "Ouddorp (Goeree)")
 }
 
 export interface SpotReport {

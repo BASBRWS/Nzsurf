@@ -18,6 +18,7 @@ import { nl } from 'date-fns/locale';
 import { SurfSpot, UserProfile } from '../src/types';
 import { DEFAULT_SPOTS } from '../src/constants';
 import { fetchForecast } from '../src/services/weatherService';
+import { withAreaDefaults } from '../src/utils/spotKnowledge';
 import { processDailyForecasts, DailySummary } from '../src/utils/dailyForecastUtils';
 import { computeEventWindow } from '../src/utils/calendarUtils';
 
@@ -89,7 +90,7 @@ function resolveSpot(user: UserProfile): SurfSpot {
   const all: SurfSpot[] = [...DEFAULT_SPOTS, ...(user.savedSpots || [])];
   if (user.favoriteSpotId) {
     const m = all.find((s) => s.id === user.favoriteSpotId);
-    if (m) return m;
+    if (m) return withAreaDefaults(m); // eigen spots erven gebiedskennis
   }
   return DEFAULT_SPOTS[0];
 }

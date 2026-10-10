@@ -435,6 +435,9 @@ export function AdviceModal({
                     {forecast.tideNote && (
                       <p className="text-[10px] text-slate-500 leading-snug">{forecast.tideNote}</p>
                     )}
+                    {forecast.knowledgeArea && (
+                      <p className="text-[10px] font-mono text-slate-400">Spotkennis: {forecast.knowledgeArea}</p>
+                    )}
                     <p className="text-[11px] font-mono text-slate-600 flex items-center gap-2">
                       <span>Water: <strong className="text-slate-900">{forecast.waterTemp}°C</strong></span>
                       <span>•</span>

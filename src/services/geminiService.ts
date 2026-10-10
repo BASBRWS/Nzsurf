@@ -2,7 +2,7 @@ import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SpotReport } from "../
 import { logAppError } from "./loggerService";
 import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils";
 import { apiUrl } from "../lib/api";
-import { computeSurfChance, tideLevelLabel, degreesToCompass16, chanceScoreCap } from "../utils/spotKnowledge";
+import { computeSurfChance, tideLevelLabel, degreesToCompass16, chanceScoreCap, spotKnowledgeArea } from "../utils/spotKnowledge";
 
 async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
   const url = apiUrl('/api/gemini/generateContent');
@@ -435,6 +435,7 @@ export async function getSurfAdvice(
 
   const spotKnowledgeContext = `
     SPOTKENNIS (BEREKEND, LEIDEND VOOR JE OORDEEL):
+    - Gebiedskennis: ${spotKnowledgeArea(spot) ? `deze spot ligt in het gebied "${spotKnowledgeArea(spot)}" en erft de lokale kennis daarvan` : 'geen specifiek gebied bekend; algemene Noordzee/Atlantische regels'}.
     - Swellrichting: ${degreesToCompass16(forecast.swellDirection || 0)} (${forecast.swellDirection || 0}°) — blootstelling spot: ${Math.round(spotInfo.exposure * 100)}%.${forecast.swellNote ? ` ${forecast.swellNote}` : ''}
     - Verwachte golfhoogte OP DE SPOT: ~${spotInfo.spotWave.toFixed(1)}m (model op zee: ${forecast.waveHeight || 0}m). Beoordeel de golven op de spothoogte, niet op de zeehoogte.
     - Getijvenster voor deze spot: ${Math.round(spotInfo.tide.factor * 100)}% — ${spotInfo.tide.note}

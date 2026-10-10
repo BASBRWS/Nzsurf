@@ -43,6 +43,7 @@ import {
   Plus
 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { withAreaDefaults } from './utils/spotKnowledge';
 import { 
   auth, 
   db, 
@@ -96,7 +97,8 @@ export default function App() {
     (user.savedSpots || []).forEach(s => spotMap.set(s.id, s));
     // 3. Shared community spots from Firestore
     sharedSpots.forEach(s => spotMap.set(s.id, s));
-    return Array.from(spotMap.values());
+    // Zelf aangemaakte spots erven gebiedskennis (o.a. Atlantisch o.b.v. coördinaten).
+    return Array.from(spotMap.values()).map(withAreaDefaults);
   }, [user.savedSpots, sharedSpots]);
 
   // Selected Surf Spot

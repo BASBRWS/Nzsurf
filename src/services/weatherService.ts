@@ -1,6 +1,6 @@
 import { SurfSpot, ForecastData } from '../types';
 import { calculateSunscreenAdvice } from '../utils/sunscreenUtils';
-import { swellExposure, spotWaveHeight, assessTide, computeSurfChance, findTideTurnsByDay, TideTrend } from '../utils/spotKnowledge';
+import { swellExposure, spotWaveHeight, assessTide, computeSurfChance, findTideTurnsByDay, TideTrend, withAreaDefaults, spotKnowledgeArea } from '../utils/spotKnowledge';
 
 // Echte waterstand (incl. getij) t.o.v. gemiddeld zeeniveau via Open-Meteo Marine.
 // Los opgehaald: als de variabele niet beschikbaar is valt de app terug op het
@@ -67,10 +67,13 @@ function getSeasonalWaterTemp(date: Date, isAtlantic: boolean): number {
   }
 }
 
-export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
-  if (!spot || typeof spot.lat !== 'number' || typeof spot.lng !== 'number') {
+export async function fetchForecast(inputSpot: SurfSpot): Promise<ForecastData[]> {
+  if (!inputSpot || typeof inputSpot.lat !== 'number' || typeof inputSpot.lng !== 'number') {
     throw new Error('Invalid spot coordinates');
   }
+  // Zelf aangemaakte spots: Atlantisch o.b.v. coördinaten + gebiedskennis erven.
+  const spot = withAreaDefaults(inputSpot);
+  const knowledgeArea = spotKnowledgeArea(spot);
 
   const { lat, lng } = spot;
   
@@ -309,7 +312,8 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         swellExposure: exposureInfo.exposure,
         swellNote: exposureInfo.note,
         spotWaveHeight: spotWave,
-        dayTideTurns: tideTurnsByDay.get(String(time).slice(0, 10)) || []
+        dayTideTurns: tideTurnsByDay.get(String(time).slice(0, 10)) || [],
+        knowledgeArea
       };
       item.surfChance = computeSurfChance(spot, item).chance;
       forecast.push(item);
