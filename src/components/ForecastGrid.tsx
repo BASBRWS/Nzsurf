@@ -1,5 +1,6 @@
 import React from 'react';
-import { ForecastData } from '../types';
+import { ForecastData, SurfSpot } from '../types';
+import { computeSurfChance } from '../utils/spotKnowledge';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -8,7 +9,17 @@ import { Wind, Waves, Navigation, Sun, Cloud, CloudRain, CloudSnow, CloudLightni
 interface ForecastGridProps {
   forecast: ForecastData[];
   onCellClick: (data: ForecastData) => void;
+  spot?: SurfSpot; // nodig om de kans te berekenen als die niet in de data zit
 }
+
+// Kleur = kans dat de spot werkt (hoogte op de spot, swellrichting, periode, wind
+// én getijvenster) — dezelfde "kans" als in het detailvenster en de AI.
+const CHANCE_LEVELS = [
+  { min: 70, label: 'Goed', cls: 'text-emerald-900 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 font-bold shadow-xs', dot: 'bg-emerald-400' },
+  { min: 45, label: 'Redelijk', cls: 'text-sky-900 border-sky-200 bg-sky-50 hover:bg-sky-100', dot: 'bg-sky-400' },
+  { min: 20, label: 'Matig', cls: 'text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100', dot: 'bg-amber-400' },
+  { min: 0, label: 'Werkt niet / flat', cls: 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100', dot: 'bg-slate-300' },
+];
 
 const getWeatherIcon = (code?: number) => {
   if (code === undefined) return <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />;
@@ -54,16 +65,11 @@ const getWeatherIcon = (code?: number) => {
   }
 };
 
-export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
+export function ForecastGrid({ forecast, onCellClick, spot }: ForecastGridProps) {
   // Group by day
   const days = Array.from(new Set(forecast.map(f => format(parseISO(f.timestamp), 'yyyy-MM-dd'))));
 
-  const getSuitabilityClasses = (height: number, period: number) => {
-    if (height < 0.3) return 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100'; // Flat
-    if (height > 1.8) return 'text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100 font-bold shadow-xs'; // Big
-    if (height >= 0.6 && period >= 5) return 'text-emerald-900 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 font-bold shadow-xs'; // Good
-    return 'text-sky-900 border-sky-200 bg-sky-50 hover:bg-sky-100'; // Average
-  };
+  const getChanceLevel = (chance: number) => CHANCE_LEVELS.find(l => chance >= l.min) || CHANCE_LEVELS[CHANCE_LEVELS.length - 1];
 
   const calculateScores = (data: ForecastData) => {
     // 1. Confidence (Reliability of data)
@@ -75,24 +81,11 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
     confidence -= (daysOut * 8); // Data consistency drops over time
     if (data.windSpeed > 30) confidence -= 10; // Stormy weather is harder to predict
     
-    // 2. Probability (Surf Chance - Likelihood of "Good" session)
-    let probability = 0;
-    
-    // Height weight
-    if (data.waveHeight >= 0.5 && data.waveHeight <= 2.5) probability += 40;
-    else if (data.waveHeight > 2.5) probability += 20;
-
-    // Period weight
-    if (data.swellPeriod >= 9) probability += 30;
-    else if (data.swellPeriod >= 6) probability += 15;
-
-    // Wind weight
-    if (data.windType?.includes('offshore')) probability += 30;
-    else if (data.windType?.includes('side-offshore')) probability += 20;
-    else if (data.windType?.includes('onshore')) probability -= 10;
+    // 2. Kans dat de spot werkt: uit de verwachting (weatherService), anders hier berekend.
+    const probability = data.surfChance ?? (spot ? computeSurfChance(spot, data).chance : 0);
 
     const finalConfidence = Math.min(98, Math.max(30, confidence));
-    const finalProb = Math.min(100, Math.max(0, probability));
+    const finalProb = Math.min(100, Math.max(0, Math.round(probability)));
 
     return { confidence: finalConfidence, probability: finalProb };
   };
@@ -145,10 +138,10 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
                   >
                     <div className={cn(
                       "flex flex-col gap-1 sm:gap-2 p-1.5 sm:p-3.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer h-full justify-center group-hover/cell:scale-105 group-hover/cell:shadow-md group-hover/cell:z-10 relative overflow-hidden",
-                      getSuitabilityClasses(data.waveHeight, data.swellPeriod)
+                      getChanceLevel(probability).cls
                     )}>
                       {/* Probability Badge */}
-                      {probability > 0 && (
+                      {(data.surfChance !== undefined || spot) && (
                         <div className="absolute top-1 right-1 sm:top-2 sm:right-2">
                           <span className="text-[7px] sm:text-[9px] font-mono font-bold bg-white/80 px-1 rounded border border-current/20 text-current">
                             {probability}%
@@ -206,6 +199,17 @@ export function ForecastGrid({ forecast, onCellClick }: ForecastGridProps) {
           ))}
         </tbody>
       </table>
+      {/* Legenda: kleur en % = kans dat de spot werkt (niet alleen golfhoogte) */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 mt-1 border-t border-slate-100 text-[9px] sm:text-[10px] font-mono text-slate-500">
+        <span className="font-bold uppercase tracking-wider">Kans dat de spot werkt:</span>
+        {CHANCE_LEVELS.map(l => (
+          <span key={l.label} className="flex items-center gap-1">
+            <span className={cn('inline-block w-2 h-2 rounded-full', l.dot)} />
+            {l.label}{l.min > 0 ? ` (≥${l.min}%)` : ''}
+          </span>
+        ))}
+        <span className="text-slate-400">• golfhoogte, swellrichting, periode, wind en getij</span>
+      </div>
     </div>
   );
 }

@@ -609,6 +609,7 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
                 <ForecastGrid
                   forecast={forecasts}
                   onCellClick={handleHourSelect}
+                  spot={spot}
                 />
               </motion.div>
             )}
