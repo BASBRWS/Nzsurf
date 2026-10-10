@@ -20,13 +20,11 @@ import {
   arrayUnion,
   arrayRemove
 } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = firebaseConfig.firestoreDatabaseId ? getFirestore(app, firebaseConfig.firestoreDatabaseId) : getFirestore(app);
-export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Slimme Google-login: op web de popup, op native (APK) de Google-Auth-plugin.
@@ -58,8 +56,12 @@ export async function signInWithGoogleSmart(): Promise<void> {
   }
 }
 
-// Storage helper
+// Storage helper — Firebase Storage pas laden bij een upload (scheelt ~145 KB in de eerste download).
+export const getFirebaseStorage = async () => (await import('firebase/storage')).getStorage(app);
+
 export const uploadImageToStorage = async (file: File, path: string): Promise<string> => {
+  const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+  const storage = await getFirebaseStorage();
   const timestamp = new Date().getTime();
   const fileExtension = file.name.split('.').pop();
   const fileName = `${timestamp}_${Math.random().toString(36).substring(7)}.${fileExtension}`;

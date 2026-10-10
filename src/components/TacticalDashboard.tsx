@@ -27,6 +27,9 @@ import { format, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 
+// Hero-foto (Unsplash) in passende breedtes; moet gelijk blijven aan de preload in index.html.
+const HERO_IMG = (w: number) => `https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=${w}&q=70`;
+
 interface TacticalDashboardProps {
   spot: SurfSpot;
   currentForecast?: ForecastData | null;
@@ -134,12 +137,17 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
       <div className="relative rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/20 min-h-[360px] sm:min-h-[400px] flex flex-col justify-between p-5 sm:p-7 text-white">
         
         {/* Crisp Ocean Barrel Wave Photo Background */}
-        <div 
-          className="absolute inset-0 z-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
-          style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=1600&q=85')`,
-            backgroundPosition: 'center 40%'
-          }}
+        {/* <img> i.p.v. CSS-achtergrond: responsief formaat en vroeg ontdekt (LCP);
+            index.html preloadt dezelfde srcset. */}
+        <img
+          src={HERO_IMG(960)}
+          srcSet={`${HERO_IMG(640)} 640w, ${HERO_IMG(960)} 960w, ${HERO_IMG(1600)} 1600w`}
+          sizes="(max-width: 1024px) 100vw, 1024px"
+          alt=""
+          fetchPriority="high"
+          decoding="async"
+          className="absolute inset-0 z-0 w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+          style={{ objectPosition: 'center 40%' }}
         />
         
         {/* Subtle Atmospheric Ocean Gradient Overlay for clean readability */}

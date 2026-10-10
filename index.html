@@ -99,9 +99,19 @@
     }
     </script>
 
+    <!-- Hero-foto (LCP) vroeg ophalen; zelfde srcset als in TacticalDashboard. -->
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="preload" as="image" fetchpriority="high" href="https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&amp;fit=crop&amp;w=960&amp;q=70" imagesrcset="https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&amp;fit=crop&amp;w=640&amp;q=70 640w, https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&amp;fit=crop&amp;w=960&amp;q=70 960w, https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&amp;fit=crop&amp;w=1600&amp;q=70 1600w" imagesizes="(max-width: 1024px) 100vw, 1024px">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@300;400;600;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Fonts niet-blokkerend laden (PageSpeed: renderblokkering). Hoofdfonts eerst,
+         themafonts (retro/pixel/krant) los zodat ze de eerste weergave niet ophouden. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;700;800&family=Outfit:wght@300;400;600;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=Share+Tech+Mono&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,700;1,6..72,400&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;700;800&family=Outfit:wght@300;400;600;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,700;1,6..72,400&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap">
+    </noscript>
   </head>
   <body>
     <!-- Crawlable semantic fallback for search engines before React hydrates -->
