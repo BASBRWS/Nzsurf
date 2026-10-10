@@ -17,6 +17,7 @@ import { cn } from '../lib/utils';
 import { knotsToBeaufort, getCompassInfo } from '../utils/dailyForecastUtils';
 import { calculateSunscreenAdvice, getUvPillClasses } from '../utils/sunscreenUtils';
 import { getKiteAlert } from '../utils/kiteAlertUtils';
+import { tideScoreAdjustment, tideLevelLabel, chanceScoreCap } from '../utils/spotKnowledge';
 
 interface AdviceModalProps {
   isOpen: boolean;
@@ -103,10 +104,12 @@ export function AdviceModal({
 
   const calculateQuickScore = (data: ForecastData) => {
     let score = 5.0;
-    if (data.waveHeight >= 0.7 && data.waveHeight <= 2.2) score += 2.0;
-    else if (data.waveHeight >= 0.4 && data.waveHeight < 0.7) score += 1.0;
-    else if (data.waveHeight < 0.3) score -= 2.5;
-    else if (data.waveHeight > 2.5) score -= 1.0;
+    // Hoogte OP DE SPOT (swellrichting, demping en plafond meegerekend).
+    const wave = data.spotWaveHeight ?? data.waveHeight;
+    if (wave >= 0.7 && wave <= 2.2) score += 2.0;
+    else if (wave >= 0.4 && wave < 0.7) score += 1.0;
+    else if (wave < 0.3) score -= 2.5;
+    else if (wave > 2.5) score -= 1.0;
 
     if (data.swellPeriod >= 8) score += 1.5;
     else if (data.swellPeriod >= 6) score += 0.5;
@@ -119,6 +122,16 @@ export function AdviceModal({
       if (data.windSpeed > 16) score -= 2.0;
       else score -= 1.0;
     }
+
+    // Getijvenster van deze spot (bijv. Ouddorp dood bij laagwater).
+    score += tideScoreAdjustment(data.tideFactor);
+
+    // Werkt de spot niet (kans laag), dan ook geen hoge conditiescore.
+    const cap = chanceScoreCap(data.surfChance);
+    const cappedBy = score > cap
+      ? ((data.tideFactor ?? 1) < 0.6 ? 'Verkeerd getij' : (data.swellExposure ?? 1) < 0.5 ? 'Verkeerde swell' : null)
+      : null;
+    score = Math.min(score, cap);
 
     const finalScore = Math.max(1, Math.min(10, Math.round(score * 10) / 10));
     let label = 'Matig';
@@ -137,6 +150,8 @@ export function AdviceModal({
       badgeClass = 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
       dotClass = 'bg-slate-400';
     }
+
+    if (cappedBy) label = cappedBy;
 
     return { score: finalScore, label, badgeClass, dotClass };
   };
@@ -317,6 +332,11 @@ export function AdviceModal({
                   <span className={cn("text-[10px] font-mono px-2.5 py-0.5 rounded-full border shadow-2xs", activeHourScore.badgeClass)}>
                     Conditie: {activeHourScore.label} ({activeHourScore.score}/10)
                   </span>
+                  {forecast.surfChance !== undefined && (
+                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full border shadow-2xs bg-cyan-50 text-cyan-900 border-cyan-300 font-bold">
+                      Kans: {forecast.surfChance}%
+                    </span>
+                  )}
                 </div>
 
                 {!advice && !loading && (
@@ -347,6 +367,14 @@ export function AdviceModal({
                     <p className="text-[11px] font-mono text-slate-600">
                       {forecast.swellPeriod}s periode • {forecast.swellDirection}°
                     </p>
+                    {forecast.spotWaveHeight !== undefined && Math.abs(forecast.spotWaveHeight - forecast.waveHeight) >= 0.1 && (
+                      <p className="text-[11px] font-mono text-slate-600">
+                        Op de spot: <strong className="text-slate-900">~{forecast.spotWaveHeight.toFixed(1)}m</strong>
+                      </p>
+                    )}
+                    {forecast.swellNote && (
+                      <p className="text-[10px] text-slate-500 leading-snug">{forecast.swellNote}</p>
+                    )}
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] font-mono text-slate-500">
                     <span>Power Index</span>
@@ -399,6 +427,14 @@ export function AdviceModal({
                       <span className="text-2xl sm:text-3xl font-black text-slate-900">{forecast.tideHeight !== undefined ? forecast.tideHeight.toFixed(1) : '---'}</span>
                       <span className="text-xs font-mono text-slate-500 uppercase">meter</span>
                     </div>
+                    {forecast.tideLevel !== undefined && (
+                      <p className="text-[11px] font-mono text-slate-600">
+                        {tideLevelLabel(forecast.tideLevel, forecast.tideTrend)}{forecast.tideSource === 'model' ? ' (benaderd)' : ''}
+                      </p>
+                    )}
+                    {forecast.tideNote && (
+                      <p className="text-[10px] text-slate-500 leading-snug">{forecast.tideNote}</p>
+                    )}
                     <p className="text-[11px] font-mono text-slate-600 flex items-center gap-2">
                       <span>Water: <strong className="text-slate-900">{forecast.waterTemp}°C</strong></span>
                       <span>•</span>
