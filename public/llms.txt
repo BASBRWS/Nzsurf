@@ -11,6 +11,10 @@ De voorspelling combineert Open-Meteo (golven, wind, waterstand) met lokale spot
 - [Wijk aan Zee](https://www.noordzeesurf.nl/?spot=wijk-aan-zee): beachbreak bij de pier van IJmuiden; lange periode werkt op elk getij, korte periode het best rond hoogwater.
 - [Domburg](https://www.noordzeesurf.nl/?spot=domburg): beachbreak op Walcheren; NW-swell rond hoogwater, ZW-swell alleen rond laagwater; maximaal ~1,5 m.
 
+## Gidsen
+
+- [Surfen in Ouddorp: wanneer werkt het écht?](https://www.noordzeesurf.nl/blog/surfen-in-ouddorp/): getij (mid- tot hoogwater, dood bij laagwater), swellrichting (N/NW), wind (ZO aflandig), wetsuit per seizoen en veiligheid.
+
 ## Over de app
 
 - [Website](https://www.noordzeesurf.nl/): live voorspelling per spot, uurtabel, dagoverzicht en AI-surfcoach (Nederlandstalig).

@@ -9,6 +9,19 @@ import { cn } from '../lib/utils';
 import { apiUrl } from '../lib/api';
 import { logAppError } from '../services/loggerService';
 import { VotingWidget } from './VotingWidget';
+import { Capacitor } from '@capacitor/core';
+
+// Vaste gidsen: losse HTML-pagina's op de website (vindbaar in Google).
+// In de APK openen ze via de echte website.
+const SITE_ARTICLES = [
+  {
+    path: '/blog/surfen-in-ouddorp/',
+    title: 'Surfen in Ouddorp: wanneer werkt het écht?',
+    excerpt: 'Getij, swellrichting, wind, wetsuit en veiligheid — de complete gids voor Ouddorp.',
+  },
+];
+const articleHref = (path: string) =>
+  Capacitor.isNativePlatform() ? `https://www.noordzeesurf.nl${path}` : path;
 
 // Helper to compress image and turn it into small JPEG base64 string
 const compressImage = (file: File): Promise<string> => {
@@ -616,6 +629,20 @@ export function CommunitySection() {
             exit={{ opacity: 0, y: -15 }}
             className="space-y-6"
           >
+            <div className="grid gap-3">
+              {SITE_ARTICLES.map(a => (
+                <a
+                  key={a.path}
+                  href={articleHref(a.path)}
+                  className="block bg-gradient-to-br from-cyan-50 to-white rounded-3xl border border-cyan-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-700">Gids</span>
+                  <h3 className="text-lg font-black text-slate-900 mt-1">{a.title}</h3>
+                  <p className="text-sm text-slate-600 mt-1">{a.excerpt}</p>
+                  <span className="inline-block mt-3 text-xs font-bold text-cyan-700">Lees het artikel →</span>
+                </a>
+              ))}
+            </div>
             <div className="grid gap-6">
               {blogs.map(blog => (
                 <article key={blog.id} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-shadow group">
