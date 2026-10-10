@@ -110,7 +110,22 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    // Basis-beveiligingsheaders (geen CSP/X-Frame-Options: die breken Firebase-login
+    // en de AI Studio-preview). COOP met popups toegestaan voor Google-login.
+    app.use((_req, res, next) => {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+      next();
+    });
     app.use(express.static(distPath));
+    // Niet-bestaande bestanden (bijv. /.well-known/ai-catalog.json, *.txt, *.json):
+    // echte 404 i.p.v. index.html. Anders lezen crawlers en Lighthouse de HTML als
+    // een kapotte llms.txt of een ongeldige ai-catalog.json.
+    app.get(/^\/(\.well-known\/.*|.*\.[A-Za-z0-9]{1,8})$/, (_req, res) => {
+      res.status(404).type("text/plain").send("Not found");
+    });
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
