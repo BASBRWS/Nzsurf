@@ -7,6 +7,12 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
+    // Bronkaarten meeleveren (Lighthouse: "bronkaarten ontbreken"); de clientcode is
+    // toch al openbaar en bevat geen geheimen (Gemini-sleutel zit op de server).
+    // De APK-build zet NO_SOURCEMAP=true: de maps (~9 MB) horen niet in de app.
+    build: {
+      sourcemap: process.env.NO_SOURCEMAP !== 'true',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

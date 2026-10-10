@@ -2,6 +2,7 @@ import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SpotReport } from "../
 import { logAppError } from "./loggerService";
 import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils";
 import { apiUrl } from "../lib/api";
+import { computeSurfChance, tideLevelLabel, degreesToCompass16, chanceScoreCap, spotKnowledgeArea } from "../utils/spotKnowledge";
 
 async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
   const url = apiUrl('/api/gemini/generateContent');
@@ -37,7 +38,10 @@ export function generateLocalSurfAdvice(
 ): SurfAdvice {
   const userBoards = user.boards || [];
   const userWetsuits = user.wetsuits || [];
-  const waveHeight = forecast?.waveHeight || 0;
+  // Spotkennis: hoogte op de spot (swellrichting/demping), getijvenster en kans.
+  const spotInfo = computeSurfChance(spot, forecast);
+  const seaWave = forecast?.waveHeight || 0;
+  const waveHeight = spotInfo.spotWave;
   const swellPeriod = forecast?.swellPeriod || 0;
   const windSpeed = forecast?.windSpeed || 0;
   const waterTemp = forecast?.waterTemp || 12;
@@ -50,6 +54,10 @@ export function generateLocalSurfAdvice(
   let thoughts: string[] = [
     "⚠️ *Let op: Dit advies is berekend o.b.v. jouw profiel en geregistreerde gear.*"
   ];
+
+  if (Math.abs(waveHeight - seaWave) >= 0.1) {
+    thoughts.push(`🧭 **Op de spot:** op zee ${seaWave}m, maar op ${spot.name} naar verwachting ~${waveHeight.toFixed(1)}m.${forecast?.swellNote ? ` ${forecast.swellNote}` : ''}`);
+  }
 
   // 1. Wave Height / Period evaluation
   if (waveHeight < 0.25) {
@@ -98,27 +106,15 @@ export function generateLocalSurfAdvice(
       thoughts.push(`Korte periode (${swellPeriod}s). De golven hebben weinig kracht en volgen elkaar erg snel op.`);
     }
 
-    // Tide evaluation (Getijdeneffect)
+    // Getij: venster per spot (bijv. Ouddorp dood bij laagwater, Domburg met ZW alleen bij laag).
     let tideBonus = 0;
-    const tideHeight = forecast?.tideHeight || 0;
-    if (spot.isAtlantic) {
-      if (tideHeight >= 3.0) {
-        tideBonus = -2;
-        thoughts.push(`🌊 **Getijden Advies (Vloed):** Momenteel is het (vrijwel) volle vloed (${tideHeight}m). Op Atlantische beachbreaks (zoals Soulac Plage) veroorzaakt dit te diep water boven de zandbanken, wat leidt tot volle/dichtklappende golven of een zware shorebreak tegen het strand. Mid-tide opkomend is veruit beter.`);
-      } else if (tideHeight >= 1.5 && tideHeight < 3.0) {
-        tideBonus = 1;
-        thoughts.push(`🌊 **Getijden Advies (Mid-tide):** Gunstige getijdenfase (${tideHeight}m)! Mid-tide opkomend water laat de Atlantische swell het mooist breken op de buitenste zandbanken.`);
-      } else {
-        thoughts.push(`🌊 **Getijden Advies (Laagtij / Eb):** Rond laagtij (${tideHeight}m) kunnen de golven snel en hol dichtklappen op het ondiepe zand. Wees alert op de baïnes (muistromen).`);
-      }
-    } else {
-      if (tideHeight >= 1.8) {
-        tideBonus = -1;
-        thoughts.push(`🌊 **Getijden Advies (Hoogtij):** Bij hoogtij (${tideHeight}m) kunnen de golven wat dikker worden en korter op het strand breken.`);
-      } else if (tideHeight >= 0.5 && tideHeight < 1.8) {
-        tideBonus = 1;
-        thoughts.push(`🌊 **Getijden Advies (Mid-tide):** Uitstekend getijde-venster (${tideHeight}m) voor de Nederlandse Noordzeekust.`);
-      }
+    const tideFactor = spotInfo.tide.factor;
+    if (tideFactor >= 0.9) tideBonus = 1;
+    else if (tideFactor >= 0.7) tideBonus = 0;
+    else if (tideFactor >= 0.45) tideBonus = -1;
+    else tideBonus = -2.5;
+    if (forecast?.tideLevel !== undefined) {
+      thoughts.push(`🌊 **Getij (${tideLevelLabel(forecast.tideLevel, forecast.tideTrend)}${forecast.tideSource === 'model' ? ', benaderd' : ''}):** ${spotInfo.tide.note}`);
     }
 
     // Match with user skill
@@ -263,6 +259,12 @@ export function generateLocalSurfAdvice(
 
   // Final adjusted score incorporating quiver
   score = Math.max(1, Math.min(10, score + quiverScoreBonus));
+  // Werkt de spot niet (kans laag door getij/richting/wind), dan geen hoge score.
+  const chanceCap = Math.round(chanceScoreCap(forecast?.surfChance ?? spotInfo.chance) + 0.5);
+  if (score > chanceCap) {
+    score = Math.max(1, chanceCap);
+    thoughts.push(`📉 **Spot werkt beperkt:** de kans dat ${spot.name} nu werkt is ${forecast?.surfChance ?? spotInfo.chance}%${spotInfo.reasons.length ? ` (${spotInfo.reasons.join(', ')})` : ''}; daarom is de score begrensd.`);
+  }
 
   if (score >= 8) {
     suitability = 'perfect';
@@ -278,7 +280,8 @@ export function generateLocalSurfAdvice(
     title = "Sessie Beoordeling: Matig";
   }
 
-  const chanceOfSuccess = Math.min(100, Math.max(0, score * 10));
+  // Kans = of de spot werkt (hoogte op de spot, richting, getij, wind) — zelfde basis als tabel en dagscore.
+  const chanceOfSuccess = forecast?.surfChance ?? spotInfo.chance;
 
   return {
     score,
@@ -426,9 +429,18 @@ export async function getSurfAdvice(
     ? "Atlantische Ocean Power Index"
     : "Noordzee Power Index";
 
-  const tideHeightContext = spot.isAtlantic
-    ? `- Getij: ${forecast.tideHeight || 0}m (Relatief t.o.v. gemiddeld zeeniveau. BEOORDELING GETIJ: Op Atlantische beachbreaks zoals Soulac Plage is volle vloed (hoge waterstand >3m) ongunstig vanwege volle/dichtklappende golven en harde shorebreak. Mid-tide opkomend/afgaand is veruit het beste!)`
-    : `- Getij: ${forecast.tideHeight || 0}m (Relatief t.o.v. NAP)`;
+  const spotInfo = computeSurfChance(spot, forecast);
+  const surfChance = forecast.surfChance ?? spotInfo.chance;
+  const tideHeightContext = `- Getij: ${forecast.tideHeight ?? 0}m ${forecast.tideSource === 'open-meteo' ? '(echte waterstand t.o.v. gemiddeld zeeniveau)' : '(benaderd getijmodel)'} — fase: ${tideLevelLabel(forecast.tideLevel, forecast.tideTrend)}`;
+
+  const spotKnowledgeContext = `
+    SPOTKENNIS (BEREKEND, LEIDEND VOOR JE OORDEEL):
+    - Gebiedskennis: ${spotKnowledgeArea(spot) ? `deze spot ligt in het gebied "${spotKnowledgeArea(spot)}" en erft de lokale kennis daarvan` : 'geen specifiek gebied bekend; algemene Noordzee/Atlantische regels'}.
+    - Swellrichting: ${degreesToCompass16(forecast.swellDirection || 0)} (${forecast.swellDirection || 0}°) — blootstelling spot: ${Math.round(spotInfo.exposure * 100)}%.${forecast.swellNote ? ` ${forecast.swellNote}` : ''}
+    - Verwachte golfhoogte OP DE SPOT: ~${spotInfo.spotWave.toFixed(1)}m (model op zee: ${forecast.waveHeight || 0}m). Beoordeel de golven op de spothoogte, niet op de zeehoogte.
+    - Getijvenster voor deze spot: ${Math.round(spotInfo.tide.factor * 100)}% — ${spotInfo.tide.note}
+    - Berekende kans dat de spot werkt: ${surfChance}%${spotInfo.reasons.length ? ` (beperkend: ${spotInfo.reasons.join(', ')})` : ''}.
+    - Een lange periode is kwaliteit (meer kracht en betere lijnen), geen gevaar op zich. Noordzee: Hmax ≈ Hs.`;
 
   const quiverBoardsStr = (user.boards && user.boards.length > 0)
     ? user.boards.map(b => `- ${b.name} (${b.type}, ${b.volume}L, ${b.length}) ${b.id === user.selectedBoardId ? '[HUIDIG GESELECTEERD]' : ''}`).join('\n    ')
@@ -460,7 +472,7 @@ export async function getSurfAdvice(
       
       const weight = user.weight || 75;
       const skill = user.skillLevel || 'intermediate';
-      const waveHeight = forecast.waveHeight || 1;
+      const waveHeight = forecast.spotWaveHeight ?? (forecast.waveHeight || 1);
       
       let targetVolume = weight * 0.45; 
       if (skill === 'beginner') targetVolume = weight * 0.85;
@@ -536,6 +548,7 @@ export async function getSurfAdvice(
     - Luchttemp: ${forecast.airTemp || 15}°C
     - Zonkracht / UV Index: ${forecast.uvIndex !== undefined ? forecast.uvIndex : 'N/A'}${forecast.sunscreenAdvice ? ` (Advies: ${forecast.sunscreenAdvice.spfRecommendation})` : ''}
     - ${tideHeightContext}
+    ${spotKnowledgeContext}
     ${isOuddorpNoordwegKiteZone(spot) ? `- KITESURF MONITORING ZONE: Deze spot ligt op of binnen 100m N / 200m Z van Ouddorp P Noordweg. Als de wind >= 12 knopen is (${forecast.windSpeed || 0} knopen), vermeld dan altijd een duidelijke kite-waarschuwing: de spot staat dan vol met kiters, let op kiterlijnen en drukte in de branding.` : ''}
 
     ---
@@ -549,7 +562,7 @@ export async function getSurfAdvice(
       • ⚠️ **Veiligheid & Kitesurfers:** Alleen indien van toepassing.
       • 📍 **Alternatieve Spots:** Alleen indien er reële alternatieve spots zijn vermeld.
     - "suitability": één van "perfect" | "good" | "challenging" | "flat"
-    - "chanceOfSuccess": slagingskans percentage tussen 0 en 100
+    - "chanceOfSuccess": neem de berekende kans (${surfChance}) over
 
     Belangrijk: Geef UITSLUITEND een geldig JSON object terug zonder extra markdown formatting eromheen.
   `;
@@ -574,7 +587,7 @@ export async function getSurfAdvice(
       title: data.title || "Geen advies beschikbaar",
       description: data.description || "Er kon geen advies worden gegenereerd.",
       suitability: data.suitability || "flat",
-      chanceOfSuccess: data.chanceOfSuccess,
+      chanceOfSuccess: surfChance,
       recommendedBoardId: board?.id,
       source: 'gemini-primary',
       generatedAt: new Date().toISOString()
@@ -606,7 +619,7 @@ export async function getSurfAdvice(
         title: data.title || "Geen advies beschikbaar (Backup AI)",
         description: data.description || "Er is een lokaal-ondersteund advies berekend door de back-up AI.",
         suitability: data.suitability || "flat",
-        chanceOfSuccess: data.chanceOfSuccess,
+        chanceOfSuccess: surfChance,
         recommendedBoardId: board?.id,
         source: 'gemini-backup',
         generatedAt: new Date().toISOString()

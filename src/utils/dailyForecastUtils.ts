@@ -1,6 +1,7 @@
 import { ForecastData, SurfSpot, UserProfile, Board, Wetsuit, SkillLevel, SunscreenAdvice } from '../types';
 import { calculateSunscreenAdvice } from './sunscreenUtils';
 import { getKiteAlert, KiteAlertInfo } from './kiteAlertUtils';
+import { computeSurfChance, tideScoreAdjustment, tideLevelLabel, chanceScoreCap } from './spotKnowledge';
 import { parseISO, format, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -441,43 +442,24 @@ export function processDailyForecasts(
 
     const activeHours = daylightHours.length > 0 ? daylightHours : dayHours;
 
-    // Find peak / representative values
-    const rawMaxWave = Math.max(...activeHours.map(h => h.waveHeight));
-    const rawMinWave = Math.min(...activeHours.map(h => h.waveHeight));
+    // Hoogte OP DE SPOT: swellrichting, demping en plafond per spot (spotKnowledge).
+    // Oude data zonder spotWaveHeight valt terug op de modelhoogte.
+    const spotWave = (h: ForecastData) => h.spotWaveHeight ?? h.waveHeight;
+    const maxWave = Math.max(...activeHours.map(spotWave));
+    const minWave = Math.min(...activeHours.map(spotWave));
     const avgPeriod = Math.round(activeHours.reduce((acc, h) => acc + h.swellPeriod, 0) / activeHours.length);
-
-    let bathyMultiplier = 1.0;
-    let bathyNote = '';
-    
-    // Toepassing van regionale bathymetrie (kustlijndiepte data)
-    if (spot.bathymetryProfile === 'deep_water_approach') {
-      bathyMultiplier = 1.25; 
-      bathyNote = 'Diep water dicht onder de kust zorgt dat swell energie behoudt.';
-    } else if (spot.bathymetryProfile === 'sandbanks') {
-      if (avgPeriod >= 7) {
-        bathyMultiplier = 1.15;
-        bathyNote = 'Lange periode swell bouwt mooi op over de ondiepe zandbanken (shoaling).';
-      } else {
-        bathyMultiplier = 0.85;
-        bathyNote = 'Korte periode windswell verliest wat energie door bodemwrijving op de uitgestrekte banken.';
-      }
-    } else if (spot.bathymetryProfile === 'gentle_slope') {
-      bathyMultiplier = 0.95;
-    }
-
-    const maxWave = rawMaxWave * bathyMultiplier;
-    const minWave = rawMinWave * bathyMultiplier;
 
     const minKnots = Math.min(...activeHours.map(h => h.windSpeed));
     const maxKnots = Math.max(...activeHours.map(h => h.windSpeed));
     const minBft = knotsToBeaufort(minKnots);
     const maxBft = knotsToBeaufort(maxKnots);
 
-    // Best hour based on wavePower, wind quality and wave height
+    // Beste uur = hoogste kans (hoogte op de spot, swellrichting, wind én getijvenster).
+    const hourChance = (h: ForecastData) => h.surfChance ?? computeSurfChance(spot, h).chance;
     const sortedHours = [...activeHours].sort((a, b) => {
-      const scoreA = (a.waveHeight >= 0.4 ? a.waveHeight * 2 : 0) + (a.windQuality || 50) / 20 + (a.wavePower || 0) / 20;
-      const scoreB = (b.waveHeight >= 0.4 ? b.waveHeight * 2 : 0) + (b.windQuality || 50) / 20 + (b.wavePower || 0) / 20;
-      return scoreB - scoreA;
+      const diff = hourChance(b) - hourChance(a);
+      if (diff !== 0) return diff;
+      return (spotWave(b) + (b.windQuality || 50) / 40) - (spotWave(a) + (a.windQuality || 50) / 40);
     });
     const bestHour = sortedHours[0] || dayHours[0];
     const bestHourTime = parseISO(bestHour.timestamp);
@@ -502,6 +484,10 @@ export function processDailyForecasts(
       // High waves
       envScore = 6.5 + (bestHour.windType === 'offshore' ? 1.5 : -1.0);
     }
+    // Getijvenster van de spot in het beste uur (bijv. Ouddorp dood bij laagwater).
+    envScore += tideScoreAdjustment(bestHour.tideFactor);
+    const dayChanceCap = chanceScoreCap(hourChance(bestHour));
+    envScore = Math.min(envScore, dayChanceCap);
 
     // Evaluate ALL boards in the user's quiver
     let rankedBoards: RankedQuiverBoard[] = [];
@@ -608,6 +594,8 @@ export function processDailyForecasts(
       else if (maxWave < 0.4) score = Math.max(2.5, score - 1.0);
     }
 
+    // Persoonlijke bonussen mogen een niet-werkende spot niet 'goed' maken.
+    score = Math.min(score, dayChanceCap + 0.5);
     score = Math.max(1.0, Math.min(10.0, Math.round(score * 10) / 10));
 
     // Rating Label & Color
@@ -676,13 +664,12 @@ export function processDailyForecasts(
     // Spot match calculation
     const spotBestWinds = spot.bestWind || [];
     const isWindMatch = spotBestWinds.includes(windDirInfo.label) || bestHour.windType === 'offshore' || bestHour.windType === 'side-offshore';
-    const spotBestSwells = spot.bestSwell || [];
-    const isSwellMatch = spotBestSwells.includes(swellDirInfo.label) || maxWave >= 0.5;
+    // Swellrichting op graden (16-punts, dus ook WNW) i.p.v. "elke swell >0,5m telt".
+    const bestChance = computeSurfChance(spot, bestHour);
+    const isSwellMatch = bestChance.exposure >= 0.6;
 
-    let spotMatchPercent = 50;
-    if (isWindMatch && isSwellMatch) spotMatchPercent = 90 + Math.min(8, Math.round(maxWave * 5));
-    else if (isWindMatch || isSwellMatch) spotMatchPercent = 65 + (isWindMatch ? 15 : 5);
-    else spotMatchPercent = 35;
+    // Spot match = de kans dat de spot in het beste uur werkt (zelfde basis als AI).
+    const spotMatchPercent = bestHour.surfChance ?? bestChance.chance;
 
     let matchNoteText = '';
     const isSetupMatch = isWindMatch && isSwellMatch;
@@ -697,8 +684,11 @@ export function processDailyForecasts(
       matchNoteText = `Wind ${windDirInfo.label} is gunstig clean, maar de ${swellDirInfo.label}-hoek levert beperkte hoogte op.`;
     }
     
-    if (bathyNote) {
-      matchNoteText += ` ${bathyNote}`;
+    if (bestHour.swellNote) {
+      matchNoteText += ` ${bestHour.swellNote}`;
+    }
+    if (bestHour.tideNote && (bestHour.tideFactor ?? 1) < 0.9) {
+      matchNoteText += ` Getij: ${bestHour.tideNote}`;
     }
 
     // Dynamic AI / Coach Narrative referencing user's actual gear
@@ -734,12 +724,16 @@ export function processDailyForecasts(
       narrative = `Uitmuntende condities voor ${spot.name}! Cleane sets van ${maxWave.toFixed(1)}m bij ${avgPeriod}s swellperiode en lichte ${windDirInfo.label}-wind. Leg ${boardRef} klaar en lig op tijd in het water!`;
     }
 
-    if (spot.isAtlantic && bestHour.tideHeight && bestHour.tideHeight >= 3.0) {
+    if (bestHour.tideFactor !== undefined && bestHour.tideFactor < 0.7 && bestHour.tideNote) {
+      narrative += ` Let op het getij: ${bestHour.tideNote}`;
+    } else if (bestHour.tideFactor === undefined && spot.isAtlantic && bestHour.tideHeight && bestHour.tideHeight >= 3.0) {
       narrative += ` Let op: bij volle vloed (${bestHour.tideHeight}m) kunnen de golven dichtklappen op de shorebreak.`;
     }
 
-    // Tide milestones
-    const tideTurns = calculateDailyTideTurns(dateStr, !!spot.isAtlantic);
+    // Tide milestones: echte kenteringen uit de waterstandreeks, anders het model.
+    const tideTurns = bestHour.dayTideTurns && bestHour.dayTideTurns.length > 0
+      ? bestHour.dayTideTurns
+      : calculateDailyTideTurns(dateStr, !!spot.isAtlantic);
     const nextTideSummary = tideTurns.map(t => `${t.isHigh ? 'Hoog' : 'Laag'} ${t.time} (${t.height.toFixed(1)}m)`).join(' • ');
 
     // Best Window computation
@@ -748,16 +742,17 @@ export function processDailyForecasts(
     const startStr = `${String(windowStartH).padStart(2, '0')}:00`;
     const endStr = `${String(windowEndH).padStart(2, '0')}:00`;
 
+    const goodTide = (bestHour.tideFactor ?? 0) >= 0.9;
     const conditionText = bestHour.windType === 'offshore'
       ? 'Cleanste water & aflandige bries'
-      : (bestHour.tideHeight && bestHour.tideHeight < 2.0 ? 'Ideaal getijdevenster' : 'Piekmoment golfkracht');
+      : (goodTide ? 'Ideaal getijdevenster' : 'Piekmoment golfkracht');
 
     const bestWindow = {
       timeRange: `${startStr} – ${endStr}`,
       conditionText,
       why: bestHour.windType === 'offshore' 
-        ? `Lichte wind uit ${windDirInfo.label} gecombineerd met de beste banken.` 
-        : `Beste balans tussen swellhoogte (${maxWave.toFixed(1)}m) en getijdenstand.`
+        ? `Lichte wind uit ${windDirInfo.label} gecombineerd met de beste banken${bestHour.tideLevel !== undefined ? ` (${tideLevelLabel(bestHour.tideLevel, bestHour.tideTrend)})` : ''}.` 
+        : `Beste balans tussen swellhoogte (${maxWave.toFixed(1)}m) en getijdenstand${bestHour.tideLevel !== undefined ? ` (${tideLevelLabel(bestHour.tideLevel, bestHour.tideTrend)})` : ''}.`
     };
 
     // Wind classification
@@ -817,7 +812,7 @@ export function processDailyForecasts(
         };
       }
 
-      const avgWave = Math.round((slotHours.reduce((acc, h) => acc + h.waveHeight, 0) / slotHours.length) * 10) / 10;
+      const avgWave = Math.round((slotHours.reduce((acc, h) => acc + spotWave(h), 0) / slotHours.length) * 10) / 10;
       const avgWindKts = Math.round(slotHours.reduce((acc, h) => acc + h.windSpeed, 0) / slotHours.length);
       const slotBft = knotsToBeaufort(avgWindKts);
       const slotWindDir = getCompassInfo(slotHours[0].windDirection).label;
@@ -832,7 +827,10 @@ export function processDailyForecasts(
         windKnots: avgWindKts,
         windDir: slotWindDir,
         condition: slotType,
-        ratingScore: Math.round((score + (slotType === 'Clean' ? 0.4 : -0.3)) * 10) / 10,
+        // Getij per dagdeel t.o.v. het beste uur (bijv. ochtend bij laagwater op Ouddorp lager).
+        ratingScore: Math.max(1, Math.min(10, Math.round((score + (slotType === 'Clean' ? 0.4 : -0.3)
+          + tideScoreAdjustment(slotHours.reduce((acc, h) => acc + (h.tideFactor ?? 0.85), 0) / slotHours.length)
+          - tideScoreAdjustment(bestHour.tideFactor ?? 0.85)) * 10) / 10)),
         uvIndex: slotUv
       };
     });

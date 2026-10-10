@@ -56,6 +56,7 @@ jobs:
       - name: Build web assets
         run: bunx vite build
         env:
+          NO_SOURCEMAP: 'true' # bronkaarten alleen voor de website, niet in de APK
           # Optioneel: zet dit als repository-variabele naar de URL van de
           # gedeployde Express-backend om de AI-features in de APK te activeren.
           # Leeg = de app gebruikt de offline adviesmotor.

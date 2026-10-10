@@ -1,5 +1,51 @@
 import { SurfSpot, ForecastData } from '../types';
 import { calculateSunscreenAdvice } from '../utils/sunscreenUtils';
+import { swellExposure, spotWaveHeight, assessTide, computeSurfChance, findTideTurnsByDay, TideTrend, withAreaDefaults, spotKnowledgeArea } from '../utils/spotKnowledge';
+
+// Echte waterstand (incl. getij) t.o.v. gemiddeld zeeniveau via Open-Meteo Marine.
+// Los opgehaald: als de variabele niet beschikbaar is valt de app terug op het
+// getijmodel en blijft de rest van de verwachting gewoon werken.
+async function fetchSeaLevel(lat: number, lng: number): Promise<{ times: string[]; levels: (number | null)[] } | null> {
+  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=sea_level_height_msl&timezone=auto&forecast_days=10`;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  const timer = controller ? setTimeout(() => controller.abort(), 8000) : undefined;
+  try {
+    const res = await fetch(url, controller ? { signal: controller.signal } : undefined);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const times: string[] | undefined = data?.hourly?.time;
+    const levels: (number | null)[] | undefined = data?.hourly?.sea_level_height_msl;
+    if (!Array.isArray(times) || !Array.isArray(levels)) return null;
+    return { times, levels };
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+// Controleert de waterstandreeks tegen de golftijden; null = terugvallen op model.
+function alignSeaLevel(raw: { times: string[]; levels: (number | null)[] } | null, expectedTimes: string[]): number[] | null {
+  if (!raw || raw.levels.length !== expectedTimes.length || raw.times[0] !== expectedTimes[0]) return null;
+  const nums = raw.levels.filter((v): v is number => typeof v === 'number' && !isNaN(v));
+  if (nums.length < raw.levels.length * 0.9) return null;
+  const range = Math.max(...nums) - Math.min(...nums);
+  if (range < 0.3 || range > 15) return null; // geen getij zichtbaar of onzin
+  let last = nums[0]; // gaten opvullen met de vorige waarde
+  return raw.levels.map(v => (typeof v === 'number' && !isNaN(v) ? (last = v) : last));
+}
+
+// Genormaliseerd getijniveau (0 = laag, 1 = hoog) binnen ±7 uur (≈ één getijcyclus).
+function tideLevelAt(levels: number[], i: number): { level: number; trend: TideTrend } {
+  const lo = Math.max(0, i - 7), hi = Math.min(levels.length - 1, i + 7);
+  let min = Infinity, max = -Infinity;
+  for (let j = lo; j <= hi; j++) { min = Math.min(min, levels[j]); max = Math.max(max, levels[j]); }
+  const level = max - min < 0.2 ? 0.5 : (levels[i] - min) / (max - min);
+  const prev = levels[Math.max(0, i - 1)], next = levels[Math.min(levels.length - 1, i + 1)];
+  const slope = next - prev;
+  const trend: TideTrend = Math.abs(slope) < 0.04 ? 'slack' : slope > 0 ? 'rising' : 'falling';
+  return { level: Math.round(level * 100) / 100, trend };
+}
 
 function getSeasonalWaterTemp(date: Date, isAtlantic: boolean): number {
   const month = date.getMonth(); // 0 = Jan, 11 = Dec
@@ -21,10 +67,13 @@ function getSeasonalWaterTemp(date: Date, isAtlantic: boolean): number {
   }
 }
 
-export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
-  if (!spot || typeof spot.lat !== 'number' || typeof spot.lng !== 'number') {
+export async function fetchForecast(inputSpot: SurfSpot): Promise<ForecastData[]> {
+  if (!inputSpot || typeof inputSpot.lat !== 'number' || typeof inputSpot.lng !== 'number') {
     throw new Error('Invalid spot coordinates');
   }
+  // Zelf aangemaakte spots: Atlantisch o.b.v. coördinaten + gebiedskennis erven.
+  const spot = withAreaDefaults(inputSpot);
+  const knowledgeArea = spotKnowledgeArea(spot);
 
   const { lat, lng } = spot;
   
@@ -37,9 +86,10 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
 
 
   try {
-    const [marineRes, weatherRes] = await Promise.all([
+    const [marineRes, weatherRes, seaLevelRaw] = await Promise.all([
       fetch(marineUrl),
-      fetch(weatherUrl)
+      fetch(weatherUrl),
+      fetchSeaLevel(lat, lng)
     ]);
 
     if (!marineRes.ok || !weatherRes.ok) {
@@ -56,7 +106,21 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
     }
 
     const forecast: ForecastData[] = [];
-    const timestamps = marineData.hourly.time;
+    const timestamps: string[] = marineData.hourly.time;
+
+    // Getij: echte waterstand als die er is, anders het benaderde getijmodel.
+    const m2Period = 12.42;
+    const modelRefMs = spot.isAtlantic ? new Date('2026-05-04T01:30:00Z').getTime() : new Date('2026-05-04T03:00:00Z').getTime();
+    const modelTide = (t: string) => {
+      const diffHours = (new Date(t).getTime() - modelRefMs) / (1000 * 60 * 60);
+      return spot.isAtlantic
+        ? 2.5 + 1.8 * Math.cos((2 * Math.PI * diffHours) / m2Period) // Atlantisch (Les Landes), range ~3.6m
+        : 1.1 + Math.cos((2 * Math.PI * diffHours) / m2Period);      // Noordzee, range ~2m
+    };
+    const realSeaLevel = alignSeaLevel(seaLevelRaw, timestamps);
+    const tideSource: 'open-meteo' | 'model' = realSeaLevel ? 'open-meteo' : 'model';
+    const tideSeries: number[] = realSeaLevel || timestamps.map(modelTide);
+    const tideTurnsByDay = findTideTurnsByDay(timestamps, tideSeries);
 
     // We want data every 3 hours to keep the grid manageable.
     // The loop now covers all available timestamps (usually 7-10 days).
@@ -88,21 +152,9 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         wavePower = Math.min(Math.round((rawPower / 15) * 100), 100);
       }
 
-      // Simulation of a realistic tide curve (Gecorrigeerd voor Atlantische Oceaan getij)
-      const m2Period = 12.42;
-      const currentMs = new Date(time).getTime();
-      let tideHeight: number;
-      if (spot.isAtlantic) {
-        // Atlantisch getij in Les Landes heeft veel grotere amplitude (~1.8m, range ~3.6m, mean 2.5m)
-        const refHighTideAtlantic = new Date('2026-05-04T01:30:00Z').getTime();
-        const diffHoursAtlantic = (currentMs - refHighTideAtlantic) / (1000 * 60 * 60);
-        tideHeight = 2.5 + 1.8 * Math.cos((2 * Math.PI * diffHoursAtlantic) / m2Period);
-      } else {
-        // Noordzee getij in Nederland (mean 1.1m, amplitude ~1.0m)
-        const refHighTide = new Date('2026-05-04T03:00:00Z').getTime();
-        const diffHours = (currentMs - refHighTide) / (1000 * 60 * 60);
-        tideHeight = 1.1 + Math.cos((2 * Math.PI * diffHours) / m2Period);
-      }
+      // Getijstand op dit uur (echt of model) + fase binnen de lokale getijslag
+      const tideHeight = tideSeries[i];
+      const { level: tideLevel, trend: tideTrend } = tideLevelAt(tideSeries, i);
 
       // Wind Quality Calculation
       const windDir = weatherData.hourly.wind_direction_10m[i] || 0;
@@ -160,11 +212,15 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         windQuality = Math.max(0, Math.min(100, Math.round(100 - speedPenalty)));
       }
 
+      // Spotkennis: swellrichting, effectieve hoogte op de spot en getijvenster
+      const swellDir = marineData.hourly.wave_direction[i] || 0;
+      const exposureInfo = swellExposure(spot, swellDir);
+      const spotWave = spotWaveHeight(spot, waveHeight, exposureInfo.exposure);
+      const tideInfo = assessTide(spot, tideLevel, tideTrend, wavePeriod, swellDir);
+
       // Calculate Current Risk (Stromingsrisico & Baïnes)
-      const tideRefTime = spot.isAtlantic ? new Date('2026-05-04T01:30:00Z').getTime() : new Date('2026-05-04T03:00:00Z').getTime();
-      const diffHoursTide = (currentMs - tideRefTime) / (1000 * 60 * 60);
-      const hourlyTideChange = Math.abs(-1.0 * (2 * Math.PI / m2Period) * Math.sin((2 * Math.PI * diffHoursTide) / m2Period)); // roughly meters/hour change
-      
+      const hourlyTideChange = Math.abs(tideSeries[Math.min(tideSeries.length - 1, i + 1)] - tideSeries[Math.max(0, i - 1)]) / 2; // m/uur
+
       let riskLevel: 'low' | 'medium' | 'high' = 'low';
       let riskDesc = spot.isAtlantic
         ? 'Zwakke tot matige stroming. Let wel altijd op de actieve baïnes (muistromen) in Les Landes.'
@@ -190,16 +246,17 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
             : 'Zwakke tot matige stroming. Let wel altijd op de actieve baïnes (muistromen) in Les Landes.';
         }
       } else {
-        if (waveHeight > 1.5 && wavePeriod > 8) {
+        // Lange periode = kwaliteit, geen gevaar op zich; alleen écht grote golven op de spot.
+        if (spotWave > 2.5 || (spotWave > 2.0 && wavePeriod > 9)) {
           riskLevel = 'high';
-          riskDesc = 'Gevaarlijke muien (rip currents) door hoge en krachtige golven. Zeer sterke stroming!';
+          riskDesc = 'Gevaarlijke muien (rip currents) door hoge en krachtige golven op de spot. Zeer sterke stroming!';
         } else if (windSpeed > 18 && (windType === 'onshore' || windType === 'side-onshore')) {
           riskLevel = 'high';
           riskDesc = 'Sterke windgestuurde kuststroom door hoge (schuin)aanlandige wind. Moeilijk positie houden.';
         } else if (hourlyTideChange > 0.45) { // approaching peak flow
           riskLevel = 'medium';
           riskDesc = 'Matige zandbank stroming door springtij / hard werkend getij (eb/vloed stroom).';
-        } else if (waveHeight > 1.2) {
+        } else if (spotWave > 1.4) {
           riskLevel = 'medium';
           riskDesc = 'Kans op muien (rips) aanwezig door relatief hoge golven. Let op bij zandbanken.';
         }
@@ -228,11 +285,11 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         weatherData.hourly.temperature_2m[i]
       );
 
-      forecast.push({
+      const item: ForecastData = {
         timestamp: new Date(time).toISOString(),
         waveHeight,
         swellPeriod: wavePeriod,
-        swellDirection: marineData.hourly.wave_direction[i] || 0,
+        swellDirection: swellDir,
         windSpeed,
         windDirection: windDir,
         waterTemp: getSeasonalWaterTemp(date, !!spot.isAtlantic),
@@ -246,8 +303,20 @@ export async function fetchForecast(spot: SurfSpot): Promise<ForecastData[]> {
         conditionCode: weatherData.hourly.weather_code[i],
         windQuality,
         windType,
-        currentRisk: { level: riskLevel, description: riskDesc }
-      });
+        currentRisk: { level: riskLevel, description: riskDesc },
+        tideSource,
+        tideLevel,
+        tideTrend,
+        tideFactor: tideInfo.factor,
+        tideNote: tideInfo.note,
+        swellExposure: exposureInfo.exposure,
+        swellNote: exposureInfo.note,
+        spotWaveHeight: spotWave,
+        dayTideTurns: tideTurnsByDay.get(String(time).slice(0, 10)) || [],
+        knowledgeArea
+      };
+      item.surfChance = computeSurfChance(spot, item).chance;
+      forecast.push(item);
     }
 
     return forecast;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css'; // alleen nodig op de kaart (lazy geladen)
 import { SurfSpot, ForecastData } from '../types';
 import { Locate, MapPin, Eye, Wind, Waves, Navigation, Sparkles, Crosshair, Plus, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';

@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
@@ -110,8 +111,38 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    // Basis-beveiligingsheaders (geen CSP/X-Frame-Options: die breken Firebase-login
+    // en de AI Studio-preview). COOP met popups toegestaan voor Google-login.
+    app.use((_req, res, next) => {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+      next();
+    });
+    // Gzip voor HTML/JS/CSS/JSON (de JS-bundel is ~2 MB onbewerkt).
+    app.use(compression());
+    // Cache: gehashte bestanden in /assets mogen een jaar mee, index.html altijd
+    // opnieuw controleren, overige publieke bestanden een dag.
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=86400");
+        }
+      },
+    }));
+    // Niet-bestaande bestanden (bijv. /.well-known/ai-catalog.json, *.txt, *.json):
+    // echte 404 i.p.v. index.html. Anders lezen crawlers en Lighthouse de HTML als
+    // een kapotte llms.txt of een ongeldige ai-catalog.json.
+    app.get(/^\/(\.well-known\/.*|.*\.[A-Za-z0-9]{1,8})$/, (_req, res) => {
+      res.status(404).type("text/plain").send("Not found");
+    });
     app.get("*", (req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

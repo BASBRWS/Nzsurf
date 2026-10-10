@@ -1,0 +1,21 @@
+# NzSurf — Noordzee Surf Voorspelling
+
+> NzSurf (noordzeesurf.nl) geeft gratis, gepersonaliseerd surfadvies voor de Nederlandse Noordzeekust: golfhoogte op de spot, swellperiode en -richting, wind, getij (incl. getijvenster per spot), watertemperatuur en een AI-surfcoach die rekening houdt met je niveau, gewicht en eigen boards.
+
+De voorspelling combineert Open-Meteo (golven, wind, waterstand) met lokale spotkennis per gebied: Ouddorp werkt bijvoorbeeld niet bij laagwater en blijft vlak bij pure ZW-swell, Walcheren komt zelden boven ~1,5 m, en Hoek van Holland is afgeschermd voor ZW-swell door de pier. Per uur wordt een "kans" berekend dat de spot werkt (hoogte op de spot × periode × wind × getijvenster).
+
+## Spots
+
+- [Ouddorp (P Noordweg)](https://www.noordzeesurf.nl/?spot=ouddorp-p-noordweg): beachbreak op Goeree; beste wind ZO/O/Z, beste swell N/NW; mid- tot hoogwater, best net na hoogwater.
+- [Scheveningen (Noord)](https://www.noordzeesurf.nl/?spot=scheveningen): beachbreak bij de pieren; beste wind O/ZO/NO, beste swell NW/WNW; mid- tot hoogwater.
+- [Wijk aan Zee](https://www.noordzeesurf.nl/?spot=wijk-aan-zee): beachbreak bij de pier van IJmuiden; lange periode werkt op elk getij, korte periode het best rond hoogwater.
+- [Domburg](https://www.noordzeesurf.nl/?spot=domburg): beachbreak op Walcheren; NW-swell rond hoogwater, ZW-swell alleen rond laagwater; maximaal ~1,5 m.
+
+## Over de app
+
+- [Website](https://www.noordzeesurf.nl/): live voorspelling per spot, uurtabel, dagoverzicht en AI-surfcoach (Nederlandstalig).
+- [Sitemap](https://www.noordzeesurf.nl/sitemap.xml): alle spotpagina's.
+
+## Optional
+
+- [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api): bron van golf- en waterstanddata.

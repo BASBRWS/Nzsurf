@@ -87,6 +87,18 @@ export interface ForecastData {
     level: 'low' | 'medium' | 'high';
     description: string;
   };
+  // Spotkennis (zie utils/spotKnowledge.ts) — optioneel, oude data blijft geldig.
+  tideSource?: 'open-meteo' | 'model'; // echte waterstand of benaderd getijmodel
+  tideLevel?: number; // 0 = laagwater, 1 = hoogwater (binnen de lokale getijslag)
+  tideTrend?: 'rising' | 'falling' | 'slack';
+  tideFactor?: number; // 0..1 hoe goed dit getij is voor DEZE spot
+  tideNote?: string;
+  swellExposure?: number; // 0..1 hoeveel van de swell de spot bereikt (richting)
+  swellNote?: string;
+  spotWaveHeight?: number; // verwachte hoogte op de spot (demping/richting/plafond)
+  surfChance?: number; // 0..100 kans dat de spot werkt
+  dayTideTurns?: { time: string; isHigh: boolean; height: number }[];
+  knowledgeArea?: string; // gebied waarvan de spot de kennis erft (bijv. "Ouddorp (Goeree)")
 }
 
 export interface SpotReport {

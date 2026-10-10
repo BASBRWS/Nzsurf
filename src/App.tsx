@@ -3,26 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SharedSpot } from './types';
 import { INITIAL_USER, DEFAULT_SPOTS } from './constants';
 import { getSurfAdvice } from './services/geminiService';
 import { fetchForecast } from './services/weatherService';
-import { SpotMap } from './components/SpotMap';
 import { TacticalDashboard } from './components/TacticalDashboard';
-import { TacticalSessionWindow } from './components/TacticalSessionWindow';
-import { TacticalAICoach } from './components/TacticalAICoach';
-import { ProfileSettings } from './components/ProfileSettings';
 import { TacticalBottomNav, TacticalTab } from './components/TacticalBottomNav';
-import { WeatherPanel } from './components/WeatherPanel';
-import { SpotReport as SpotReportComponent } from './components/SpotReport';
-import { CommunitySection } from './components/CommunitySection';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
-import { FeedbackModal } from './components/FeedbackModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
-import { AdviceModal } from './components/AdviceModal';
-import { AddSpotModal } from './components/AddSpotModal';
 import { RegionalSeoGuide } from './components/RegionalSeoGuide';
 import { 
   Waves, 
@@ -43,6 +33,7 @@ import {
   Plus
 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { withAreaDefaults } from './utils/spotKnowledge';
 import { 
   auth, 
   db, 
@@ -66,6 +57,26 @@ import {
   User 
 } from './lib/firebase';
 
+// Zware schermen/modals pas laden als ze nodig zijn (kleinere eerste download).
+const SpotMap = lazy(() => import('./components/SpotMap').then(m => ({ default: m.SpotMap })));
+const TacticalSessionWindow = lazy(() => import('./components/TacticalSessionWindow').then(m => ({ default: m.TacticalSessionWindow })));
+const TacticalAICoach = lazy(() => import('./components/TacticalAICoach').then(m => ({ default: m.TacticalAICoach })));
+const ProfileSettings = lazy(() => import('./components/ProfileSettings').then(m => ({ default: m.ProfileSettings })));
+const WeatherPanel = lazy(() => import('./components/WeatherPanel').then(m => ({ default: m.WeatherPanel })));
+const SpotReportComponent = lazy(() => import('./components/SpotReport').then(m => ({ default: m.SpotReport })));
+const CommunitySection = lazy(() => import('./components/CommunitySection').then(m => ({ default: m.CommunitySection })));
+const FeedbackModal = lazy(() => import('./components/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
+const AdviceModal = lazy(() => import('./components/AdviceModal').then(m => ({ default: m.AdviceModal })));
+const AddSpotModal = lazy(() => import('./components/AddSpotModal').then(m => ({ default: m.AddSpotModal })));
+
+// true zodra een modal één keer open is geweest: pas dan laden we de (lazy) code,
+// en daarna blijft hij gemount zodat sluit-animaties gewoon werken.
+function useOpenedOnce(open: boolean): boolean {
+  const [opened, setOpened] = useState(open);
+  useEffect(() => { if (open) setOpened(true); }, [open]);
+  return opened || open;
+}
+
 export default function App() {
   const [user, setUser] = useState<UserProfile>(INITIAL_USER);
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -86,6 +97,9 @@ export default function App() {
   const [permissionReason, setPermissionReason] = useState('');
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isBetaNoticeOpen, setIsBetaNoticeOpen] = useState(false);
+  const mountAdviceModal = useOpenedOnce(isAdviceModalOpen);
+  const mountAddSpotModal = useOpenedOnce(isAddSpotModalOpen);
+  const mountFeedbackModal = useOpenedOnce(isFeedbackOpen);
 
   // Combine default system spots, user's saved/custom spots, and public shared spots
   const allSpots = useMemo<SurfSpot[]>(() => {
@@ -96,7 +110,8 @@ export default function App() {
     (user.savedSpots || []).forEach(s => spotMap.set(s.id, s));
     // 3. Shared community spots from Firestore
     sharedSpots.forEach(s => spotMap.set(s.id, s));
-    return Array.from(spotMap.values());
+    // Zelf aangemaakte spots erven gebiedskennis (o.a. Atlantisch o.b.v. coördinaten).
+    return Array.from(spotMap.values()).map(withAreaDefaults);
   }, [user.savedSpots, sharedSpots]);
 
   // Selected Surf Spot
@@ -447,6 +462,7 @@ export default function App() {
 
         {/* Main Content View Switcher */}
         <main className="space-y-5">
+          <Suspense fallback={<div className="py-16 text-center text-xs font-mono text-slate-400">Laden…</div>}>
           <AnimatePresence mode="wait">
             {/* View 1: Tactical Dashboard / Swell (Frame 00:00 in Light Theme) */}
             {activeTab === 'forecast' && (
@@ -624,6 +640,7 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
+          </Suspense>
         </main>
 
         {/* Regional SEO Guide & Spot Navigation */}
@@ -649,69 +666,81 @@ export default function App() {
         reason={permissionReason}
       />
 
-      <FeedbackModal 
-        isOpen={isFeedbackOpen}
-        onClose={() => setIsFeedbackOpen(false)}
-      />
+      {mountFeedbackModal && (
+        <Suspense fallback={null}>
+          <FeedbackModal 
+            isOpen={isFeedbackOpen}
+            onClose={() => setIsFeedbackOpen(false)}
+          />
+        </Suspense>
+      )}
 
       <BetaNoticeModal 
         isOpen={isBetaNoticeOpen}
         onClose={() => setIsBetaNoticeOpen(false)}
       />
 
-      <AdviceModal 
-        advice={advice}
-        isOpen={isAdviceModalOpen}
-        onClose={() => {
-          setIsAdviceModalOpen(false);
-          setAdvice(null);
-          setSelectedForecastHour(null);
-        }}
-        spot={selectedSpot}
-        user={user}
-        forecast={selectedForecastHour || currentForecastData}
-        allForecastData={forecast}
-        loading={isAdviceLoading}
-        onSelectForecastHour={async (h) => {
-          setSelectedForecastHour(h);
-          setAdvice(null);
-          setIsAdviceLoading(true);
-          try {
-            const nearby = allSpots.filter(s => s.id !== selectedSpot.id);
-            const res = await getSurfAdvice(user, selectedSpot, h, nearby);
-            setAdvice(res);
-          } catch (e) {
-            console.error(e);
-          } finally {
-            setIsAdviceLoading(false);
-          }
-        }}
-        onRequestAdvice={async (hourData) => {
-          if (!hourData && !selectedForecastHour && !currentForecastData) return;
-          setIsAdviceLoading(true);
-          try {
-            const targetHour = hourData || selectedForecastHour || currentForecastData!;
-            const nearby = allSpots.filter(s => s.id !== selectedSpot.id);
-            const res = await getSurfAdvice(user, selectedSpot, targetHour, nearby);
-            setAdvice(res);
-          } catch (e) {
-            console.error(e);
-          } finally {
-            setIsAdviceLoading(false);
-          }
-        }}
-      />
+      {mountAdviceModal && (
+        <Suspense fallback={null}>
+          <AdviceModal 
+            advice={advice}
+            isOpen={isAdviceModalOpen}
+            onClose={() => {
+              setIsAdviceModalOpen(false);
+              setAdvice(null);
+              setSelectedForecastHour(null);
+            }}
+            spot={selectedSpot}
+            user={user}
+            forecast={selectedForecastHour || currentForecastData}
+            allForecastData={forecast}
+            loading={isAdviceLoading}
+            onSelectForecastHour={async (h) => {
+              setSelectedForecastHour(h);
+              setAdvice(null);
+              setIsAdviceLoading(true);
+              try {
+                const nearby = allSpots.filter(s => s.id !== selectedSpot.id);
+                const res = await getSurfAdvice(user, selectedSpot, h, nearby);
+                setAdvice(res);
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setIsAdviceLoading(false);
+              }
+            }}
+            onRequestAdvice={async (hourData) => {
+              if (!hourData && !selectedForecastHour && !currentForecastData) return;
+              setIsAdviceLoading(true);
+              try {
+                const targetHour = hourData || selectedForecastHour || currentForecastData!;
+                const nearby = allSpots.filter(s => s.id !== selectedSpot.id);
+                const res = await getSurfAdvice(user, selectedSpot, targetHour, nearby);
+                setAdvice(res);
+              } catch (e) {
+                console.error(e);
+              } finally {
+                setIsAdviceLoading(false);
+              }
+            }}
+          />
+        </Suspense>
+      )}
 
-      <AddSpotModal
-        isOpen={isAddSpotModalOpen}
-        onClose={() => {
-          setIsAddSpotModalOpen(false);
-          setNewSpotInitialCoords(null);
-        }}
-        onAddSpot={handleAddSpot}
-        initialCoords={newSpotInitialCoords}
-        isLoggedIn={!!authUser}
-      />
+      {mountAddSpotModal && (
+        <Suspense fallback={null}>
+          <AddSpotModal
+            isOpen={isAddSpotModalOpen}
+            onClose={() => {
+              setIsAddSpotModalOpen(false);
+              setNewSpotInitialCoords(null);
+            }}
+            onAddSpot={handleAddSpot}
+            initialCoords={newSpotInitialCoords}
+            isLoggedIn={!!authUser}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
