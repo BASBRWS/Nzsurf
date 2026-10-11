@@ -32,7 +32,8 @@ service cloud.firestore {
              data.spotName is string &&
              data.timestamp is string &&
              data.location is map &&
-             data.createdAt is string;
+             // De app slaat createdAt op als servertijdstempel; oude rapporten als tekst.
+             (data.createdAt is string || data.createdAt is timestamp);
     }
 
     function isValidSharedSpot(data) {
