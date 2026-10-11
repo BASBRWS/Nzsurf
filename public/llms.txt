@@ -6,10 +6,33 @@ De voorspelling combineert Open-Meteo (golven, wind, waterstand) met lokale spot
 
 ## Spots
 
-- [Ouddorp (P Noordweg)](https://www.noordzeesurf.nl/?spot=ouddorp-p-noordweg): beachbreak op Goeree; beste wind ZO/O/Z, beste swell N/NW; mid- tot hoogwater, best net na hoogwater.
-- [Scheveningen (Noord)](https://www.noordzeesurf.nl/?spot=scheveningen): beachbreak bij de pieren; beste wind O/ZO/NO, beste swell NW/WNW; mid- tot hoogwater.
-- [Wijk aan Zee](https://www.noordzeesurf.nl/?spot=wijk-aan-zee): beachbreak bij de pier van IJmuiden; lange periode werkt op elk getij, korte periode het best rond hoogwater.
-- [Domburg](https://www.noordzeesurf.nl/?spot=domburg): beachbreak op Walcheren; NW-swell rond hoogwater, ZW-swell alleen rond laagwater; maximaal ~1,5 m.
+Per spot een pagina met de actuele verwachting (per 3 uur, 7 dagen) en wanneer de spot werkt. Overzicht: [alle surfspots](https://www.noordzeesurf.nl/surfverwachting/).
+
+- [Surfverwachting Cadzand-Bad](https://www.noordzeesurf.nl/surfverwachting/cadzand/): Zeeland; beste wind ZO/Z/O, beste swell NW/NNW/N. Mid-tide tot hoogwater werkt meestal het best; rond laagwater breken de golven ver uit.
+- [Surfverwachting Zoutelande](https://www.noordzeesurf.nl/surfverwachting/zoutelande/): Zeeland; beste wind NO/O/N, beste swell ZW/WZW/W. Rond hoogwater werkt Walcheren het best (meestal tot ca. 1–1,5 m); laagwater is minder.
+- [Surfverwachting Westkapelle](https://www.noordzeesurf.nl/surfverwachting/westkapelle/): Zeeland; beste wind O/NO/ZO, beste swell W/WNW/NW/WZW. Rond hoogwater werkt Walcheren het best (meestal tot ca. 1–1,5 m); laagwater is minder.
+- [Surfverwachting Domburg](https://www.noordzeesurf.nl/surfverwachting/domburg/): Zeeland; beste wind ZO/Z, beste swell NW/N. Met NW-swell rond hoogwater; met ZW-swell werkt Domburg alleen rond laagwater. Meestal maximaal ca. 1,5 m.
+- [Surfverwachting Renesse](https://www.noordzeesurf.nl/surfverwachting/renesse/): Zeeland; beste wind ZO/O/Z, beste swell NW/NNW/N. Rond hoogwater het beste venster; bij laagwater houden de banken veel swell tegen.
+- [Surfverwachting Brouwersdam (zeezijde)](https://www.noordzeesurf.nl/surfverwachting/brouwersdam/): Zeeland; beste wind ZO/O/Z, beste swell NW/NNW/N. Rond hoogwater het beste venster; door de banken voor de kust vaak kleiner dan elders.
+- [Surfverwachting Ouddorp (P Noordweg)](https://www.noordzeesurf.nl/surfverwachting/ouddorp/): Zuid-Holland; beste wind ZO/O/Z, beste swell NW/WNW/W/N. Van mid-tide tot hoogwater; het beste net na hoogwater. Rond laagwater is Ouddorp vrijwel dood.
+- [Surfverwachting Maasvlakte (P6)](https://www.noordzeesurf.nl/surfverwachting/maasvlakte/): Zuid-Holland; beste wind ZO/O/Z, beste swell NW/NNW/N. Werkt op alle getijden; het getij bepaalt vooral hoe hard de stroming staat.
+- [Surfverwachting Hoek van Holland](https://www.noordzeesurf.nl/surfverwachting/hoek-van-holland/): Zuid-Holland; beste wind ZO/O/NO, beste swell NW/WNW/NNW. Rond hoogwater het beste venster bij de pier; laagwater is minder.
+- [Surfverwachting Ter Heijde](https://www.noordzeesurf.nl/surfverwachting/ter-heijde/): Zuid-Holland; beste wind ZO/O/NO, beste swell NW/WNW/W. Laag tot mid-tide is hier vaak het beste; rond hoogwater voller.
+- [Surfverwachting Kijkduin](https://www.noordzeesurf.nl/surfverwachting/kijkduin/): Zuid-Holland; beste wind ZO/O/NO, beste swell NW/WNW/W. Laag tot mid-tide is hier vaak het beste; rond hoogwater voller.
+- [Surfverwachting Scheveningen (Zuiderstrand)](https://www.noordzeesurf.nl/surfverwachting/scheveningen-zuiderstrand/): Zuid-Holland; beste wind O/ZO/NO, beste swell NW/WNW. Mid- tot hoogwater (opkomend) is meestal het beste; rond laagwater klapt het snel dicht.
+- [Surfverwachting Scheveningen (Noord)](https://www.noordzeesurf.nl/surfverwachting/scheveningen/): Zuid-Holland; beste wind O/ZO/NO, beste swell NW/WNW. Mid- tot hoogwater (opkomend) is meestal het beste; rond laagwater klapt het snel dicht.
+- [Surfverwachting Katwijk](https://www.noordzeesurf.nl/surfverwachting/katwijk/): Zuid-Holland; beste wind O/ZO/NO, beste swell NW/WNW/W. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Noordwijk](https://www.noordzeesurf.nl/surfverwachting/noordwijk/): Zuid-Holland; beste wind O/ZO/NO, beste swell NW/WNW/W. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Zandvoort](https://www.noordzeesurf.nl/surfverwachting/zandvoort/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Bloemendaal aan Zee](https://www.noordzeesurf.nl/surfverwachting/bloemendaal/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting IJmuiden (Zuidpier)](https://www.noordzeesurf.nl/surfverwachting/ijmuiden/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Bij lange periode (8 s of meer) werkt het op elk getij; bij korte periode is hoogwater het beste.
+- [Surfverwachting Wijk aan Zee](https://www.noordzeesurf.nl/surfverwachting/wijk-aan-zee/): Noord-Holland; beste wind O/ZO, beste swell NW/W. Bij lange periode (8 s of meer) werkt het op elk getij; bij korte periode is hoogwater het beste.
+- [Surfverwachting Castricum aan Zee](https://www.noordzeesurf.nl/surfverwachting/castricum/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Egmond aan Zee](https://www.noordzeesurf.nl/surfverwachting/egmond/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Bergen aan Zee](https://www.noordzeesurf.nl/surfverwachting/bergen/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Petten](https://www.noordzeesurf.nl/surfverwachting/petten/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Callantsoog](https://www.noordzeesurf.nl/surfverwachting/callantsoog/): Noord-Holland; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid- tot hoogwater is op deze kust meestal het beste; rond laagwater breekt het ver uit.
+- [Surfverwachting Texel (Paal 17)](https://www.noordzeesurf.nl/surfverwachting/texel/): Waddeneilanden; beste wind O/ZO/NO, beste swell W/WNW/NW. Mid-tide is doorgaans het meest betrouwbare venster.
 
 ## Gidsen
 
@@ -20,7 +43,7 @@ De voorspelling combineert Open-Meteo (golven, wind, waterstand) met lokale spot
 ## Over de app
 
 - [Website](https://www.noordzeesurf.nl/): live voorspelling per spot, uurtabel, dagoverzicht en AI-surfcoach (Nederlandstalig).
-- [Sitemap](https://www.noordzeesurf.nl/sitemap.xml): alle spotpagina's.
+- [Sitemap](https://www.noordzeesurf.nl/sitemap.xml): alle spotpagina's en gidsen.
 
 ## Optional
 

@@ -74,7 +74,8 @@ export function reasonSentence(spot: SurfSpot, f: ForecastData): string {
   if (c.spotWave < 0.3) return `Te klein: ongeveer ${h} m op de spot.`;
   const bits: string[] = [];
   if (c.reasons.includes('ongunstige wind')) bits.push(`${Math.round(f.windSpeed)} kn ${windTypeNl(f.windType)} wind maakt het rommelig`);
-  if (c.reasons.includes('ongunstig getij')) bits.push(f.tideNote ? f.tideNote.replace(/\.$/, '').toLowerCase() : 'het getij werkt niet mee');
+  // Alleen de eerste letter klein: plaatsnamen in de notitie houden hun hoofdletter.
+  if (c.reasons.includes('ongunstig getij')) bits.push(f.tideNote ? f.tideNote.replace(/\.$/, '').replace(/^./, ch => ch.toLowerCase()) : 'het getij werkt niet mee');
   if (c.reasons.includes('korte periode')) bits.push(`korte periode (${Math.round(f.swellPeriod)} s), weinig kracht`);
   if (bits.length) return `${h} m golf, maar ${bits.join(' en ')}.`;
   return c.chance >= 70

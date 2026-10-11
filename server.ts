@@ -3,6 +3,14 @@ import compression from "compression";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { fetchForecast } from "./src/services/weatherService";
+import { CATALOG_BY_SLUG } from "./src/data/spotCatalog";
+import { renderSpotPage, renderIndexPage, renderNotFoundPage } from "./src/seo/spotPage";
+import type { ForecastData } from "./src/types";
+
+// De verwachting komt binnen als lokale tijd (Europe/Amsterdam). De spotpagina's
+// rekenen "nu", "vandaag" en de beste momenten op dezelfde tijd als de app.
+process.env.TZ = process.env.TZ || "Europe/Amsterdam";
 
 async function startServer() {
   const app = express();
@@ -37,6 +45,61 @@ async function startServer() {
     } catch {
       res.redirect(302, HERO_SRC(w));
     }
+  });
+
+  // Vindbare spotpagina's (/surfverwachting/...): server-side HTML zodat Google de
+  // verwachting per spot kan lezen. Verwachting per spot 1 uur in het geheugen;
+  // daarna wordt de oude nog getoond terwijl op de achtergrond ververst wordt.
+  const FC_TTL_MS = 60 * 60 * 1000;
+  const fcCache = new Map<string, { at: number; data: ForecastData[] }>();
+  const fcPending = new Map<string, Promise<ForecastData[]>>();
+  const loadSpotForecast = (slug: string): Promise<ForecastData[]> => {
+    const running = fcPending.get(slug);
+    if (running) return running;
+    const spot = CATALOG_BY_SLUG.get(slug)!;
+    const p = fetchForecast(spot)
+      .then((data) => { fcCache.set(slug, { at: Date.now(), data }); return data; })
+      .finally(() => fcPending.delete(slug));
+    fcPending.set(slug, p);
+    return p;
+  };
+  const spotForecast = async (slug: string): Promise<{ data: ForecastData[] | null; at?: number }> => {
+    const hit = fcCache.get(slug);
+    if (hit) {
+      if (Date.now() - hit.at > FC_TTL_MS) loadSpotForecast(slug).catch(() => {});
+      return hit;
+    }
+    try {
+      const data = await Promise.race([
+        loadSpotForecast(slug),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
+      ]);
+      return { data, at: Date.now() };
+    } catch (e: any) {
+      console.warn(`[SPOTPAGINA] Verwachting ${slug} niet geladen:`, e?.message || e);
+      return { data: null };
+    }
+  };
+  const sendHtml = (res: express.Response, status: number, html: string, maxAge: number) => {
+    res.status(status);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", `public, max-age=${maxAge}`);
+    res.send(html);
+  };
+  // Express negeert standaard de slash aan het eind; daarom zelf naar de vorm
+  // met slash doorsturen (één canonieke URL per pagina).
+  app.get(/^\/surfverwachting\/?$/, (req, res) => {
+    if (!req.path.endsWith("/")) return res.redirect(301, "/surfverwachting/");
+    sendHtml(res, 200, renderIndexPage(), 3600);
+  });
+  app.get(/^\/surfverwachting\/([a-z0-9-]+)\/?$/, async (req, res) => {
+    const slug = req.params[0];
+    if (!req.path.endsWith("/")) return res.redirect(301, `/surfverwachting/${slug}/`);
+    const spot = CATALOG_BY_SLUG.get(slug);
+    if (!spot) return sendHtml(res, 404, renderNotFoundPage(), 300);
+    const { data, at } = await spotForecast(spot.slug);
+    const html = renderSpotPage(spot, data, new Date(), at ? new Date(at) : undefined);
+    sendHtml(res, 200, html, data ? 900 : 60);
   });
 
   // API Routes
