@@ -94,8 +94,13 @@ Workflow `.github/workflows/forecast-audit.yml` draait dagelijks om 05:30 UTC
   breakfinder.surf, sea-forecast.com. Optioneel Stormglass (secret `STORMGLASS_API_KEY`).
 - **Metingen** (Firestore `auditObservations/{datum}`), per uur, Rijkswaterstaat:
   golfhoogte/periode/richting Schouwenbank, wind Europlatform, waterstand Lichteiland Goeree.
-- **Niet mogelijk**: Surfline (Cloudflare blokkeert automatische toegang), Windguru
-  (vereist login), surf-forecast.com (geen pagina voor Ouddorp).
+- **Surfline en surfnerd** weren de GitHub-servers (Cloudflare). Die haalt de
+  Android-app van de admin op, via de gewone telefoonverbinding: automatisch 1x per
+  dag bij openen, of met de knop in Beta → Voorspellingsaudit. Ruwe opnames staan in
+  `auditRaw`; bekijk de opbouw met de workflow *Audit: ruwe opnames bekijken*.
+  Vereist de Firestore-regels voor `auditForecasts` (admin mag alleen surfline/surfnerd
+  schrijven) en `auditRaw` uit `firestore.rules`.
+- **Niet mogelijk**: Windguru (vereist login), surf-forecast.com (geen pagina voor Ouddorp).
 - Resultaten: app → Profiel → Beta → Voorspellingsaudit (alleen admin), met filters en export.
 - Uitlezers van websites zijn kwetsbaar: breekt er een, dan staat die bron in de
   Beta-pagina bij "Laatste ophaalronde" met ✗.

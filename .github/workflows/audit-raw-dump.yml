@@ -1,0 +1,28 @@
+name: "Audit: ruwe opnames bekijken"
+
+# Toont de opbouw van wat de app voor Surfline/surfnerd heeft opgehaald
+# (collectie auditRaw). Alleen lezen; handmatig starten.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Dag (JJJJ-MM-DD), leeg = laatste"
+        required: false
+        default: ""
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Ruwe opnames uitlezen
+        run: bun run scripts/audit-raw-dump.ts
+        env:
+          RAW_DATE: ${{ inputs.date }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
