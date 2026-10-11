@@ -156,6 +156,19 @@ export function buildSurfCalendarUrl(day: DailySummary, spot: SurfSpot): string 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
+// Agenda-afspraak voor een los surfvenster (beginpagina "beste momenten").
+export function buildWindowCalendarUrl(spot: SurfSpot, start: Date, end: Date, details: string): string {
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `🏄 Surfen bij ${spot.name}`,
+    dates: `${toGCalStamp(start)}/${toGCalStamp(end)}`,
+    details: `${details}\n\nGepland via NzSurf 🌊`,
+    location: spot.name,
+    ctz: TIMEZONE,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 // Opent een externe URL: in de APK via de systeembrowser (_system),
 // op het web in een nieuw tabblad.
 export function openExternalUrl(url: string): void {

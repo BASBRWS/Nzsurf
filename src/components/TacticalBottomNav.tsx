@@ -29,13 +29,12 @@ export const TacticalBottomNav: React.FC<TacticalBottomNavProps> = ({
   onQuickAction
 }) => {
   const navItems: { id: TacticalTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'forecast', label: 'SWELL', icon: Waves },
-    { id: 'weather', label: 'WEER', icon: Wind },
+    // 5 knoppen; AI-coach en sessievenster zitten op de Surf-pagina (knoppen bovenaan).
+    { id: 'forecast', label: 'SURF', icon: Waves },
     { id: 'spots', label: 'SPOTS', icon: Compass },
-    { id: 'community', label: 'SOCIAL', icon: MessageSquare },
-    { id: 'window', label: 'VENSTER', icon: Clock },
-    { id: 'ai', label: 'AI COACH', icon: Sparkles },
-    { id: 'profile', label: 'ME', icon: User }
+    { id: 'weather', label: 'WEER', icon: Wind },
+    { id: 'community', label: 'COMMUNITY', icon: MessageSquare },
+    { id: 'profile', label: 'IK', icon: User }
   ];
 
   return (

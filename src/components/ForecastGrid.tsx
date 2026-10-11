@@ -163,8 +163,14 @@ export function ForecastGrid({ forecast, onCellClick, spot, onDayClick }: Foreca
                         </span>
                         <div className="flex items-center gap-0.5 mt-0.5 opacity-80">
                           <Waves className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                          <span className="text-[8px] sm:text-[10px] font-mono font-bold">{data.swellPeriod}s</span>
+                          <span className="text-[8px] sm:text-[10px] font-mono font-bold">{Math.round(data.swellPeriod)}s</span>
                         </div>
+                        {data.tideLevel !== undefined && (
+                          <span className="text-[8px] sm:text-[10px] font-mono font-bold text-blue-700 mt-0.5" title="Getij">
+                            {data.tideTrend === 'rising' ? '↑' : data.tideTrend === 'falling' ? '↓' : '•'}{' '}
+                            {data.tideLevel < 0.2 ? 'laag' : data.tideLevel > 0.8 ? 'hoog' : 'mid'}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex-col items-center gap-0.5 py-0.5 border-t border-slate-200/60 hidden sm:flex">
