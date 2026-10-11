@@ -107,3 +107,105 @@ export function toCsv(rows: Record<string, unknown>[]): string {
   // Puntkomma als scheidingsteken: opent direct goed in Nederlandse Excel.
   return [cols.join(';'), ...rows.map(r => cols.map(c => esc(r[c])).join(';'))].join('\n');
 }
+
+// ── Spotkennis toetsen aan spotrapporten ────────────────────────────────────
+// De boei op zee kan de vertaling naar de spot (demping, getij, kans) niet
+// beoordelen. Spotrapporten wel: een foto van het strand (golfhoogte geschat
+// door Gemini) en, sinds de beoordelingsvraag, het oordeel van de surfer zelf.
+
+export type UserRating = 'no' | 'meh' | 'fair' | 'good';
+export const RATING_LABELS: Record<UserRating, string> = { no: 'Werkt niet / flat', meh: 'Matig', fair: 'Redelijk', good: 'Goed' };
+const RATING_WORKS: Record<UserRating, boolean> = { no: false, meh: false, fair: true, good: true };
+
+export interface SpotReportLike {
+  spotId: string; spotName: string; timestamp: string;
+  forecastAtTime?: { waveHeight?: number; spotWaveHeight?: number; surfChance?: number } | null;
+  analysis?: { waveHeight?: string; matchScore?: number; isMismatched?: boolean } | null;
+  userRating?: UserRating;
+}
+
+/** "0.5-0.8m", "0,5–0,8 m", "1m", "flat" → meters (midden van een bereik). */
+export function parseWaveEstimate(text?: string): number | undefined {
+  if (!text) return undefined;
+  const t = text.toLowerCase().replace(/,/g, '.');
+  if (/\bflat\b|vlak/.test(t)) return 0;
+  const nums = [...t.matchAll(/\d+(?:\.\d+)?/g)].map(m => Number(m[0])).filter(n => n < 10);
+  if (!nums.length) return undefined;
+  const v = nums.length >= 2 ? (nums[0] + nums[1]) / 2 : nums[0];
+  return Math.round(v * 100) / 100;
+}
+
+export interface ReportRow {
+  t: string; spotId: string; spotName: string;
+  chance?: number; spotHs?: number; seaHs?: number; photoHs?: number;
+  matchScore?: number; mismatch?: boolean; rating?: UserRating;
+  breakfinder?: number; // breakfinder-score (0–100) voor hetzelfde uur, alleen Ouddorp
+}
+
+/** Breakfinder-score voor een tijdstip: uit de laatste ophaalronde vóór dat moment. */
+function breakfinderAt(t: string, docs: AuditForecastDoc[]): number | undefined {
+  const ms = Date.parse(t);
+  const runs = docs.filter(d => d.source === 'breakfinder' && Date.parse(d.runAt) <= ms)
+    .sort((a, b) => Date.parse(b.runAt) - Date.parse(a.runAt));
+  for (const d of runs) {
+    const near = (d.points || [])
+      .filter(p => typeof p.chance === 'number' && Math.abs(Date.parse(p.t) - ms) <= 90 * 60e3)
+      .sort((a, b) => Math.abs(Date.parse(a.t) - ms) - Math.abs(Date.parse(b.t) - ms))[0];
+    if (near) return near.chance;
+  }
+  return undefined;
+}
+
+export function reportRows(reports: SpotReportLike[], auditDocs: AuditForecastDoc[] = [], auditSpotId?: string): ReportRow[] {
+  return reports.map(r => ({
+    t: r.timestamp, spotId: r.spotId, spotName: r.spotName,
+    chance: r.forecastAtTime?.surfChance,
+    spotHs: r.forecastAtTime?.spotWaveHeight,
+    seaHs: r.forecastAtTime?.waveHeight,
+    photoHs: parseWaveEstimate(r.analysis?.waveHeight),
+    matchScore: r.analysis?.matchScore,
+    mismatch: r.analysis?.isMismatched,
+    rating: r.userRating,
+    breakfinder: auditSpotId && r.spotId === auditSpotId ? breakfinderAt(r.timestamp, auditDocs) : undefined,
+  })).sort((a, b) => b.t.localeCompare(a.t));
+}
+
+export interface ReportSummary {
+  wave: { n: number; maeSpot: number; maeSea: number } | null;   // hoogte op de spot vs op zee, beide t.o.v. de foto
+  chance: { n: number; agree: number; byLevel: { level: string; n: number; works: number }[] } | null;
+  breakfinder: { n: number; agree: number } | null;               // zelfde toets voor breakfinder
+  mismatchRate: { n: number; pct: number } | null;
+}
+
+const LEVELS = [
+  { min: 70, label: 'Goed (≥70%)' }, { min: 45, label: 'Redelijk (45–69%)' },
+  { min: 20, label: 'Matig (20–44%)' }, { min: 0, label: 'Werkt niet (<20%)' },
+];
+
+export function summarizeReports(rows: ReportRow[]): ReportSummary {
+  const w = rows.filter(r => typeof r.photoHs === 'number' && typeof r.spotHs === 'number' && typeof r.seaHs === 'number');
+  const mae = (f: (r: ReportRow) => number) => Math.round(w.reduce((a, r) => a + Math.abs(f(r)), 0) / w.length * 100) / 100;
+
+  const c = rows.filter(r => typeof r.chance === 'number' && r.rating);
+  const b = rows.filter(r => typeof r.breakfinder === 'number' && r.rating);
+  const m = rows.filter(r => typeof r.mismatch === 'boolean');
+  const agreePct = (xs: ReportRow[], score: (r: ReportRow) => number) =>
+    Math.round(xs.filter(r => (score(r) >= 45) === RATING_WORKS[r.rating!]).length / xs.length * 100);
+
+  return {
+    wave: w.length ? { n: w.length, maeSpot: mae(r => r.spotHs! - r.photoHs!), maeSea: mae(r => r.seaHs! - r.photoHs!) } : null,
+    chance: c.length ? {
+      n: c.length,
+      agree: agreePct(c, r => r.chance!),
+      byLevel: LEVELS.map((l, i) => {
+        const inLevel = c.filter(r => r.chance! >= l.min && (i === 0 || r.chance! < LEVELS[i - 1].min));
+        return { level: l.label, n: inLevel.length, works: inLevel.filter(r => RATING_WORKS[r.rating!]).length };
+      }),
+    } : null,
+    breakfinder: b.length ? { n: b.length, agree: agreePct(b, r => r.breakfinder!) } : null,
+    mismatchRate: m.length ? { n: m.length, pct: Math.round(m.filter(r => r.mismatch).length / m.length * 100) } : null,
+  };
+}
+
+/** Minimaal aantal rapporten voordat we een conclusie tonen. */
+export const MIN_REPORTS = 10;

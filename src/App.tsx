@@ -184,6 +184,18 @@ export default function App() {
     }
   }, [allSpots]);
 
+  // Voorspellingsaudit: de admin-app haalt 1x per dag Surfline en surfnerd op
+  // (die weren de GitHub-servers). Alleen in de Android-app; los geladen.
+  useEffect(() => {
+    const email = authUser?.email?.toLowerCase();
+    if (!email || !['sebastiaan.boom@gmail.com', 'sebastiaan.boom2@gmail.com'].includes(email)) return;
+    if (!Capacitor.isNativePlatform()) return;
+    import('./services/auditCollector')
+      .then(m => m.runAppAuditCollect())
+      .then(r => { if (r) console.log('[AUDIT] app-ophaalronde:', r.join(' | ')); })
+      .catch(e => console.warn('[AUDIT] app-ophaalronde mislukt:', e));
+  }, [authUser]);
+
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {

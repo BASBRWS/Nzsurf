@@ -124,6 +124,8 @@ export interface SpotReport {
     isMismatched: boolean;
   };
   userNote?: string;
+  // Eigen oordeel van de surfer (optioneel; oude rapporten hebben dit niet).
+  userRating?: 'no' | 'meh' | 'fair' | 'good';
 }
 
 export interface WeatherModel {

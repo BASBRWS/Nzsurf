@@ -32,7 +32,8 @@ service cloud.firestore {
              data.spotName is string &&
              data.timestamp is string &&
              data.location is map &&
-             data.createdAt is string;
+             // De app slaat createdAt op als servertijdstempel; oude rapporten als tekst.
+             (data.createdAt is string || data.createdAt is timestamp);
     }
 
     function isValidSharedSpot(data) {
@@ -147,15 +148,21 @@ service cloud.firestore {
       allow create: if true && isValidErrorLog(request.resource.data);
       allow read, update, delete: if isAdmin();
     }
-    // Voorspellingsaudit: alleen lezen door admin; schrijven gebeurt door de
-    // GitHub-workflow met de service-account (admin SDK, buiten deze regels om).
+    // Voorspellingsaudit. De GitHub-workflow schrijft met de service-account
+    // (admin SDK, buiten deze regels om). Surfline en surfnerd weren die servers;
+    // daarom mag de admin-app alleen díe twee bronnen zelf opslaan.
     match /auditForecasts/{id} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow create, update: if isAdmin() && request.resource.data.source in ['surfline', 'surfnerd'];
+      allow delete: if false;
     }
     match /auditObservations/{id} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+    // Ruwe opnames van de admin-app (om de uitlezers te bouwen en te controleren).
+    match /auditRaw/{id} {
+      allow read, write: if isAdmin();
     }
   }
 }

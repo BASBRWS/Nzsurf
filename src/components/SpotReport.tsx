@@ -17,6 +17,8 @@ interface SpotReportProps {
 export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete, user }: SpotReportProps) {
   const [selectedSpotId, setSelectedSpotId] = useState<string>(initialSpotId || '');
   const [userNote, setUserNote] = useState('');
+  // Eigen oordeel (optioneel): hiermee toetst de voorspellingsaudit de NzSurf-kans.
+  const [userRating, setUserRating] = useState<'no' | 'meh' | 'fair' | 'good' | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -93,6 +95,7 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
         userEmail: auth.currentUser?.email,
         userSkillLevel: user?.skillLevel,
         userNote: userNote.trim() || null, // null is allowed, undefined is not! or better yet, strip undefineds
+        userRating: userRating || undefined, // optioneel; wordt hieronder weggefilterd als leeg
         spotId: spot.id,
         spotName: spot.name,
         timestamp: new Date().toISOString(),
@@ -213,6 +216,30 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
             </select>
             <MapPin className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold ml-1">Hoe is het om te surfen? (optioneel)</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {([
+              ['no', 'Werkt niet / flat', 'border-slate-300 bg-slate-100 text-slate-700'],
+              ['meh', 'Matig', 'border-amber-300 bg-amber-50 text-amber-900'],
+              ['fair', 'Redelijk', 'border-sky-300 bg-sky-50 text-sky-900'],
+              ['good', 'Goed', 'border-emerald-300 bg-emerald-50 text-emerald-900'],
+            ] as const).map(([key, label, cls]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setUserRating(userRating === key ? null : key)}
+                className={`rounded-xl border px-3 py-2 text-xs font-bold cursor-pointer transition-all ${
+                  userRating === key ? `${cls} ring-2 ring-cyan-600` : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-500 ml-1">Hiermee controleren we of de kans in NzSurf klopt met wat je op het strand ziet.</p>
         </div>
 
         <div className="space-y-1.5">

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Download, Loader2, Trophy, Filter } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { SpotReportAudit } from './SpotReportAudit';
+import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { cn } from '../lib/utils';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
@@ -26,6 +28,9 @@ const WAVE_FILTERS = [
   { key: 0, label: 'Alle golven' }, { key: 0.5, label: 'Golf ≥ 0,5 m' }, { key: 1, label: 'Golf ≥ 1 m' }, { key: 1.5, label: 'Golf ≥ 1,5 m' },
 ];
 
+// De audit draait voor Ouddorp (zie scripts/forecast-audit.ts).
+const AUDIT_SPOT_ID = 'ouddorp-p-noordweg';
+
 const fmtNum = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
 
 function download(name: string, content: string, type: string) {
@@ -46,6 +51,7 @@ export function ForecastAuditPanel() {
   const [forecasts, setForecasts] = useState<AuditForecastDoc[] | null>(null);
   const [observations, setObservations] = useState<AuditObsDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [appCollect, setAppCollect] = useState<{ busy: boolean; results?: string[] }>({ busy: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +132,27 @@ export function ForecastAuditPanel() {
         </p>
       </div>
 
+      {/* Surfline en surfnerd weren de GitHub-servers; de app op de telefoon haalt ze op. */}
+      {canCollectInApp() ? (
+        <div className="rounded-xl border border-slate-200 p-3 space-y-1.5">
+          <button
+            disabled={appCollect.busy}
+            onClick={async () => {
+              setAppCollect({ busy: true });
+              const results = await runAppAuditCollect(true).catch((e: any) => [`fout: ${e?.message || e}`]);
+              setAppCollect({ busy: false, results: results || [] });
+            }}
+            className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            {appCollect.busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Surfline &amp; surfnerd nu ophalen
+          </button>
+          <p className="text-[11px] text-slate-500">Gebeurt ook vanzelf, 1x per dag, als je de app opent.</p>
+          {appCollect.results && <ul className="text-[11px] font-mono text-slate-700">{appCollect.results.map(r => <li key={r}>{r}</li>)}</ul>}
+        </div>
+      ) : (
+        <p className="text-[11px] text-slate-500">Surfline en surfnerd worden opgehaald door de Android-app (1x per dag bij openen); op de website kan dat niet.</p>
+      )}
+
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}
       {!forecasts && !error && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden…</div>}
 
@@ -192,6 +219,11 @@ export function ForecastAuditPanel() {
                 </li>
               ))}
             </ul>
+            <p className="text-[11px] text-slate-600 mt-2">
+              Let op bij het lezen: NzSurf haalt zijn ruwe cijfers zelf bij Open-Meteo (golven: standaard golfmodel, wind: GFS).
+              Op golfhoogte, periode en wind volgt NzSurf dus vooral die bronnen. Wat NzSurf eigen maakt (spothoogte, getij, kans) meet de boei niet;
+              dat staat hieronder bij de spotrapporten. Gebruik de ranglijst om het beste model voor NzSurf te kiezen.
+            </p>
           </div>
 
           {/* Ranglijst */}
@@ -249,6 +281,8 @@ export function ForecastAuditPanel() {
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ruwe data (JSON)</button>
           </div>
           <p className="text-[10px] text-slate-500">CSV gebruikt puntkomma's en opent direct in Excel. Export werkt op de website; in de app kan downloaden beperkt zijn.</p>
+
+          <SpotReportAudit auditDocs={forecasts} auditSpotId={AUDIT_SPOT_ID} onDownload={download} />
         </>
       )}
     </div>
