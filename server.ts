@@ -11,6 +11,34 @@ async function startServer() {
   // Middleware to parse large JSON bodies (e.g. base64 images)
   app.use(express.json({ limit: "50mb" }));
 
+  // Hero-foto via het eigen domein: scheelt op mobiel een extra verbinding naar
+  // Unsplash (LCP). Eén keer opgehaald, in het geheugen bewaard; faalt het ophalen,
+  // dan sturen we de browser door naar Unsplash zelf.
+  const HERO_SRC = (w: number) =>
+    `https://images.unsplash.com/photo-1502680390469-be75c86b636f?fit=crop&fm=webp&w=${w}&q=65`;
+  const heroCache = new Map<number, { buf: Buffer; type: string }>();
+  const loadHero = async (w: number) => {
+    const hit = heroCache.get(w);
+    if (hit) return hit;
+    const r = await fetch(HERO_SRC(w));
+    if (!r.ok) throw new Error(`hero ${w}: HTTP ${r.status}`);
+    const entry = { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get("content-type") || "image/webp" };
+    heroCache.set(w, entry);
+    return entry;
+  };
+  [640, 960, 1600].forEach((w) => loadHero(w).catch(() => {})); // voorverwarmen
+  app.get(/^\/img\/hero-v1-(640|960|1600)\.webp$/, async (req, res) => {
+    const w = Number(req.params[0]);
+    try {
+      const { buf, type } = await loadHero(w);
+      res.setHeader("Content-Type", type);
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.send(buf);
+    } catch {
+      res.redirect(302, HERO_SRC(w));
+    }
+  });
+
   // API Routes
   app.post("/api/gemini/generateContent", async (req, res) => {
     const startTime = Date.now();

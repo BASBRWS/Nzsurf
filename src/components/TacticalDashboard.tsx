@@ -26,9 +26,13 @@ import { ForecastGrid } from './ForecastGrid';
 import { format, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
+import { Capacitor } from '@capacitor/core';
 
-// Hero-foto (Unsplash) in passende breedtes; moet gelijk blijven aan de preload in index.html.
-const HERO_IMG = (w: number) => `https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=${w}&q=70`;
+// Hero-foto in passende breedtes. Op de website via het eigen domein (server.ts,
+// zelfde paden als de preload in index.html); in de APK direct van Unsplash.
+const HERO_IMG = (w: number) => Capacitor.isNativePlatform()
+  ? `https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=${w}&q=65`
+  : `/img/hero-v1-${w}.webp`;
 
 interface TacticalDashboardProps {
   spot: SurfSpot;
