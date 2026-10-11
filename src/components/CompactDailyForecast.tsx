@@ -42,6 +42,7 @@ interface CompactDailyForecastProps {
   isLoggedIn: boolean;
   onSelectForecastHour: (data: ForecastData) => void;
   onOpenProfile?: () => void;
+  focusDay?: string | null; // yyyy-MM-dd: open en scroll naar deze dag (vanuit de tabel)
 }
 
 const getWeatherIcon = (code?: number) => {
@@ -93,9 +94,20 @@ export function CompactDailyForecast({
   user,
   isLoggedIn,
   onSelectForecastHour,
-  onOpenProfile
+  onOpenProfile,
+  focusDay
 }: CompactDailyForecastProps) {
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [expandedDay, setExpandedDay] = useState<string | null>(focusDay || null);
+
+  // Vanuit de tabel op een dag geklikt: die dag openklappen en ernaartoe scrollen.
+  React.useEffect(() => {
+    if (!focusDay) return;
+    setExpandedDay(focusDay);
+    const t = setTimeout(() => {
+      document.getElementById(`daycard-${focusDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [focusDay]);
 
   const dailySummaries = React.useMemo(() => {
     return processDailyForecasts(forecast, spot, user, isLoggedIn);
@@ -218,6 +230,7 @@ export function CompactDailyForecast({
           return (
             <motion.div
               key={day.dateStr}
+              id={`daycard-${day.dateStr}`}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.04 }}

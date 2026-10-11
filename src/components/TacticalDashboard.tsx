@@ -59,7 +59,9 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
   onOpenMap,
   onOpenProfile
 }) => {
-  const [forecastViewMode, setForecastViewMode] = useState<'cards' | 'grid'>('cards');
+  // Standaard de tabel (weekoverzicht); dagkaarten pas na een klik.
+  const [forecastViewMode, setForecastViewMode] = useState<'cards' | 'grid'>('grid');
+  const [focusDay, setFocusDay] = useState<string | null>(null);
   const [selectedEnergyHourIndex, setSelectedEnergyHourIndex] = useState<number>(2);
 
   const waveHeightVal = currentForecast?.waveHeight ?? (forecasts[0]?.waveHeight ?? 1.3);
@@ -600,6 +602,7 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
                   isLoggedIn={isLoggedIn}
                   onSelectForecastHour={handleHourSelect}
                   onOpenProfile={onOpenProfile}
+                  focusDay={focusDay}
                 />
               </motion.div>
             ) : (
@@ -614,6 +617,7 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
                   forecast={forecasts}
                   onCellClick={handleHourSelect}
                   spot={spot}
+                  onDayClick={(day) => { setFocusDay(day); setForecastViewMode('cards'); }}
                 />
               </motion.div>
             )}
