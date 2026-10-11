@@ -147,6 +147,16 @@ service cloud.firestore {
       allow create: if true && isValidErrorLog(request.resource.data);
       allow read, update, delete: if isAdmin();
     }
+    // Voorspellingsaudit: alleen lezen door admin; schrijven gebeurt door de
+    // GitHub-workflow met de service-account (admin SDK, buiten deze regels om).
+    match /auditForecasts/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /auditObservations/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
   }
 }
 

@@ -1,3 +1,4 @@
+import { ForecastAuditPanel } from './ForecastAuditPanel';
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Board, Wetsuit, SkillLevel, SurfSpot, ForecastData, SpotReport as SpotReportType } from '../types';
 import { SpotReport } from './SpotReport';
@@ -420,6 +421,12 @@ export function ProfileSettings({
              <Plus className="w-5 h-5" />
              Open Live Video Lab
            </button>
+        </div>
+      )}
+
+      {activeSubTab === 'beta' && isAdmin && (
+        <div className="mt-6">
+          <ForecastAuditPanel />
         </div>
       )}
 
