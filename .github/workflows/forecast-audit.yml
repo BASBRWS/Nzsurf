@@ -18,6 +18,7 @@ on:
     branches: [claude/nzsurf-apk-screenshot-krz2px]
     paths:
       - scripts/forecast-audit.ts
+      - scripts/audit-discover.ts
       - .github/workflows/forecast-audit.yml
 
 concurrency:
@@ -48,3 +49,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           STORMGLASS_API_KEY: ${{ secrets.STORMGLASS_API_KEY }}
+
+      - name: Verkenning surfsites (alleen bij test-push)
+        if: github.event_name == 'push'
+        run: bun run scripts/audit-discover.ts
