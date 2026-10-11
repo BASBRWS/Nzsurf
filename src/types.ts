@@ -33,6 +33,7 @@ export interface UserProfile {
   calendarAlertsEnabled?: boolean; // toon "Zet in agenda" bij topdagen (score >= 7.5). Default aan.
   createdAt?: string; // ISO string
   lastActiveAt?: string; // ISO string
+  lastPlatform?: string; // 'web' | 'android' | 'ios' — waarmee iemand het laatst actief was
 }
 
 export interface SurfSpot {

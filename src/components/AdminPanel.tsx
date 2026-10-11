@@ -285,7 +285,7 @@ export function AdminPanel() {
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[9px] font-mono text-slate-400">
                       <span>Lid sinds: {createdDate}</span>
-                      <span>Laatst actief: {lastActiveDate}</span>
+                      <span>Laatst actief: {lastActiveDate}{u.lastPlatform ? ` (${u.lastPlatform === 'web' ? 'site' : 'app'})` : ''}</span>
                     </div>
                   </div>
                 );
