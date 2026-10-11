@@ -81,3 +81,21 @@ knop **New repository secret**. Voeg deze zes toe:
   `0 gebruikers gescand` terwijl je zelf bent ingelogd met de toggle aan, dan staat je
   data in een andere database en pas ik de constante (of de `FIRESTORE_DATABASE_ID`
   variabele) aan.
+
+## Voorspellingsaudit (Ouddorp)
+
+Workflow `.github/workflows/forecast-audit.yml` draait dagelijks om 05:30 UTC
+(alleen vanaf `main`) en kan handmatig gestart worden via *Actions → Voorspellingsaudit
+→ Run workflow* (vinkje "Alleen testen" = niets opslaan).
+
+- **Verwachtingen** (Firestore `auditForecasts/{datum}_{bron}`), per 3 uur, 7 dagen vooruit:
+  NzSurf, ECMWF, DWD, Météo-France, GFS (alleen wind; golfpunt ligt op land),
+  KNMI HARMONIE (wind), Open-Meteo best match, Windfinder, Windfinder Superforecast,
+  breakfinder.surf, sea-forecast.com. Optioneel Stormglass (secret `STORMGLASS_API_KEY`).
+- **Metingen** (Firestore `auditObservations/{datum}`), per uur, Rijkswaterstaat:
+  golfhoogte/periode/richting Schouwenbank, wind Europlatform, waterstand Lichteiland Goeree.
+- **Niet mogelijk**: Surfline (Cloudflare blokkeert automatische toegang), Windguru
+  (vereist login), surf-forecast.com (geen pagina voor Ouddorp).
+- Resultaten: app → Profiel → Beta → Voorspellingsaudit (alleen admin), met filters en export.
+- Uitlezers van websites zijn kwetsbaar: breekt er een, dan staat die bron in de
+  Beta-pagina bij "Laatste ophaalronde" met ✗.

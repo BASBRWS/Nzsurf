@@ -135,6 +135,22 @@ export function ForecastAuditPanel() {
             {new Set(forecasts.map(f => f.runDate)).size} ophaaldagen · {forecasts.length} verwachtingen · {observations.length} meetdagen · {allPairs.length} vergelijkingen
           </p>
 
+          {/* Status laatste ophaalronde per bron (kapotte uitlezer valt hier op) */}
+          {(() => {
+            const lastRun = [...new Set(forecasts.map(f => f.runDate))].sort().pop();
+            const latest = forecasts.filter(f => f.runDate === lastRun);
+            return latest.length ? (
+              <details className="rounded-xl border border-slate-200 p-3">
+                <summary className="text-xs font-bold text-slate-700 cursor-pointer">Laatste ophaalronde ({lastRun}): {latest.filter(f => f.points?.length).length} van {latest.length} bronnen met data</summary>
+                <ul className="mt-2 space-y-0.5 text-[11px] font-mono text-slate-600">
+                  {latest.sort((a, b) => a.label.localeCompare(b.label)).map(f => (
+                    <li key={f.source}>{f.points?.length ? '✓' : '✗'} {f.label}: {f.points?.length || 0} punten{f.note ? ` — ${f.note}` : ''}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : null;
+          })()}
+
           {/* Filters */}
           <div className="space-y-2">
             <div className="flex items-center gap-1 text-[10px] font-mono font-bold uppercase text-slate-500"><Filter className="w-3 h-3" /> Filters</div>

@@ -344,8 +344,7 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
   for (const variant of RWS_VARIANTS) {
     try {
       const stations = await findRwsStations(variant);
-      console.log(`[RWS ${variant.name}] ${stations.length} kandidaat-stations; Lichteiland:`,
-        JSON.stringify(stations.find(s => /lichteiland/i.test(s.code))?.metas?.filter((m: any) => ['Hm0', 'WINDSHD', 'WATHTE'].includes(m.Grootheid?.Code))));
+      console.log(`[RWS ${variant.name}] ${stations.length} kandidaat-stations in de buurt`);
       if (!stations.length) continue;
       // Per grootheid het dichtstbijzijnde station dat hem meet (voorkeur Lichteiland Goeree).
       // Voorkeursvolgorde: dichtst bij Ouddorp eerst; de eerste met data wint.

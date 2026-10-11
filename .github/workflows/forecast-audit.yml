@@ -13,12 +13,6 @@ on:
         description: "Alleen testen (niets opslaan)"
         type: boolean
         default: false
-  # Tijdelijk: testen vanaf de ontwikkelbranch (altijd dry run).
-  push:
-    branches: [claude/nzsurf-apk-screenshot-krz2px]
-    paths:
-      - scripts/forecast-audit.ts
-      - .github/workflows/forecast-audit.yml
 
 concurrency:
   group: forecast-audit
@@ -44,7 +38,7 @@ jobs:
         env:
           # NzSurf-tijden komen als lokale tijd binnen; zo worden ze correct naar UTC omgezet.
           TZ: Europe/Amsterdam
-          AUDIT_DRY_RUN: ${{ (github.event_name == 'push' || inputs.dry_run) && '1' || '0' }}
+          AUDIT_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           STORMGLASS_API_KEY: ${{ secrets.STORMGLASS_API_KEY }}
