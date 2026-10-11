@@ -74,6 +74,7 @@ async function getJson(url: string, init?: RequestInit): Promise<any> {
   const res = await fetch(url, { ...init, signal: AbortSignal.timeout(30000) });
   const text = await res.text();
   if (!res.ok) throw new Error(`HTTP ${res.status} ${url.slice(0, 120)} — ${text.slice(0, 200)}`);
+  if (!text.trim()) return {}; // bv. 204: geen data in deze periode
   return JSON.parse(text);
 }
 
@@ -93,7 +94,8 @@ async function collectNzSurf(): Promise<SourceResult> {
       chance: f.surfChance,
       tide: round(f.tideHeight),
     }))
-    .filter(p => keep(p.t));
+    // NzSurf rekent in 3-uursblokken op NL-tijd; die liggen niet op het UTC-raster.
+    .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
   return { source: 'nzsurf', label: 'NzSurf (ons algoritme)', kind: 'nzsurf', points,
     note: fc[0]?.tideSource ? `getij: ${fc[0].tideSource}` : undefined };
 }
@@ -105,7 +107,7 @@ const MODEL_FAMILIES: { source: string; label: string; wave?: string; wind?: str
   { source: 'ecmwf', label: 'ECMWF (WAM + IFS)', wave: 'ecmwf_wam025', wind: 'ecmwf_ifs025' },
   { source: 'dwd', label: 'DWD (EWAM + ICON)', wave: 'ewam', wind: 'icon_seamless' },
   { source: 'meteofrance', label: 'Météo-France (MFWAM + Arpège/Arome)', wave: 'meteofrance_wave', wind: 'meteofrance_seamless' },
-  { source: 'gfs', label: 'NOAA GFS (wave + wind)', wave: 'ncep_gfswave025', wind: 'gfs_seamless' },
+  { source: 'gfs', label: 'NOAA GFS (wave + wind)', wave: 'ncep_gfswave016,ncep_gfswave025', wind: 'gfs_seamless' },
   { source: 'knmi', label: 'KNMI HARMONIE (alleen wind)', wind: 'knmi_seamless' },
   { source: 'openmeteo', label: 'Open-Meteo best match', wave: 'best_match', wind: 'best_match' },
 ];
@@ -119,17 +121,26 @@ async function collectModel(fam: typeof MODEL_FAMILIES[number]): Promise<SourceR
     if (!byTime.has(t)) byTime.set(t, { t, lead: leadOf(t) });
     return byTime.get(t)!;
   };
-  if (fam.wave) {
+  // Meerdere golfmodellen mogelijk (komma): de eerste met bruikbare waarden wint.
+  // Hoogte én periode 0 = rasterpunt op land → als ontbrekend behandelen.
+  for (const waveModel of (fam.wave || '').split(',').filter(Boolean)) {
     try {
       const d = await getJson(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}` +
-        `&hourly=wave_height,wave_period,wave_direction&models=${fam.wave}&timezone=GMT&forecast_days=8`);
+        `&hourly=wave_height,wave_period,wave_direction&models=${waveModel}&timezone=GMT&forecast_days=8`);
+      const hs: (number | null)[] = d.hourly?.wave_height || [];
+      const tp: (number | null)[] = d.hourly?.wave_period || [];
+      const usable = hs.some((v, i) => typeof v === 'number' && (v > 0 || (tp[i] ?? 0) > 0));
+      if (!usable) { notes.push(`golfmodel ${waveModel}: geen bruikbare waarden (land?)`); continue; }
       d.hourly.time.forEach((iso: string, i: number) => {
+        if (!(typeof hs[i] === 'number' && ((hs[i] as number) > 0 || (tp[i] ?? 0) > 0))) return;
         const p = at(iso);
-        p.hs = round(d.hourly.wave_height[i]);
-        p.tp = round(d.hourly.wave_period[i], 1);
+        p.hs = round(hs[i]);
+        p.tp = round(tp[i], 1);
         p.dir = round(d.hourly.wave_direction[i], 0);
       });
-    } catch (e: any) { notes.push(`golfmodel ${fam.wave}: ${e.message}`); }
+      if (waveModel !== fam.wave) notes.push(`golfmodel: ${waveModel}`);
+      break;
+    } catch (e: any) { notes.push(`golfmodel ${waveModel}: ${e.message}`); }
   }
   if (fam.wind) {
     try {
@@ -203,19 +214,45 @@ async function findRwsStations(variant: typeof RWS_VARIANTS[number]) {
   const nameHit = (l: any) => /goeree|lichteiland|haringvliet|brouwers|stellendam|europlatform|schouwenbank/i.test(`${l.Naam} ${l.Code}`);
   const stations = locs.filter(nameHit).map(l => {
     const metaIds = links.filter(k => k.Locatie_MessageID === l.Locatie_MessageID).map(k => k.AquoMetaData_MessageID);
-    const grootheden = [...new Set(meta.filter(m => metaIds.includes(m.AquoMetadata_MessageID)).map(m => m.Grootheid?.Code))];
-    return { code: l.Code, naam: l.Naam, x: l.X, y: l.Y, grootheden };
+    const metas = meta.filter(m => metaIds.includes(m.AquoMetadata_MessageID));
+    const grootheden = [...new Set(metas.map(m => m.Grootheid?.Code))];
+    return { code: l.Code, naam: l.Naam, x: l.X, y: l.Y, grootheden, metas };
   });
   return stations;
 }
 
-async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { code: string; x?: number; y?: number }, grootheid: string, from: Date, to: Date) {
-  const body = {
-    Locatie: { Code: station.code, ...(station.x !== undefined ? { X: station.x, Y: station.y } : {}) },
-    AquoPlusWaarnemingMetadata: { AquoMetadata: { Compartiment: { Code: 'OW' }, Grootheid: { Code: grootheid } } },
-    Periode: { Begindatumtijd: from.toISOString().replace('Z', '+00:00'), Einddatumtijd: to.toISOString().replace('Z', '+00:00') },
-  };
-  const d = await rwsPost(variant.base + variant.obs, body);
+async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { code: string; x?: number; y?: number; metas?: any[] }, grootheid: string, from: Date, to: Date) {
+  // Probeer eerst met de volledige metadata uit de catalogus (eenheid, hoedanigheid,
+  // procestype 'meting'); valt dat leeg uit, dan de korte vorm.
+  const fmt = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, '.000+00:00');
+  const metas = (station.metas || []).filter(m => m.Grootheid?.Code === grootheid);
+  const bodies: any[] = [];
+  for (const m of metas) {
+    bodies.push({
+      Compartiment: { Code: m.Compartiment?.Code || 'OW' },
+      Grootheid: { Code: grootheid },
+      ...(m.Eenheid?.Code ? { Eenheid: { Code: m.Eenheid.Code } } : {}),
+      ...(m.Hoedanigheid?.Code ? { Hoedanigheid: { Code: m.Hoedanigheid.Code } } : {}),
+      ...(m.Parameter?.Code && m.Parameter.Code !== 'NVT' ? { Parameter: { Code: m.Parameter.Code } } : {}),
+    });
+  }
+  bodies.push({ Compartiment: { Code: 'OW' }, Grootheid: { Code: grootheid } });
+  let d: any = {};
+  outer: for (const aquo of bodies) {
+    for (const withProces of [true, false]) {
+      try {
+        d = await rwsPost(variant.base + variant.obs, {
+          Locatie: { Code: station.code, ...(station.x !== undefined ? { X: station.x, Y: station.y } : {}) },
+          AquoPlusWaarnemingMetadata: { AquoMetadata: withProces ? { ...aquo, ProcesType: 'meting' } : aquo },
+          Periode: { Begindatumtijd: fmt(from), Einddatumtijd: fmt(to) },
+        });
+        if ((d.WaarnemingenLijst || []).length) break outer;
+        console.log(`[RWS] ${grootheid}@${station.code}: leeg met ${JSON.stringify(aquo)}${withProces ? ' +meting' : ''}`);
+      } catch (e: any) {
+        console.log(`[RWS] ${grootheid}@${station.code}: fout met ${JSON.stringify(aquo)}${withProces ? ' +meting' : ''}: ${e.message.slice(0, 160)}`);
+      }
+    }
+  }
   const out: { t: string; v: number; unit: string }[] = [];
   for (const w of d.WaarnemingenLijst || []) {
     const unit = w.AquoMetadata?.Eenheid?.Code || '';
@@ -233,10 +270,11 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
   for (const variant of RWS_VARIANTS) {
     try {
       const stations = await findRwsStations(variant);
-      console.log(`[RWS ${variant.name}] kandidaat-stations:`, JSON.stringify(stations));
+      console.log(`[RWS ${variant.name}] ${stations.length} kandidaat-stations; Lichteiland:`,
+        JSON.stringify(stations.find(s => /lichteiland/i.test(s.code))?.metas?.filter((m: any) => ['Hm0', 'WINDSHD'].includes(m.Grootheid?.Code))));
       if (!stations.length) continue;
       // Per grootheid het dichtstbijzijnde station dat hem meet (voorkeur Lichteiland Goeree).
-      const pref = (s: any) => (/lichteiland|goeree/i.test(`${s.naam} ${s.code}`) ? 0 : 1);
+      const pref = (s: any) => /lichteiland/i.test(s.code) ? 0 : /europlatform/i.test(s.code) ? 1 : /haringvlietmond/i.test(s.code) ? 2 : 3;
       const hourly = new Map<string, ObsPoint>();
       const used = new Set<string>();
       for (const p of RWS_PARAMS) {
