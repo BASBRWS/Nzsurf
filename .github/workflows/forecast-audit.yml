@@ -52,4 +52,15 @@ jobs:
 
       - name: Verkenning surfsites (alleen bij test-push)
         if: github.event_name == 'push'
-        run: bun run scripts/audit-discover.ts
+        run: |
+          bunx playwright install --with-deps chromium >/dev/null 2>&1 || echo "playwright install mislukt"
+          bun add -d playwright@1.56.1 >/dev/null 2>&1 || true
+          bun run scripts/audit-discover.ts
+
+      - name: Bewaar verkenning
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: discover
+          path: discover/
+          retention-days: 3

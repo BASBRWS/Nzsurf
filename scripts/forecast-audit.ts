@@ -237,10 +237,11 @@ async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { c
       ...(m.ProcesType ? { ProcesType: m.ProcesType } : {}),
     });
   }
-  bodies.push({ Compartiment: { Code: 'OW' }, Grootheid: { Code: grootheid } });
+  // Korte vorm eerst (werkt bij de meeste posten), dan de volledige catalogusvarianten.
+  bodies.unshift({ Compartiment: { Code: metas[0]?.Compartiment?.Code || 'OW' }, Grootheid: { Code: grootheid } });
   let d: any = {};
   outer: for (const aquo of bodies) {
-    for (const withProces of [true, false]) {
+    for (const withProces of [false]) {
       try {
         d = await rwsPost(variant.base + variant.obs, {
           Locatie: { Code: station.code, ...(station.x !== undefined ? { X: station.x, Y: station.y } : {}) },
@@ -248,7 +249,7 @@ async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { c
           Periode: { Begindatumtijd: fmt(from), Einddatumtijd: fmt(to) },
         });
         if ((d.WaarnemingenLijst || []).length) break outer;
-        console.log(`[RWS] ${grootheid}@${station.code}: leeg met ${JSON.stringify(aquo)}${withProces ? ' +meting' : ''}`);
+        // leeg: probeer de volgende variant
       } catch (e: any) {
         console.log(`[RWS] ${grootheid}@${station.code}: fout met ${JSON.stringify(aquo)}${withProces ? ' +meting' : ''}: ${e.message.slice(0, 160)}`);
       }
@@ -275,14 +276,23 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
         JSON.stringify(stations.find(s => /lichteiland/i.test(s.code))?.metas?.filter((m: any) => ['Hm0', 'WINDSHD', 'WATHTE'].includes(m.Grootheid?.Code))));
       if (!stations.length) continue;
       // Per grootheid het dichtstbijzijnde station dat hem meet (voorkeur Lichteiland Goeree).
-      const pref = (s: any) => /lichteiland/i.test(s.code) ? 0 : /europlatform/i.test(s.code) ? 1 : /haringvlietmond/i.test(s.code) ? 2 : 3;
+      // Voorkeursvolgorde: dichtst bij Ouddorp eerst; de eerste met data wint.
+      const ORDER = ['goeree.lichteiland', 'schouwenbank.1', 'schouwenbank.2', 'schouwenbank', 'haringvlietmond', 'europlatform', 'europlatform.3', 'brouwersdam.brouwershavensegat.2'];
+      const pref = (s: any) => { const i = ORDER.indexOf(s.code); return i === -1 ? 99 : i; };
       const hourly = new Map<string, ObsPoint>();
       const used = new Set<string>();
       for (const p of RWS_PARAMS) {
-        const st = stations.filter(s => s.grootheden.includes(p.code)).sort((a, b) => pref(a) - pref(b))[0];
-        if (!st) { console.log(`[RWS] geen station met ${p.code}`); continue; }
+        const candidates = stations.filter(s => s.grootheden.includes(p.code) && pref(s) < 99).sort((a, b) => pref(a) - pref(b));
+        if (!candidates.length) { console.log(`[RWS] geen station met ${p.code}`); continue; }
+        let st = candidates[0];
         try {
-          const series = await fetchRwsSeries(variant, st, p.code, from, to);
+          let series: { t: string; v: number; unit: string }[] = [];
+          for (const c of candidates) {
+            series = await fetchRwsSeries(variant, c, p.code, from, to);
+            st = c;
+            if (series.length) break;
+          }
+          if (!series.length) { console.log(`[RWS] ${p.code}: geen data bij ${candidates.map(c => c.code).join(', ')}`); continue; }
           used.add(`${p.code}@${st.code}`);
           // Uurwaarde = gemiddelde van de metingen in dat uur (richtingen: vectorgemiddelde).
           const buckets = new Map<string, { v: number[]; unit: string }>();
