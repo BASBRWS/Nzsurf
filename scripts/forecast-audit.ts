@@ -181,6 +181,78 @@ async function collectStormglass(): Promise<SourceResult | null> {
   return { source: 'stormglass', label: 'Stormglass', kind: 'model', points };
 }
 
+// ── Bronnen: surfsites (pagina uitlezen) ────────────────────────────────────
+// Kwetsbaar: als een site zijn opbouw wijzigt, levert de bron 0 punten op (de rest
+// draait gewoon door) en zie je dat in de workflow-log en de Beta-pagina.
+const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36';
+async function getHtml(url: string): Promise<string> {
+  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'text/html' }, signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+  return res.text();
+}
+const unescapeHtml = (t: string) => t.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+// Windfinder (Astro-props: "fcData":[0,{"wd":[0,186.37],"ws":[0,8.68],...,"dt":[0,"2026-10-13T00:00:00Z"]}])
+async function collectWindfinder(url: string, source: string, label: string): Promise<SourceResult> {
+  const html = unescapeHtml(await getHtml(url));
+  const points: AuditPoint[] = [];
+  for (const m of html.matchAll(/"fcData":\[0,\{([^{}]*)\}\]/g)) {
+    const kv: Record<string, string> = {};
+    for (const f of m[1].matchAll(/"(\w+)":\[0,("?[^\],]*"?)\]/g)) kv[f[1]] = f[2].replace(/"/g, '');
+    if (!kv.dt) continue;
+    const t = new Date(kv.dt).toISOString();
+    const num = (k: string) => (kv[k] !== undefined && kv[k] !== '' ? Number(kv[k]) : undefined);
+    points.push(clean<AuditPoint>({
+      t, lead: leadOf(t),
+      hs: round(num('wah')), tp: round(num('wap'), 1), dir: round(num('wad'), 0),
+      windKn: round(num('ws') !== undefined ? num('ws')! * KN_PER_MS : undefined, 1),
+      windDir: round(num('wd'), 0),
+      gustKn: round(num('wg') !== undefined ? num('wg')! * KN_PER_MS : undefined, 1),
+    }));
+  }
+  const uniq = [...new Map(points.map(p => [p.t, p])).values()].filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
+  return { source, label, kind: 'site', points: uniq };
+}
+
+// breakfinder.surf (data-spot-dial-payload-value: days[{date, hours[24 lokale uren]}])
+async function collectBreakfinder(): Promise<SourceResult> {
+  const html = await getHtml('https://breakfinder.surf/en/surf_spots/ouddorp');
+  const m = html.match(/data-spot-dial-payload-value="([^"]+)"/);
+  if (!m) throw new Error('payload niet gevonden');
+  const payload = JSON.parse(unescapeHtml(m[1]));
+  const points: AuditPoint[] = [];
+  for (const day of payload.days || []) {
+    (day.hours || []).forEach((h: any, hour: number) => {
+      if (!h) return;
+      // Lokale tijd (Europe/Amsterdam; de workflow draait met TZ=Europe/Amsterdam).
+      const [y, mo, d] = String(day.date).split('-').map(Number);
+      const t = new Date(y, mo - 1, d, hour).toISOString();
+      points.push(clean<AuditPoint>({
+        t, lead: leadOf(t),
+        hs: round(h.wave), tp: round(h.period, 1),
+        windKn: round(typeof h.wind === 'number' ? h.wind * KN_PER_MS : undefined, 1),
+        rating: h.score !== undefined ? String(h.score) : undefined,
+        chance: typeof h.score === 'number' ? h.score : undefined,
+        tide: round(h.tide),
+      }));
+    });
+  }
+  return { source: 'breakfinder', label: 'breakfinder.surf', kind: 'site',
+    points: points.filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS && new Date(p.t).getUTCHours() % STEP_HOURS === 0) };
+}
+
+// sea-forecast.com (weekgrafiek: { x: moment("2026-10-11 06:00:00"), y: 0.7 }, lokale tijd, golfhoogte m)
+async function collectSeaForecast(): Promise<SourceResult> {
+  const html = await getHtml('https://sea-forecast.com/netherlands/ouddorp');
+  const points: AuditPoint[] = [];
+  for (const m of html.matchAll(/moment\(\\?"(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):\d{2}\\?"\),\s*y:\s*([\d.]+)/g)) {
+    const t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).toISOString();
+    points.push({ t, lead: leadOf(t), hs: round(Number(m[6])) });
+  }
+  const uniq = [...new Map(points.map(p => [p.t, p])).values()].filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
+  return { source: 'seaforecast', label: 'sea-forecast.com (golf, per 6 uur)', kind: 'site', points: uniq };
+}
+
 // ── Metingen: Rijkswaterstaat (Lichteiland Goeree e.o.) ─────────────────────
 // RWS heeft twee generaties webservices; we proberen beide en loggen wat werkt.
 export interface ObsPoint { t: string; hs?: number; tm02?: number; dir?: number; windKn?: number; windDir?: number; level?: number }
@@ -342,6 +414,10 @@ async function main() {
     collectNzSurf(),
     ...MODEL_FAMILIES.map(collectModel),
     collectStormglass(),
+    collectWindfinder('https://www.windfinder.com/forecast/ouddorp', 'windfinder', 'Windfinder'),
+    collectWindfinder('https://www.windfinder.com/weatherforecast/ouddorp', 'windfinder-super', 'Windfinder Superforecast'),
+    collectBreakfinder(),
+    collectSeaForecast(),
   ];
   const results = await Promise.allSettled(jobs);
   let ok = 0;
