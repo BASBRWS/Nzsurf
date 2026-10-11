@@ -70,13 +70,30 @@ function analyse(file: string) {
 }
 
 async function main() {
-  await save('surfnerd.html', 'https://www.surfnerd.com/surf-forecast/ouddorp');
+  if (process.env.SKIP_SAVE !== '1') await save('surfnerd.html', 'https://www.surfnerd.com/surf-forecast/ouddorp');
   await save('windfinder.html', 'https://www.windfinder.com/forecast/ouddorp');
   await save('windfinder-super.html', 'https://www.windfinder.com/weatherforecast/ouddorp');
   await save('spotsguru.html', 'https://spots.guru/forecast/surf-ouddorp');
   await save('breakfinder.html', 'https://breakfinder.surf/en/surf_spots/ouddorp');
   await save('seaforecast.html', 'https://sea-forecast.com/netherlands/ouddorp');
-  for (const f of ['surfnerd.html', 'windfinder.html', 'windfinder-super.html', 'spotsguru.html', 'breakfinder.html', 'seaforecast.html']) analyse(f);
-  await surflineBrowser();
+  const rd = (f: string) => existsSync(`discover/${f}`) ? readFileSync(`discover/${f}`, 'utf8') : '';
+  const bf = rd('breakfinder.html');
+  const hi = bf.indexOf('&quot;hours&quot;');
+  console.log('\n##### breakfinder voor "hours":', bf.slice(Math.max(0, hi - 900), hi + 100).replace(/\s+/g, ' '));
+  console.log('##### breakfinder één uur:', bf.slice(hi, hi + 1600).replace(/&quot;/g, '"'));
+  const sf = rd('seaforecast.html');
+  const wi = sf.indexOf('function Init_Weekly_Graph');
+  console.log('\n##### seaforecast weekly:', sf.slice(wi, wi + 1800).replace(/\s+/g, ' '));
+  const wf = rd('windfinder.html').replace(/&quot;/g, '"');
+  let k = 0, from = 0;
+  while (k < 4) {
+    const i = wf.slice(from).search(/"(wah|ws|wd|dtl|d)"\s*:\s*\[?\s*-?[0-9\[]/);
+    if (i < 0) break;
+    const at = from + i;
+    console.log(`\n##### windfinder data ${k}:`, wf.slice(Math.max(0, at - 300), at + 700).replace(/\s+/g, ' '));
+    from = at + 3000; k++;
+  }
+  const ii = wf.search(/astro-island|data-props|props=/);
+  console.log('\n##### windfinder island:', ii >= 0 ? wf.slice(ii, ii + 900).replace(/\s+/g, ' ') : 'geen');
 }
 main();
