@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { withAreaDefaults } from './utils/spotKnowledge';
+import { CATALOG_BY_ID, toSurfSpot } from './data/spotCatalog';
 import { pickNow } from './utils/surfMoments';
 import { Capacitor } from '@capacitor/core';
 import { 
@@ -70,6 +71,7 @@ const CommunitySection = lazy(() => import('./components/CommunitySection').then
 const FeedbackModal = lazy(() => import('./components/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 const AdviceModal = lazy(() => import('./components/AdviceModal').then(m => ({ default: m.AdviceModal })));
 const AddSpotModal = lazy(() => import('./components/AddSpotModal').then(m => ({ default: m.AddSpotModal })));
+const KnownSpots = lazy(() => import('./components/KnownSpots').then(m => ({ default: m.KnownSpots })));
 
 // true zodra een modal één keer open is geweest: pas dan laden we de (lazy) code,
 // en daarna blijft hij gemount zodat sluit-animaties gewoon werken.
@@ -84,6 +86,13 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [sharedSpots, setSharedSpots] = useState<SurfSpot[]>([]);
+  // Bekende spot die via een link (?spot=...) bekeken wordt maar nog niet in het profiel staat.
+  const [previewSpotId, setPreviewSpotId] = useState<string | null>(() => {
+    try {
+      const id = new URLSearchParams(window.location.search).get('spot');
+      return id && CATALOG_BY_ID.has(id) ? id : null;
+    } catch { return null; }
+  });
   const [selectedSpotId, setSelectedSpotId] = useState<string>(DEFAULT_SPOTS[0].id);
   const [forecast, setForecast] = useState<ForecastData[]>([]);
   const [isForecastLoading, setIsForecastLoading] = useState(false);
@@ -112,9 +121,18 @@ export default function App() {
     (user.savedSpots || []).forEach(s => spotMap.set(s.id, s));
     // 3. Shared community spots from Firestore
     sharedSpots.forEach(s => spotMap.set(s.id, s));
+    // 4. Bekende spot die via een link bekeken wordt (nog niet toegevoegd)
+    const preview = previewSpotId ? CATALOG_BY_ID.get(previewSpotId) : undefined;
+    if (preview && !spotMap.has(preview.id)) spotMap.set(preview.id, toSurfSpot(preview));
     // Zelf aangemaakte spots erven gebiedskennis (o.a. Atlantisch o.b.v. coördinaten).
     return Array.from(spotMap.values()).map(withAreaDefaults);
-  }, [user.savedSpots, sharedSpots]);
+  }, [user.savedSpots, sharedSpots, previewSpotId]);
+
+  // Spots die de gebruiker zelf in zijn lijst heeft (standaard + opgeslagen).
+  const savedSpotIds = useMemo(
+    () => new Set<string>([...DEFAULT_SPOTS.map(s => s.id), ...(user.savedSpots || []).map(s => s.id)]),
+    [user.savedSpots]
+  );
 
   // Selected Surf Spot
   const selectedSpot = useMemo(() => 
@@ -317,6 +335,17 @@ export default function App() {
     setNewSpotInitialCoords(null);
   };
 
+  // Bekende spot overnemen in het eigen profiel (niet standaard aan).
+  const handleAdoptSpot = async (spotId: string) => {
+    const known = CATALOG_BY_ID.get(spotId);
+    if (!known) return;
+    if (!savedSpotIds.has(spotId)) {
+      const existingSaved = user.savedSpots || [];
+      await handleUpdateProfile({ ...user, savedSpots: [...existingSaved, toSurfSpot(known)] });
+    }
+    setSelectedSpotId(spotId);
+  };
+
   const handleDeleteSpot = async (spotId: string) => {
     // Prevent deletion of default core North Sea spots
     if (DEFAULT_SPOTS.some(s => s.id === spotId)) {
@@ -478,6 +507,17 @@ export default function App() {
 
         {/* Main Content View Switcher */}
         <main className="space-y-5">
+          {previewSpotId && selectedSpotId === previewSpotId && !savedSpotIds.has(previewSpotId) && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+              <span>Je bekijkt <b>{selectedSpot.name}</b>. Deze spot staat nog niet in je lijst.</span>
+              <button
+                onClick={() => handleAdoptSpot(previewSpotId)}
+                className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 text-white hover:bg-cyan-600 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Toevoegen
+              </button>
+            </div>
+          )}
           <Suspense fallback={<div className="py-16 text-center text-xs font-mono text-slate-400">Laden…</div>}>
           <AnimatePresence mode="wait">
             {/* View 1: Tactical Dashboard / Swell (Frame 00:00 in Light Theme) */}
@@ -547,6 +587,14 @@ export default function App() {
                   forecasts={{ [selectedSpotId]: forecast[0] }}
                   userCoords={userCoords}
                 />
+                <div className="mt-4">
+                  <KnownSpots
+                    savedIds={savedSpotIds}
+                    selectedSpotId={selectedSpotId}
+                    onAdd={handleAdoptSpot}
+                    onSelect={(id) => setSelectedSpotId(id)}
+                  />
+                </div>
               </motion.div>
             )}
 

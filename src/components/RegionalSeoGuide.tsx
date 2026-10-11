@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { SurfSpot } from '../types';
 import { Compass, Waves, Wind, MapPin, ChevronDown, ChevronUp, ShieldCheck, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { Capacitor } from '@capacitor/core';
+import { SPOT_CATALOG, spotPagePath } from '../data/spotCatalog';
 
 interface RegionalSeoGuideProps {
   spots: SurfSpot[];
@@ -59,6 +61,21 @@ export function RegionalSeoGuide({ spots, selectedSpotId, onSelectSpot }: Region
           );
         })}
       </div>
+
+      {/* Vindbare spotpagina's (alleen op de website; in de app bestaan die pagina's niet) */}
+      {!Capacitor.isNativePlatform() && (
+        <nav aria-label="Surfverwachting per spot" className="pt-3 text-xs text-slate-500 leading-relaxed">
+          <span className="font-mono font-bold uppercase mr-1">Surfverwachting:</span>
+          {SPOT_CATALOG.map((s, i) => (
+            <React.Fragment key={s.slug}>
+              {i > 0 && ' · '}
+              <a href={spotPagePath(s)} className="hover:text-cyan-700 hover:underline">{s.name}</a>
+            </React.Fragment>
+          ))}
+          {' · '}
+          <a href="/surfverwachting/" className="font-bold text-cyan-700 hover:underline">alle spots</a>
+        </nav>
+      )}
 
       {/* Expanded SEO Guide & Deep Regional Information */}
       {isOpen && (
