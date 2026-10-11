@@ -50,6 +50,25 @@ async function surflineBrowser() {
   } catch (e: any) { console.log('Surfline browser: FOUT', e.message); }
 }
 
+import { readFileSync, existsSync } from 'fs';
+function analyse(file: string) {
+  if (!existsSync(`discover/${file}`)) return;
+  const t = readFileSync(`discover/${file}`, 'utf8');
+  console.log(`\n##### ${file} (${t.length})`);
+  const scripts = [...t.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)]
+    .map(m => ({ attrs: m[1].trim().slice(0, 80), len: m[2].length, head: m[2].trim().slice(0, 90).replace(/\s+/g, ' ') }))
+    .filter(x => x.len > 500).sort((a, b) => b.len - a.len).slice(0, 6);
+  console.log('grote scripts:', JSON.stringify(scripts));
+  for (const re of [/swell|wave_?height|waveHeight|golfhoogte/i, /period/i, /"(time|timestamp|datetime|date)"\s*:/i]) {
+    let i = 0, from = 0, n = 0;
+    while (n < 3 && (i = t.slice(from).search(re)) >= 0) {
+      const at = from + i;
+      console.log(`  [${re.source.slice(0, 20)}] …${t.slice(Math.max(0, at - 150), at + 250).replace(/\s+/g, ' ')}…`);
+      from = at + 2000; n++;
+    }
+  }
+}
+
 async function main() {
   await save('surfnerd.html', 'https://www.surfnerd.com/surf-forecast/ouddorp');
   await save('windfinder.html', 'https://www.windfinder.com/forecast/ouddorp');
@@ -57,6 +76,7 @@ async function main() {
   await save('spotsguru.html', 'https://spots.guru/forecast/surf-ouddorp');
   await save('breakfinder.html', 'https://breakfinder.surf/en/surf_spots/ouddorp');
   await save('seaforecast.html', 'https://sea-forecast.com/netherlands/ouddorp');
+  for (const f of ['surfnerd.html', 'windfinder.html', 'windfinder-super.html', 'spotsguru.html', 'breakfinder.html', 'seaforecast.html']) analyse(f);
   await surflineBrowser();
 }
 main();
