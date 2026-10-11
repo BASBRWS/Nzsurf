@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { withAreaDefaults } from './utils/spotKnowledge';
+import { pickNow } from './utils/surfMoments';
 import { Capacitor } from '@capacitor/core';
 import { 
   auth, 
@@ -367,7 +368,7 @@ export default function App() {
     if (!forecast[0]) return;
     setIsAdviceLoading(true);
     try {
-      const res = await getSurfAdvice(user, selectedSpot, forecast[0], []);
+      const res = await getSurfAdvice(user, selectedSpot, pickNow(forecast) || forecast[0], []);
       setAdvice(res);
     } catch (e) {
       console.error(e);
@@ -376,7 +377,8 @@ export default function App() {
     }
   };
 
-  const currentForecastData = forecast[0] || null;
+  // Het blok dat het dichtst bij nu ligt (de reeks begint om 00:00 van vandaag).
+  const currentForecastData = pickNow(forecast);
 
   return (
     <div className="min-h-screen bg-[#F0F4F8] text-slate-800 font-sans antialiased overflow-x-hidden selection:bg-cyan-500 selection:text-slate-950">
@@ -511,6 +513,8 @@ export default function App() {
                   onOpenAICoach={() => setActiveTab('ai')}
                   onOpenMap={() => setActiveTab('spots')}
                   onOpenProfile={() => setActiveTab('profile')}
+                  allSpots={allSpots}
+                  onSelectSpot={(id) => { setSelectedSpotId(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 />
               </motion.div>
             )}
