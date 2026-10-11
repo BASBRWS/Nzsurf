@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Download, Loader2, Trophy, Filter } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { SpotReportAudit } from './SpotReportAudit';
 import { cn } from '../lib/utils';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
@@ -25,6 +26,9 @@ const WIND_FILTERS = [
 const WAVE_FILTERS = [
   { key: 0, label: 'Alle golven' }, { key: 0.5, label: 'Golf ≥ 0,5 m' }, { key: 1, label: 'Golf ≥ 1 m' }, { key: 1.5, label: 'Golf ≥ 1,5 m' },
 ];
+
+// De audit draait voor Ouddorp (zie scripts/forecast-audit.ts).
+const AUDIT_SPOT_ID = 'ouddorp-p-noordweg';
 
 const fmtNum = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
 
@@ -192,6 +196,11 @@ export function ForecastAuditPanel() {
                 </li>
               ))}
             </ul>
+            <p className="text-[11px] text-slate-600 mt-2">
+              Let op bij het lezen: NzSurf haalt zijn ruwe cijfers zelf bij Open-Meteo (golven: standaard golfmodel, wind: GFS).
+              Op golfhoogte, periode en wind volgt NzSurf dus vooral die bronnen. Wat NzSurf eigen maakt (spothoogte, getij, kans) meet de boei niet;
+              dat staat hieronder bij de spotrapporten. Gebruik de ranglijst om het beste model voor NzSurf te kiezen.
+            </p>
           </div>
 
           {/* Ranglijst */}
@@ -249,6 +258,8 @@ export function ForecastAuditPanel() {
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ruwe data (JSON)</button>
           </div>
           <p className="text-[10px] text-slate-500">CSV gebruikt puntkomma's en opent direct in Excel. Export werkt op de website; in de app kan downloaden beperkt zijn.</p>
+
+          <SpotReportAudit auditDocs={forecasts} auditSpotId={AUDIT_SPOT_ID} onDownload={download} />
         </>
       )}
     </div>
