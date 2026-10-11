@@ -205,7 +205,7 @@ async function rwsPost(url: string, body: unknown) {
 
 async function findRwsStations(variant: typeof RWS_VARIANTS[number]) {
   const cat = await rwsPost(variant.base + variant.catalog, {
-    CatalogusFilter: { Grootheden: true, Parameters: true, Compartimenten: true, Eenheden: true },
+    CatalogusFilter: { Grootheden: true, Parameters: true, Compartimenten: true, Eenheden: true, Hoedanigheden: true, Groeperingen: true, ProcesTypes: true },
   });
   const locs: any[] = cat.LocatieLijst || [];
   const meta: any[] = cat.AquoMetadataLijst || [];
@@ -233,7 +233,8 @@ async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { c
       Grootheid: { Code: grootheid },
       ...(m.Eenheid?.Code ? { Eenheid: { Code: m.Eenheid.Code } } : {}),
       ...(m.Hoedanigheid?.Code ? { Hoedanigheid: { Code: m.Hoedanigheid.Code } } : {}),
-      ...(m.Parameter?.Code && m.Parameter.Code !== 'NVT' ? { Parameter: { Code: m.Parameter.Code } } : {}),
+      ...(m.Parameter?.Code ? { Parameter: { Code: m.Parameter.Code } } : {}),
+      ...(m.ProcesType ? { ProcesType: m.ProcesType } : {}),
     });
   }
   bodies.push({ Compartiment: { Code: 'OW' }, Grootheid: { Code: grootheid } });
@@ -271,7 +272,7 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
     try {
       const stations = await findRwsStations(variant);
       console.log(`[RWS ${variant.name}] ${stations.length} kandidaat-stations; Lichteiland:`,
-        JSON.stringify(stations.find(s => /lichteiland/i.test(s.code))?.metas?.filter((m: any) => ['Hm0', 'WINDSHD'].includes(m.Grootheid?.Code))));
+        JSON.stringify(stations.find(s => /lichteiland/i.test(s.code))?.metas?.filter((m: any) => ['Hm0', 'WINDSHD', 'WATHTE'].includes(m.Grootheid?.Code))));
       if (!stations.length) continue;
       // Per grootheid het dichtstbijzijnde station dat hem meet (voorkeur Lichteiland Goeree).
       const pref = (s: any) => /lichteiland/i.test(s.code) ? 0 : /europlatform/i.test(s.code) ? 1 : /haringvlietmond/i.test(s.code) ? 2 : 3;
