@@ -10,6 +10,7 @@ interface ForecastGridProps {
   forecast: ForecastData[];
   onCellClick: (data: ForecastData) => void;
   spot?: SurfSpot; // nodig om de kans te berekenen als die niet in de data zit
+  onDayClick?: (day: string) => void; // yyyy-MM-dd → dagkaart van die dag openen
 }
 
 // Kleur = kans dat de spot werkt (hoogte op de spot, swellrichting, periode, wind
@@ -65,7 +66,7 @@ const getWeatherIcon = (code?: number) => {
   }
 };
 
-export function ForecastGrid({ forecast, onCellClick, spot }: ForecastGridProps) {
+export function ForecastGrid({ forecast, onCellClick, spot, onDayClick }: ForecastGridProps) {
   // Group by day
   const days = Array.from(new Set(forecast.map(f => format(parseISO(f.timestamp), 'yyyy-MM-dd'))));
 
@@ -110,7 +111,11 @@ export function ForecastGrid({ forecast, onCellClick, spot }: ForecastGridProps)
         <tbody className="divide-y divide-slate-100">
           {days.map((day) => (
             <tr key={day} className="group hover:bg-slate-50/50 transition-colors">
-              <td className="py-3 sm:py-4 px-2 sm:px-4 align-middle sticky left-0 bg-white/95 z-10 border-r border-slate-200">
+              <td
+                className={cn("py-3 sm:py-4 px-2 sm:px-4 align-middle sticky left-0 bg-white/95 z-10 border-r border-slate-200", onDayClick && "cursor-pointer")}
+                onClick={() => onDayClick?.(day)}
+                title={onDayClick ? 'Bekijk de dagkaart' : undefined}
+              >
                 <div className="flex flex-col leading-none">
                   <span className="capitalize text-xs sm:text-sm font-black font-tactical text-slate-900 group-hover:text-cyan-700 transition-colors">
                     {format(parseISO(day), 'EEEE', { locale: nl }).slice(0, 2)}
@@ -118,6 +123,9 @@ export function ForecastGrid({ forecast, onCellClick, spot }: ForecastGridProps)
                   <span className="text-[9px] sm:text-[10px] font-mono font-bold text-slate-500 uppercase tracking-tight mt-0.5">
                     {format(parseISO(day), 'd/MM')}
                   </span>
+                  {onDayClick && (
+                    <span className="text-[8px] sm:text-[9px] font-mono font-bold text-cyan-600 mt-1">dag ›</span>
+                  )}
                 </div>
               </td>
               {hoursToShow.map((hour) => {

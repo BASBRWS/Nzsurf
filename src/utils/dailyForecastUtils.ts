@@ -609,7 +609,23 @@ export function processDailyForecasts(
       pill: 'rating-pill-fair'
     };
 
-    if (maxWave < 0.35 || score < 3.8) {
+    // Waarom werkt de spot (niet)? Gebruikt voor label en tekst, zodat een lage score
+    // door wind/getij/richting niet als "vlakke zee" wordt weergegeven.
+    const bestChance = computeSurfChance(spot, bestHour);
+    const windLimits = bestChance.reasons.includes('ongunstige wind');
+    const tideLimits = bestChance.reasons.includes('ongunstig getij');
+    const swellDirLimits = bestChance.reasons.includes('ongunstige swellrichting');
+    const isOnshoreish = bestHour.windType === 'onshore' || bestHour.windType === 'side-onshore';
+    const limitingHeadline = swellDirLimits
+      ? 'Swell staat verkeerd voor deze spot'
+      : windLimits
+        ? (isOnshoreish ? 'Te veel aanlandige wind' : 'Te veel wind')
+        : tideLimits
+          ? 'Getij werkt niet mee'
+          : 'Rommelig of te weinig kracht';
+
+    // FLAT alleen als het echt klein is; anders is een lage score "POOR" met de reden.
+    if (maxWave < 0.35) {
       ratingLabel = 'FLAT';
       ratingHeadline = 'Vlakke zee & mini rimpels';
       ratingColor = {
@@ -621,7 +637,7 @@ export function processDailyForecasts(
       };
     } else if (score < 5.2) {
       ratingLabel = 'POOR';
-      ratingHeadline = 'Rommelig of te weinig kracht';
+      ratingHeadline = limitingHeadline;
       ratingColor = {
         bg: 'bg-amber-500/10',
         text: 'text-amber-800 dark:text-amber-300',
@@ -665,7 +681,6 @@ export function processDailyForecasts(
     const spotBestWinds = spot.bestWind || [];
     const isWindMatch = spotBestWinds.includes(windDirInfo.label) || bestHour.windType === 'offshore' || bestHour.windType === 'side-offshore';
     // Swellrichting op graden (16-punts, dus ook WNW) i.p.v. "elke swell >0,5m telt".
-    const bestChance = computeSurfChance(spot, bestHour);
     const isSwellMatch = bestChance.exposure >= 0.6;
 
     // Spot match = de kans dat de spot in het beste uur werkt (zelfde basis als AI).
@@ -706,10 +721,17 @@ export function processDailyForecasts(
         narrative = `Vrijwel vlakke Noordzee met nauwelijks rimpeling (${maxWave.toFixed(1)}m, ${avgPeriod}s). Ideaal voor peddeltraining, suppen of materiaalonderhoud.`;
       }
     } else if (ratingLabel === 'POOR') {
-      if (bestHour.windType === 'onshore' || maxKnots > 16) {
-        narrative = `Rond de halve meter met aanlandige wind uit het ${windDirInfo.label.toLowerCase()}; de periode (${avgPeriod}s) is kort en de zee choppy. Pak ${boardRef} voor wat extra stabiliteit.`;
+      const sizeTxt = `${minWave.toFixed(1)}–${maxWave.toFixed(1)}m`;
+      if (swellDirLimits) {
+        narrative = `Op zee staat wel swell, maar uit het ${swellDirInfo.label} komt er op ${spot.name} weinig van aan (~${maxWave.toFixed(1)}m op de spot).${bestHour.swellNote ? ` ${bestHour.swellNote}` : ''}`;
+      } else if (windLimits) {
+        narrative = `Er staat genoeg golf (${sizeTxt}), maar ${maxKnots} knopen ${isOnshoreish ? 'aanlandige ' : ''}wind uit het ${windDirInfo.label} maakt de zee rommelig en zwaar. Alleen voor wie het niet erg vindt om hard te werken; pak ${boardRef}.`;
+      } else if (tideLimits) {
+        narrative = `Golven van ${sizeTxt}, maar het getij werkt vandaag op de beste uren niet mee.${bestHour.tideNote ? ` ${bestHour.tideNote}` : ''}`;
+      } else if (avgPeriod <= 5) {
+        narrative = `${sizeTxt} korte windgolven (${avgPeriod}s): weinig kracht en snel achter elkaar. Neem ${boardRef} met voldoende volume (${bestBoardMatch.volume}L).`;
       } else {
-        narrative = `Rond het halve metertje met lichte bries. Neem ${boardRef} mee met voldoende volume (${bestBoardMatch.volume}L) voor de slappere secties.`;
+        narrative = `${sizeTxt} met weinig vorm. Neem ${boardRef} mee met voldoende volume (${bestBoardMatch.volume}L) voor de slappere secties.`;
       }
     } else if (ratingLabel === 'FAIR') {
       if (bestHour.windType === 'offshore' || bestHour.windType === 'side-offshore') {
