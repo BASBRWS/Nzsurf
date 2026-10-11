@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { withAreaDefaults } from './utils/spotKnowledge';
+import { Capacitor } from '@capacitor/core';
 import { 
   auth, 
   db, 
@@ -197,6 +198,17 @@ export default function App() {
           email: data.email || authUser.email || undefined,
           displayName: data.displayName || authUser.displayName || undefined
         });
+
+        // "Laatst actief" bijwerken (max. 1x per uur, scheelt schrijfacties).
+        // Was bij de redesign weggevallen, waardoor het adminoverzicht bleef hangen.
+        const now = new Date();
+        const lastActive = data.lastActiveAt ? new Date(data.lastActiveAt) : null;
+        if (!lastActive || now.getTime() - lastActive.getTime() > 3600000) {
+          updateDoc(userDocRef, {
+            lastActiveAt: now.toISOString(),
+            lastPlatform: Capacitor.getPlatform() // 'web' of 'android'
+          }).catch(console.error);
+        }
       } else {
         const newUser: UserProfile = { 
           ...INITIAL_USER, 
@@ -204,7 +216,9 @@ export default function App() {
           email: authUser.email || '',
           displayName: authUser.displayName || 'Selmeen_205s',
           savedSpots: [...DEFAULT_SPOTS],
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString(),
+          lastPlatform: Capacitor.getPlatform()
         };
         setDoc(userDocRef, newUser).catch(console.error);
       }
