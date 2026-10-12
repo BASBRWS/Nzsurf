@@ -1,12 +1,9 @@
 name: "Audit: ruwe opnames bekijken"
 
 # Toont de opbouw van wat de app voor Surfline/surfnerd heeft opgehaald
-# (collectie auditRaw). Alleen lezen; handmatig starten (tijdelijk ook bij push).
+# (collectie auditRaw). Alleen lezen; handmatig starten.
 
 on:
-  push:  # tijdelijk: test vanaf de ontwikkelbranch
-    branches: [claude/nzsurf-apk-screenshot-krz2px]
-    paths: ['.github/workflows/audit-raw-dump.yml']
   workflow_dispatch:
     inputs:
       date:
