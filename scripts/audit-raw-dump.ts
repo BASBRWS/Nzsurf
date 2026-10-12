@@ -51,6 +51,7 @@ async function main() {
     console.log(`\n=== ${d.id} — status ${d.status ?? '-'}, ${d.length ?? 0} tekens${d.truncated ? ' (afgekapt)' : ''}${d.error ? `, fout: ${d.error}` : ''}`);
     if (d.results) { console.log('  resultaten:', d.results.join(' | ')); continue; }
     if (d.url) console.log('  url:', d.url);
+    if (d.title || d.finalUrl) console.log('  pagina:', d.title || '-', '|', d.finalUrl || '-');
     const body: string = d.body || '';
     if (!body) continue;
     if (/^\s*[\[{]/.test(body)) describeJson(d.name || d.id, body); else describeHtml(body);

@@ -4,6 +4,9 @@ name: "Audit: ruwe opnames bekijken"
 # (collectie auditRaw). Alleen lezen; handmatig starten.
 
 on:
+  push:  # tijdelijk: test vanaf de ontwikkelbranch
+    branches: [claude/nzsurf-apk-screenshot-krz2px]
+    paths: ['.github/workflows/audit-raw-dump.yml']
   workflow_dispatch:
     inputs:
       date:

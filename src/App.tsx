@@ -184,17 +184,31 @@ export default function App() {
     }
   }, [allSpots]);
 
-  // Voorspellingsaudit: de admin-app haalt 1x per dag Surfline en surfnerd op
-  // (die weren de GitHub-servers). Alleen in de Android-app; los geladen.
+  // Voorspellingsaudit: Surfline en surfnerd weren servers; de admin-app haalt ze op
+  // via een browservenster. Omdat er een venster opent, vragen we het 1x per dag.
+  const [auditPrompt, setAuditPrompt] = useState<'hidden' | 'ask' | 'busy' | string>('hidden');
   useEffect(() => {
     const email = authUser?.email?.toLowerCase();
     if (!email || !['sebastiaan.boom@gmail.com', 'sebastiaan.boom2@gmail.com'].includes(email)) return;
     if (!Capacitor.isNativePlatform()) return;
     import('./services/auditCollector')
-      .then(m => m.runAppAuditCollect())
-      .then(r => { if (r) console.log('[AUDIT] app-ophaalronde:', r.join(' | ')); })
-      .catch(e => console.warn('[AUDIT] app-ophaalronde mislukt:', e));
+      .then(m => { if (m.appCollectDueToday()) setAuditPrompt('ask'); })
+      .catch(() => {});
   }, [authUser]);
+  const runAuditCollect = async () => {
+    setAuditPrompt('busy');
+    try {
+      const m = await import('./services/auditCollector');
+      const r = await m.runAppAuditCollect();
+      setAuditPrompt(r ? r.join(' · ') : 'hidden');
+    } catch (e: any) {
+      setAuditPrompt(`Ophalen mislukt: ${e?.message || e}`);
+    }
+  };
+  const skipAuditCollect = async () => {
+    setAuditPrompt('hidden');
+    (await import('./services/auditCollector')).markAppCollectHandled();
+  };
 
   // Auth Listener
   useEffect(() => {
@@ -519,6 +533,26 @@ export default function App() {
 
         {/* Main Content View Switcher */}
         <main className="space-y-5">
+          {auditPrompt !== 'hidden' && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+              {auditPrompt === 'ask' ? (
+                <>
+                  <span><b>Audit:</b> Surfline &amp; surfnerd van vandaag ophalen? Er opent kort een browservenster.</span>
+                  <span className="flex shrink-0 gap-2">
+                    <button onClick={runAuditCollect} className="px-3 py-1.5 rounded-full font-bold bg-slate-900 text-white cursor-pointer">Ophalen</button>
+                    <button onClick={skipAuditCollect} className="px-2 py-1.5 font-bold text-amber-800 cursor-pointer">Niet nu</button>
+                  </span>
+                </>
+              ) : auditPrompt === 'busy' ? (
+                <span>Audit: bezig met ophalen… Tik een Cloudflare-vinkje aan als dat verschijnt.</span>
+              ) : (
+                <>
+                  <span className="font-mono">{auditPrompt}</span>
+                  <button onClick={() => setAuditPrompt('hidden')} className="shrink-0 px-2 py-1.5 font-bold text-amber-800 cursor-pointer">Sluiten</button>
+                </>
+              )}
+            </div>
+          )}
           {previewSpotId && selectedSpotId === previewSpotId && !savedSpotIds.has(previewSpotId) && (
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
               <span>Je bekijkt <b>{selectedSpot.name}</b>. Deze spot staat nog niet in je lijst.</span>
