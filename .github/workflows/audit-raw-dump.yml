@@ -1,7 +1,7 @@
 name: "Audit: ruwe opnames bekijken"
 
 # Toont de opbouw van wat de app voor Surfline/surfnerd heeft opgehaald
-# (collectie auditRaw). Alleen lezen; handmatig starten.
+# (collectie auditRaw). Alleen lezen; handmatig starten (tijdelijk ook bij push).
 
 on:
   push:  # tijdelijk: test vanaf de ontwikkelbranch
@@ -27,5 +27,7 @@ jobs:
         run: bun run scripts/audit-raw-dump.ts
         env:
           RAW_DATE: ${{ inputs.date }}
+          # surfnerd-tijden zijn lokale tijd van de spot.
+          TZ: Europe/Amsterdam
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}

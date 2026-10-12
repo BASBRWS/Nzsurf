@@ -3,6 +3,7 @@
 // Alleen lezen. Draaien via de workflow "Audit: ruwe opnames bekijken".
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { parseSurfline, parseSurfnerd } from '../src/utils/siteParsers';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa) throw new Error('Ontbrekende env-var: FIREBASE_SERVICE_ACCOUNT');
@@ -37,6 +38,18 @@ function describeHtml(body: string) {
     while ((i = body.indexOf(k, i + 1)) !== -1 && idx.length < 3) idx.push(i);
     if (idx.length) console.log(`  "${k}" (${idx.length}+):`, idx.map(x => snip(body, x)).join('\n      '));
   }
+  // Sleutel/waarde-paren met golf- of windgegevens (JSON in de pagina, bv. Next.js).
+  const kv = [...body.matchAll(/\\?"([A-Za-z_]*(?:swell|wave|period|height|wind|gust|direction|rating|time|date)[A-Za-z_]*)\\?"\s*:/gi)];
+  const counts = new Map<string, number>();
+  kv.forEach(m => counts.set(m[1], (counts.get(m[1]) || 0) + 1));
+  console.log('  sleutels:', [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k, n]) => `${k}×${n}`).join(' '));
+  for (const k of [...counts.keys()].slice(0, 8)) {
+    const i = body.search(new RegExp(`\\\\?"${k}\\\\?"\\s*:`));
+    if (i >= 0) console.log(`  [${k}]`, JSON.stringify(body.slice(Math.max(0, i - 300), i + 900)));
+  }
+  // Zichtbare tekst (zonder scripts/stijlen), om een tabel te herkennen.
+  const text = body.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  console.log('  zichtbare tekst (begin):', JSON.stringify(text.slice(0, 3000)));
   console.log('  API-achtige URLs:', [...new Set([...body.matchAll(/https?:\/\/[a-z0-9.-]*(?:api|data|forecast)[a-z0-9./_?=&-]*/gi)].map(m => m[0]))].slice(0, 20).join(' '));
 }
 
@@ -55,6 +68,22 @@ async function main() {
     const body: string = d.body || '';
     if (!body) continue;
     if (/^\s*[\[{]/.test(body)) describeJson(d.name || d.id, body); else describeHtml(body);
+  }
+
+  // Controle: de uitlezers van de app op deze ruwe opnames.
+  const day = docs.filter(x => x.runDate === date);
+  const json = (name: string) => { try { return JSON.parse(day.find(x => x.name === name)?.body || ''); } catch { return null; } };
+  const runAtOf = (name: string) => new Date(day.find(x => x.name === name)?.runAt || Date.now());
+  const show = (label: string, pts: any[]) => {
+    console.log(`\n### Uitlezer ${label}: ${pts.length} punten`);
+    pts.slice(0, 4).forEach(p => console.log('   ', JSON.stringify(p)));
+    if (pts.length > 4) console.log('    …', JSON.stringify(pts[pts.length - 1]));
+  };
+  const nerd = day.find(x => x.name === 'surfnerd');
+  if (nerd?.body) show('surfnerd', parseSurfnerd(nerd.body, runAtOf('surfnerd')));
+  if (day.some(x => String(x.name).startsWith('surfline-'))) {
+    show('Surfline', parseSurfline({ wave: json('surfline-wave'), swells: json('surfline-swells'), surf: json('surfline-surf'),
+      wind: json('surfline-wind'), rating: json('surfline-rating') }, runAtOf('surfline-wind')));
   }
 }
 

@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Download, Loader2, Trophy, Filter } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { SpotReportAudit } from './SpotReportAudit';
+import { AuditWeekView } from './AuditWeekView';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { cn } from '../lib/utils';
 import {
@@ -81,6 +82,11 @@ export function ForecastAuditPanel() {
     (forecasts || []).forEach(f => m.set(f.source, { label: f.label, kind: f.kind }));
     return [...m.entries()].sort((a, b) => (a[1].kind === 'nzsurf' ? -1 : b[1].kind === 'nzsurf' ? 1 : a[1].label.localeCompare(b[1].label)));
   }, [forecasts]);
+
+  const visibleSources = useMemo(
+    () => sources.filter(([id]) => !hidden.has(id)).map(([id, s]) => ({ source: id, label: s.label, kind: s.kind })),
+    [sources, hidden],
+  );
 
   // Filters (zonder het onderdeel) — gebruikt voor de "ons algo vs de rest"-samenvatting.
   const condPairs = useMemo(() => allPairs.filter(p =>
@@ -205,6 +211,9 @@ export function ForecastAuditPanel() {
               ))}
             </div>
           </div>
+
+          {/* Weekoverzicht: per tijdstip wat iedereen verwachtte en wie het dichtst bij zat */}
+          <AuditWeekView forecasts={forecasts} observations={observations} sources={visibleSources} param={param} />
 
           {/* Ons algo vs de rest */}
           <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-3">
