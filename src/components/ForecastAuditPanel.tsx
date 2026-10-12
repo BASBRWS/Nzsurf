@@ -139,18 +139,18 @@ export function ForecastAuditPanel() {
             disabled={appCollect.busy}
             onClick={async () => {
               setAppCollect({ busy: true });
-              const results = await runAppAuditCollect(true).catch((e: any) => [`fout: ${e?.message || e}`]);
+              const results = await runAppAuditCollect().catch((e: any) => [`fout: ${e?.message || e}`]);
               setAppCollect({ busy: false, results: results || [] });
             }}
             className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             {appCollect.busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Surfline &amp; surfnerd nu ophalen
           </button>
-          <p className="text-[11px] text-slate-500">Gebeurt ook vanzelf, 1x per dag, als je de app opent.</p>
+          <p className="text-[11px] text-slate-500">Opent ±20–60 s een browservenster. Verschijnt er een Cloudflare-vinkje ("Ik ben een mens"), tik dat dan aan. De app vraagt hier ook 1x per dag om bij openen.</p>
           {appCollect.results && <ul className="text-[11px] font-mono text-slate-700">{appCollect.results.map(r => <li key={r}>{r}</li>)}</ul>}
         </div>
       ) : (
-        <p className="text-[11px] text-slate-500">Surfline en surfnerd worden opgehaald door de Android-app (1x per dag bij openen); op de website kan dat niet.</p>
+        <p className="text-[11px] text-slate-500">Surfline en surfnerd worden opgehaald door de Android-app (browservenster, 1x per dag); op de website kan dat niet.</p>
       )}
 
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}

@@ -1,4 +1,5 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { InAppBrowser } from '@capgo/inappbrowser';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { AuditForecastDoc, AuditPoint } from '../utils/forecastAudit';
@@ -6,13 +7,14 @@ import { AuditForecastDoc, AuditPoint } from '../utils/forecastAudit';
 /**
  * Voorspellingsaudit — ophalen via de telefoon van de admin.
  *
- * Surfline en surfnerd weren servers in datacenters (Cloudflare), dus de GitHub-
- * workflow komt er niet bij. De app op de telefoon gaat via een gewone wifi- of
- * 4G-aansluiting en kan het wél. Alleen in de Android-app (native HTTP, geen CORS),
- * alleen voor de admin, hooguit één keer per dag.
+ * Surfline en surfnerd zitten achter een Cloudflare-controle die JavaScript in een
+ * echte browser verwacht. Servers (GitHub, Strato) en kale app-verzoeken komen er
+ * niet door. Daarom opent de app een zichtbaar browservenster (in-app browser):
+ * Cloudflare doet daarin zijn controle (verschijnt een vinkje, dan tikt de admin
+ * erop), daarna leest een script de pagina uit en stuurt de inhoud terug.
  *
- * Ronde 1: alles wordt ook ruw opgeslagen in auditRaw (om de uitlezers te kunnen
- * bouwen/controleren). Surfline wordt al uitgelezen via de bekende API-opbouw.
+ * Alles wordt ook ruw opgeslagen in auditRaw (om uitlezers te bouwen/controleren).
+ * Surfline wordt uitgelezen via de bekende API-opbouw; surfnerd voorlopig alleen ruw.
  */
 
 const SPOT_ID = 'ouddorp-p-noordweg';
@@ -20,43 +22,97 @@ const SPOT = { lat: 51.8253, lng: 3.8874 };
 const HORIZON_HOURS = 7 * 24;
 const STEP_HOURS = 3;
 const MAX_RAW_CHARS = 700_000; // Firestore-document max. 1 MiB
+const PAGE_TIMEOUT_MS = 60_000; // per pagina, incl. eventuele Cloudflare-controle
 const LAST_RUN_KEY = 'nzs_audit_app_collect';
-const UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36';
 
 const round = (v: unknown, d = 2) =>
   typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : undefined;
 const clean = <T extends object>(o: T): T =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 
-async function httpGet(url: string, accept: string): Promise<{ status: number; body: string }> {
-  const r = await CapacitorHttp.get({
-    url,
-    headers: { 'User-Agent': UA, Accept: accept, 'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8' },
-    responseType: 'text',
-    connectTimeout: 20000,
-    readTimeout: 30000,
-  });
-  const body = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-  return { status: r.status, body };
-}
+interface PageResult { status: number; body: string; title?: string; finalUrl?: string }
 
-async function saveRaw(runAt: Date, name: string, url: string, res: { status: number; body: string } | null, error?: string) {
+async function saveRaw(runAt: Date, name: string, url: string, res: PageResult | null, error?: string) {
   const runDate = runAt.toISOString().slice(0, 10);
   await setDoc(doc(db, 'auditRaw', `${runDate}_${name}`), clean({
     runAt: runAt.toISOString(), runDate, name, url,
-    status: res?.status, length: res?.body.length,
+    status: res?.status, title: res?.title, finalUrl: res?.finalUrl, length: res?.body.length,
     truncated: res ? res.body.length > MAX_RAW_CHARS : undefined,
     body: res?.body.slice(0, MAX_RAW_CHARS),
     error,
   }));
 }
 
-/** Haalt op, slaat ruw op en geeft de tekst terug (of null bij een fout). */
-async function fetchAndKeep(runAt: Date, name: string, url: string, accept: string): Promise<string | null> {
+// Script dat in elke geladen pagina draait: wacht tot de Cloudflare-controle weg is,
+// geeft de pagina even de tijd om te renderen en stuurt de inhoud terug aan de app.
+const extractScript = (mode: 'html' | 'text') => `(function () {
+  if (window.__nzsAudit) return; window.__nzsAudit = true;
+  var start = Date.now();
+  function blocked() {
+    var t = document.title || '';
+    return /just a moment|attention required|een ogenblik|even geduld/i.test(t)
+      || !!document.querySelector('#challenge-form, #cf-challenge-running, .cf-turnstile, #challenge-stage');
+  }
+  function send() {
+    var body = ${mode === 'text' ? "document.body ? document.body.innerText : ''" : 'document.documentElement.outerHTML'};
+    window.mobileApp.postMessage({ detail: { title: document.title, url: location.href, body: String(body).slice(0, ${MAX_RAW_CHARS}) } });
+  }
+  function tick() {
+    if (!blocked() && document.readyState === 'complete') { setTimeout(send, ${mode === 'html' ? 4000 : 500}); return; }
+    if (Date.now() - start < ${PAGE_TIMEOUT_MS - 5000}) setTimeout(tick, 1000);
+  }
+  tick();
+})();`;
+
+/**
+ * Eén browservenster voor de hele ophaalronde. visit() laadt een adres en wacht
+ * op de inhoud; tussendoor kan de admin een Cloudflare-vinkje aantikken.
+ */
+async function openBrowserSession(title: string) {
+  let pending: { resolve: (r: PageResult) => void; reject: (e: Error) => void; mode: 'html' | 'text' } | null = null;
+  let opened = false;
+  const handles = await Promise.all([
+    InAppBrowser.addListener('messageFromWebview', (e: any) => {
+      const d = e?.detail || {};
+      pending?.resolve({ status: 200, body: String(d.body || ''), title: d.title, finalUrl: d.url });
+      pending = null;
+    }),
+    InAppBrowser.addListener('browserPageLoaded', () => {
+      if (pending) InAppBrowser.executeScript({ code: extractScript(pending.mode) }).catch(() => {});
+    }),
+    InAppBrowser.addListener('closeEvent', () => {
+      pending?.reject(new Error('venster gesloten'));
+      pending = null;
+    }),
+  ]);
+  const visit = (url: string, mode: 'html' | 'text') => new Promise<PageResult>((resolve, reject) => {
+    const timer = setTimeout(() => { pending = null; reject(new Error('time-out (Cloudflare-controle niet voltooid?)')); }, PAGE_TIMEOUT_MS);
+    pending = {
+      mode,
+      resolve: r => { clearTimeout(timer); resolve(r); },
+      reject: e => { clearTimeout(timer); reject(e); },
+    };
+    const go = opened
+      ? InAppBrowser.setUrl({ url })
+      : InAppBrowser.openWebView({ url, title, toolbarType: 'compact' as any, isPresentAfterPageLoad: false });
+    opened = true;
+    go.catch((e: any) => { clearTimeout(timer); pending = null; reject(e instanceof Error ? e : new Error(String(e))); });
+  });
+  const close = async () => {
+    await InAppBrowser.close().catch(() => {});
+    await Promise.all(handles.map(h => h.remove().catch(() => {})));
+  };
+  return { visit, close };
+}
+
+type Session = Awaited<ReturnType<typeof openBrowserSession>>;
+
+/** Bezoekt een adres, slaat ruw op en geeft de inhoud terug (of null bij een fout). */
+async function visitAndKeep(session: Session, runAt: Date, name: string, url: string, mode: 'html' | 'text'): Promise<string | null> {
   try {
-    const res = await httpGet(url, accept);
+    const res = await session.visit(url, mode);
     await saveRaw(runAt, name, url, res);
-    return res.status >= 200 && res.status < 300 ? res.body : null;
+    return res.body;
   } catch (e: any) {
     await saveRaw(runAt, name, url, null, e?.message || String(e)).catch(() => {});
     return null;
@@ -138,18 +194,17 @@ export function parseSurfline(waveJson: any, windJson: any, ratingJson: any, run
     .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS && new Date(p.t).getUTCHours() % STEP_HOURS === 0);
 }
 
-async function collectSurfline(runAt: Date): Promise<string> {
-  const search = await fetchAndKeep(runAt, 'surfline-search', 'https://services.surfline.com/search/site?q=ouddorp&querySize=10&suggestionSize=10', 'application/json');
+async function collectSurfline(session: Session, runAt: Date): Promise<string> {
+  const search = await visitAndKeep(session, runAt, 'surfline-search', 'https://services.surfline.com/search/site?q=ouddorp&querySize=10&suggestionSize=10', 'text');
   if (!search) return 'surfline: zoeken mislukt (zie auditRaw)';
   let spotId: string | null = null;
   try { spotId = findSurflineSpotId(JSON.parse(search)); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
   if (!spotId) return 'surfline: spot Ouddorp niet gevonden in zoekresultaat';
   const api = (type: string) => `https://services.surfline.com/kbyg/spots/forecasts/${type}?spotId=${spotId}&days=5&intervalHours=1`;
-  const [wave, wind, rating] = await Promise.all([
-    fetchAndKeep(runAt, 'surfline-wave', api('wave'), 'application/json'),
-    fetchAndKeep(runAt, 'surfline-wind', api('wind'), 'application/json'),
-    fetchAndKeep(runAt, 'surfline-rating', api('rating'), 'application/json'),
-  ]);
+  // Na elkaar in hetzelfde venster (één browser, dus niet parallel).
+  const wave = await visitAndKeep(session, runAt, 'surfline-wave', api('wave'), 'text');
+  const wind = await visitAndKeep(session, runAt, 'surfline-wind', api('wind'), 'text');
+  const rating = await visitAndKeep(session, runAt, 'surfline-rating', api('rating'), 'text');
   const parse = (s: string | null) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
   const points = parseSurfline(parse(wave), parse(wind), parse(rating), runAt);
   if (!points.length) return `surfline: spot ${spotId} gevonden, maar 0 punten uitgelezen`;
@@ -165,8 +220,8 @@ async function collectSurfline(runAt: Date): Promise<string> {
 
 // ── surfnerd (ronde 1: alleen ruw opslaan) ──────────────────────────────────
 
-async function collectSurfnerd(runAt: Date): Promise<string> {
-  const html = await fetchAndKeep(runAt, 'surfnerd', 'https://www.surfnerd.com/surf-forecast/ouddorp', 'text/html,application/xhtml+xml');
+async function collectSurfnerd(session: Session, runAt: Date): Promise<string> {
+  const html = await visitAndKeep(session, runAt, 'surfnerd', 'https://www.surfnerd.com/surf-forecast/ouddorp', 'html');
   if (!html) return 'surfnerd: ophalen mislukt (zie auditRaw)';
   if (/<title>Just a moment/i.test(html)) return 'surfnerd: Cloudflare-controle (geblokkeerd)';
   return `surfnerd: pagina opgeslagen (${Math.round(html.length / 1024)} kB), uitlezer volgt`;
@@ -176,19 +231,33 @@ async function collectSurfnerd(runAt: Date): Promise<string> {
 
 export const canCollectInApp = () => Capacitor.isNativePlatform();
 
-/** Haalt Surfline en surfnerd op. Zonder force hooguit één keer per (UTC-)dag. */
-export async function runAppAuditCollect(force = false): Promise<string[] | null> {
+const todayUtc = () => new Date().toISOString().slice(0, 10);
+
+/** Moet de app vandaag nog vragen om op te halen? */
+export function appCollectDueToday(): boolean {
+  if (!canCollectInApp()) return false;
+  try { return localStorage.getItem(LAST_RUN_KEY) !== todayUtc(); } catch { return true; }
+}
+
+/** Vandaag niet meer vragen (na ophalen of "Niet nu"). */
+export function markAppCollectHandled() {
+  try { localStorage.setItem(LAST_RUN_KEY, todayUtc()); } catch { /* geen opslag */ }
+}
+
+/** Opent het browservenster en haalt surfnerd en Surfline op (±20–60 s). */
+export async function runAppAuditCollect(): Promise<string[] | null> {
   if (!canCollectInApp()) return null;
   const runAt = new Date();
   const runDate = runAt.toISOString().slice(0, 10);
+  markAppCollectHandled();
+  const session = await openBrowserSession('NzSurf-audit: ophalen…');
+  const results: string[] = [];
   try {
-    if (!force && localStorage.getItem(LAST_RUN_KEY) === runDate) return null;
-    localStorage.setItem(LAST_RUN_KEY, runDate);
-  } catch { /* geen opslag: dan gewoon draaien */ }
-  const results = await Promise.all([
-    collectSurfline(runAt).catch((e: any) => `surfline: fout ${e?.message || e}`),
-    collectSurfnerd(runAt).catch((e: any) => `surfnerd: fout ${e?.message || e}`),
-  ]);
+    results.push(await collectSurfnerd(session, runAt).catch((e: any) => `surfnerd: fout ${e?.message || e}`));
+    results.push(await collectSurfline(session, runAt).catch((e: any) => `surfline: fout ${e?.message || e}`));
+  } finally {
+    await session.close();
+  }
   await setDoc(doc(db, 'auditRaw', `${runDate}_status`), { runAt: runAt.toISOString(), runDate, results }).catch(() => {});
   return results;
 }
