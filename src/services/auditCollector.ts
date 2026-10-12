@@ -178,7 +178,8 @@ async function collectSurfnerd(session: Session, runAt: Date): Promise<string> {
   const docData: AuditForecastDoc = {
     runAt: runAt.toISOString(), runDate, spotId: SPOT_ID,
     source: 'surfnerd', label: 'surfnerd (SN Unity)', kind: 'site', points,
-    note: 'opgehaald via de app; golf = dominante golf op de spot (surfnerd), wind + vlagen',
+    // De pagina voor niet-ingelogde bezoekers kan een gecachete versie zijn; leg vast van wanneer.
+    note: `opgehaald via de app; golf = dominante golf op de spot; pagina gemaakt ${html.match(/"dateModified"\s*:\s*"([^"]+)"/)?.[1] || 'onbekend'}`,
   };
   await setDoc(doc(db, 'auditForecasts', `${runDate}_surfnerd`), docData);
   return `surfnerd: ${points.length} punten`;
