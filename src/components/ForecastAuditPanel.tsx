@@ -3,7 +3,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Download, Loader2, Trophy, Filter } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { SpotReportAudit } from './SpotReportAudit';
-import { AuditWeekView } from './AuditWeekView';
+import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { cn } from '../lib/utils';
 import {
@@ -212,8 +212,8 @@ export function ForecastAuditPanel() {
             </div>
           </div>
 
-          {/* Weekoverzicht: per tijdstip wat iedereen verwachtte en wie het dichtst bij zat */}
-          <AuditWeekView forecasts={forecasts} observations={observations} sources={visibleSources} param={param} />
+          {/* Is er te surfen? Verwachting, variabelen, werkelijkheid en score per voorspeller */}
+          <SurfAuditBoard forecasts={forecasts} observations={observations} sources={visibleSources} />
 
           {/* Ons algo vs de rest */}
           <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-3">
