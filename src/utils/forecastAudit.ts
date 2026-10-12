@@ -209,3 +209,100 @@ export function summarizeReports(rows: ReportRow[]): ReportSummary {
 
 /** Minimaal aantal rapporten voordat we een conclusie tonen. */
 export const MIN_REPORTS = 10;
+
+// ── Weekoverzicht: wat voorspelde wie, per tijdstip ─────────────────────────
+// Per tijdstip nemen we van elke bron de laatste verwachting die vóór dat moment
+// (en vóór nu) gemaakt is; daaruit het punt dat het dichtst bij ligt (max 90 min,
+// want NzSurf rekent in blokken op NL-tijd en de rest op UTC-uren).
+
+const MATCH_MS = 90 * 60e3;
+
+function pointValue(p: AuditPoint, param: AuditParam): number | undefined {
+  const v = p[param];
+  return typeof v === 'number' ? v : undefined;
+}
+
+/** Waarde van een bron voor tijdstip tMs (zie toelichting hierboven). */
+export function forecastFor(docs: AuditForecastDoc[], source: string, tMs: number, nowMs: number, param: AuditParam): number | undefined {
+  const cutoff = Math.min(tMs, nowMs);
+  const doc = docs
+    .filter(d => d.source === source && Date.parse(d.runAt) <= cutoff)
+    .sort((a, b) => Date.parse(b.runAt) - Date.parse(a.runAt))[0];
+  if (!doc) return undefined;
+  let best: { v: number; dt: number } | null = null;
+  for (const p of doc.points || []) {
+    const v = pointValue(p, param);
+    if (v === undefined) continue;
+    const dt = Math.abs(Date.parse(p.t) - tMs);
+    if (dt <= MATCH_MS && (!best || dt < best.dt)) best = { v, dt };
+  }
+  return best?.v;
+}
+
+export function observedAt(obs: AuditObsDoc[], tMs: number, param: AuditParam): number | undefined {
+  const key = new Date(tMs).toISOString().slice(0, 13);
+  const prm = PARAMS.find(p => p.key === param)!;
+  for (const d of obs) for (const o of d.points || []) {
+    if (o.t.slice(0, 13) === key) {
+      const v = o[prm.obsKey];
+      return typeof v === 'number' ? v : undefined;
+    }
+  }
+  return undefined;
+}
+
+const absErr = (param: AuditParam, fc: number, ob: number) =>
+  Math.abs(PARAMS.find(p => p.key === param)!.circular ? circDiff(fc, ob) : fc - ob);
+
+export interface DaySources { source: string; label: string; kind: string }
+
+export interface DayGrid {
+  slots: number[];                                   // tijdstippen (ms)
+  observed: (number | undefined)[];
+  rows: (DaySources & { values: (number | undefined)[]; mae?: number; n: number })[];
+  best: string[][];                                  // per tijdstip: bron(nen) die het dichtst bij zaten
+}
+
+/** Tijdstippen van een lokale dag (UTC-uren deelbaar door 3), alleen 05–22 u lokaal. */
+export function daySlots(localDate: Date): number[] {
+  const start = new Date(localDate.getFullYear(), localDate.getMonth(), localDate.getDate()).getTime();
+  const out: number[] = [];
+  for (let ms = start; ms < start + 24 * 3600e3; ms += 3600e3) {
+    const d = new Date(ms);
+    if (d.getUTCHours() % 3 === 0 && d.getHours() >= 5 && d.getHours() <= 22) out.push(ms);
+  }
+  return out;
+}
+
+export function dayGrid(docs: AuditForecastDoc[], obs: AuditObsDoc[], sources: DaySources[], slots: number[], param: AuditParam, nowMs: number): DayGrid {
+  const observed = slots.map(t => (t <= nowMs ? observedAt(obs, t, param) : undefined));
+  const rows = sources.map(s => {
+    const values = slots.map(t => forecastFor(docs, s.source, t, nowMs, param));
+    const errs = values.flatMap((v, i) => (v !== undefined && observed[i] !== undefined ? [absErr(param, v, observed[i]!)] : []));
+    return { ...s, values, n: errs.length, mae: errs.length ? Math.round(errs.reduce((a, b) => a + b, 0) / errs.length * 100) / 100 : undefined };
+  });
+  const best = slots.map((_, i) => {
+    const ob = observed[i];
+    if (ob === undefined) return [];
+    const scored = rows.flatMap(r => (r.values[i] !== undefined ? [{ s: r.source, e: absErr(param, r.values[i]!, ob) }] : []));
+    if (!scored.length) return [];
+    const min = Math.min(...scored.map(x => x.e));
+    return scored.filter(x => x.e - min < 1e-9).map(x => x.s);
+  });
+  return { slots, observed, rows, best };
+}
+
+export interface WinnerRow extends DaySources { n: number; mae: number; wins: number }
+
+/** Uitslag over een periode: gemiddelde afwijking en hoe vaak een bron het dichtst bij zat. */
+export function periodWinners(docs: AuditForecastDoc[], obs: AuditObsDoc[], sources: DaySources[], fromMs: number, toMs: number, param: AuditParam, nowMs: number): WinnerRow[] {
+  const slots: number[] = [];
+  for (let t = Math.ceil(fromMs / (3 * 3600e3)) * 3 * 3600e3; t <= Math.min(toMs, nowMs); t += 3 * 3600e3) slots.push(t);
+  const g = dayGrid(docs, obs, sources, slots, param, nowMs);
+  const wins = new Map<string, number>();
+  g.best.forEach(b => b.forEach(s => wins.set(s, (wins.get(s) || 0) + 1)));
+  return g.rows
+    .filter(r => r.n > 0)
+    .map(r => ({ source: r.source, label: r.label, kind: r.kind, n: r.n, mae: r.mae!, wins: wins.get(r.source) || 0 }))
+    .sort((a, b) => a.mae - b.mae);
+}
