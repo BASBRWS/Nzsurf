@@ -37,6 +37,18 @@ function describeHtml(body: string) {
     while ((i = body.indexOf(k, i + 1)) !== -1 && idx.length < 3) idx.push(i);
     if (idx.length) console.log(`  "${k}" (${idx.length}+):`, idx.map(x => snip(body, x)).join('\n      '));
   }
+  // Sleutel/waarde-paren met golf- of windgegevens (JSON in de pagina, bv. Next.js).
+  const kv = [...body.matchAll(/\\?"([A-Za-z_]*(?:swell|wave|period|height|wind|gust|direction|rating|time|date)[A-Za-z_]*)\\?"\s*:/gi)];
+  const counts = new Map<string, number>();
+  kv.forEach(m => counts.set(m[1], (counts.get(m[1]) || 0) + 1));
+  console.log('  sleutels:', [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k, n]) => `${k}×${n}`).join(' '));
+  for (const k of [...counts.keys()].slice(0, 8)) {
+    const i = body.search(new RegExp(`\\\\?"${k}\\\\?"\\s*:`));
+    if (i >= 0) console.log(`  [${k}]`, JSON.stringify(body.slice(Math.max(0, i - 300), i + 900)));
+  }
+  // Zichtbare tekst (zonder scripts/stijlen), om een tabel te herkennen.
+  const text = body.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  console.log('  zichtbare tekst (begin):', JSON.stringify(text.slice(0, 3000)));
   console.log('  API-achtige URLs:', [...new Set([...body.matchAll(/https?:\/\/[a-z0-9.-]*(?:api|data|forecast)[a-z0-9./_?=&-]*/gi)].map(m => m[0]))].slice(0, 20).join(' '));
 }
 

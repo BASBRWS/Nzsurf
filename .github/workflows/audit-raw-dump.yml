@@ -1,7 +1,7 @@
 name: "Audit: ruwe opnames bekijken"
 
 # Toont de opbouw van wat de app voor Surfline/surfnerd heeft opgehaald
-# (collectie auditRaw). Alleen lezen; handmatig starten.
+# (collectie auditRaw). Alleen lezen; handmatig starten (tijdelijk ook bij push).
 
 on:
   push:  # tijdelijk: test vanaf de ontwikkelbranch
