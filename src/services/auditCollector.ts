@@ -2,7 +2,8 @@ import { Capacitor } from '@capacitor/core';
 import { InAppBrowser } from '@capgo/inappbrowser';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { AuditForecastDoc, AuditPoint } from '../utils/forecastAudit';
+import { AuditForecastDoc } from '../utils/forecastAudit';
+import { parseSurfline, parseSurfnerd } from '../utils/siteParsers';
 
 /**
  * Voorspellingsaudit — ophalen via de telefoon van de admin.
@@ -19,8 +20,6 @@ import { AuditForecastDoc, AuditPoint } from '../utils/forecastAudit';
 
 const SPOT_ID = 'ouddorp-p-noordweg';
 const SPOT = { lat: 51.8253, lng: 3.8874 };
-const HORIZON_HOURS = 7 * 24;
-const STEP_HOURS = 3;
 const MAX_RAW_CHARS = 700_000; // Firestore-document max. 1 MiB
 const PAGE_TIMEOUT_MS = 60_000; // per pagina, incl. eventuele Cloudflare-controle
 const LAST_RUN_KEY = 'nzs_audit_app_collect';
@@ -141,59 +140,6 @@ function findSurflineSpotId(search: unknown): string | null {
   return found.sort((a, b) => a.dist - b.dist)[0]?.id ?? null;
 }
 
-const toMeters = (v: unknown, unit?: string) =>
-  typeof v === 'number' ? (String(unit).toUpperCase() === 'FT' ? v * 0.3048 : v) : undefined;
-const toKnots = (v: unknown, unit?: string) => {
-  if (typeof v !== 'number') return undefined;
-  switch (String(unit).toUpperCase()) {
-    case 'MPH': return v * 0.868976;
-    case 'KPH': return v / 1.852;
-    case 'MS': case 'M/S': return v * 1.943844;
-    default: return v; // KTS
-  }
-};
-
-export function parseSurfline(waveJson: any, windJson: any, ratingJson: any, runAt: Date): AuditPoint[] {
-  const byT = new Map<number, AuditPoint>();
-  const at = (ts: number) => {
-    if (!byT.has(ts)) {
-      const t = new Date(ts * 1000).toISOString();
-      byT.set(ts, { t, lead: Math.round((ts * 1000 - runAt.getTime()) / 3600e3) });
-    }
-    return byT.get(ts)!;
-  };
-  const wu = waveJson?.associated?.units || {};
-  for (const w of waveJson?.data?.wave || []) {
-    if (typeof w?.timestamp !== 'number') continue;
-    const p = at(w.timestamp);
-    const swells = (w.swells || []).filter((s: any) => typeof s?.height === 'number' && s.height > 0);
-    if (swells.length) {
-      const hs = Math.sqrt(swells.reduce((a: number, s: any) => a + toMeters(s.height, wu.swellHeight)! ** 2, 0));
-      // Dominante swell: meeste energie (≈ hoogte² × periode²).
-      const dom = swells.reduce((a: any, s: any) => (s.height ** 2 * (s.period || 1) ** 2 > a.height ** 2 * (a.period || 1) ** 2 ? s : a));
-      p.hs = round(hs); p.tp = round(dom.period, 1); p.dir = round(dom.direction, 0);
-    }
-    p.surfMin = round(toMeters(w.surf?.min, wu.waveHeight));
-    p.surfMax = round(toMeters(w.surf?.max, wu.waveHeight));
-  }
-  const windUnit = windJson?.associated?.units?.windSpeed;
-  for (const w of windJson?.data?.wind || []) {
-    if (typeof w?.timestamp !== 'number') continue;
-    const p = at(w.timestamp);
-    p.windKn = round(toKnots(w.speed, windUnit), 1);
-    p.windDir = round(w.direction, 0);
-    p.gustKn = round(toKnots(w.gust, windUnit), 1);
-  }
-  for (const r of ratingJson?.data?.rating || []) {
-    if (typeof r?.timestamp !== 'number') continue;
-    const key = r.rating?.key;
-    if (typeof key === 'string') at(r.timestamp).rating = key;
-  }
-  return [...byT.values()]
-    .map(p => clean(p))
-    .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS && new Date(p.t).getUTCHours() % STEP_HOURS === 0);
-}
-
 async function collectSurfline(session: Session, runAt: Date): Promise<string> {
   const search = await visitAndKeep(session, runAt, 'surfline-search', 'https://services.surfline.com/search/site?q=ouddorp&querySize=10&suggestionSize=10', 'text');
   if (!search) return 'surfline: zoeken mislukt (zie auditRaw)';
@@ -201,12 +147,14 @@ async function collectSurfline(session: Session, runAt: Date): Promise<string> {
   try { spotId = findSurflineSpotId(JSON.parse(search)); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
   if (!spotId) return 'surfline: spot Ouddorp niet gevonden in zoekresultaat';
   const api = (type: string) => `https://services.surfline.com/kbyg/spots/forecasts/${type}?spotId=${spotId}&days=5&intervalHours=1`;
-  // Na elkaar in hetzelfde venster (één browser, dus niet parallel).
-  const wave = await visitAndKeep(session, runAt, 'surfline-wave', api('wave'), 'text');
+  // Na elkaar in hetzelfde venster (één browser, dus niet parallel). De oude
+  // 'wave'-API geeft 404; golven staan nu in 'swells' (deining) en 'surf' (brekers).
+  const swells = await visitAndKeep(session, runAt, 'surfline-swells', api('swells'), 'text');
+  const surf = await visitAndKeep(session, runAt, 'surfline-surf', api('surf'), 'text');
   const wind = await visitAndKeep(session, runAt, 'surfline-wind', api('wind'), 'text');
   const rating = await visitAndKeep(session, runAt, 'surfline-rating', api('rating'), 'text');
   const parse = (s: string | null) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
-  const points = parseSurfline(parse(wave), parse(wind), parse(rating), runAt);
+  const points = parseSurfline({ swells: parse(swells), surf: parse(surf), wind: parse(wind), rating: parse(rating) }, runAt);
   if (!points.length) return `surfline: spot ${spotId} gevonden, maar 0 punten uitgelezen`;
   const runDate = runAt.toISOString().slice(0, 10);
   const docData: AuditForecastDoc = {
@@ -224,7 +172,16 @@ async function collectSurfnerd(session: Session, runAt: Date): Promise<string> {
   const html = await visitAndKeep(session, runAt, 'surfnerd', 'https://www.surfnerd.com/surf-forecast/ouddorp', 'html');
   if (!html) return 'surfnerd: ophalen mislukt (zie auditRaw)';
   if (/<title>Just a moment/i.test(html)) return 'surfnerd: Cloudflare-controle (geblokkeerd)';
-  return `surfnerd: pagina opgeslagen (${Math.round(html.length / 1024)} kB), uitlezer volgt`;
+  const points = parseSurfnerd(html, runAt);
+  if (!points.length) return `surfnerd: pagina opgeslagen (${Math.round(html.length / 1024)} kB), maar 0 punten uitgelezen`;
+  const runDate = runAt.toISOString().slice(0, 10);
+  const docData: AuditForecastDoc = {
+    runAt: runAt.toISOString(), runDate, spotId: SPOT_ID,
+    source: 'surfnerd', label: 'surfnerd (SN Unity)', kind: 'site', points,
+    note: 'opgehaald via de app; golf = dominante golf op de spot (surfnerd), wind + vlagen',
+  };
+  await setDoc(doc(db, 'auditForecasts', `${runDate}_surfnerd`), docData);
+  return `surfnerd: ${points.length} punten`;
 }
 
 // ── Aansturing ──────────────────────────────────────────────────────────────

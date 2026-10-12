@@ -3,6 +3,7 @@
 // Alleen lezen. Draaien via de workflow "Audit: ruwe opnames bekijken".
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { parseSurfline, parseSurfnerd } from '../src/utils/siteParsers';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa) throw new Error('Ontbrekende env-var: FIREBASE_SERVICE_ACCOUNT');
@@ -67,6 +68,22 @@ async function main() {
     const body: string = d.body || '';
     if (!body) continue;
     if (/^\s*[\[{]/.test(body)) describeJson(d.name || d.id, body); else describeHtml(body);
+  }
+
+  // Controle: de uitlezers van de app op deze ruwe opnames.
+  const day = docs.filter(x => x.runDate === date);
+  const json = (name: string) => { try { return JSON.parse(day.find(x => x.name === name)?.body || ''); } catch { return null; } };
+  const runAtOf = (name: string) => new Date(day.find(x => x.name === name)?.runAt || Date.now());
+  const show = (label: string, pts: any[]) => {
+    console.log(`\n### Uitlezer ${label}: ${pts.length} punten`);
+    pts.slice(0, 4).forEach(p => console.log('   ', JSON.stringify(p)));
+    if (pts.length > 4) console.log('    …', JSON.stringify(pts[pts.length - 1]));
+  };
+  const nerd = day.find(x => x.name === 'surfnerd');
+  if (nerd?.body) show('surfnerd', parseSurfnerd(nerd.body, runAtOf('surfnerd')));
+  if (day.some(x => String(x.name).startsWith('surfline-'))) {
+    show('Surfline', parseSurfline({ wave: json('surfline-wave'), swells: json('surfline-swells'), surf: json('surfline-surf'),
+      wind: json('surfline-wind'), rating: json('surfline-rating') }, runAtOf('surfline-wind')));
   }
 }
 
