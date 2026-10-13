@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { saveFileOrAlert } from '../utils/saveFile';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { UserProfile } from '../types';
@@ -96,13 +97,7 @@ export function AdminPanel() {
   const handleDownloadLogs = () => {
     if (logs.length === 0) return;
     try {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(logs, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `noordzee_surf_advice_error_logs_${format(new Date(), 'yyyy-MM-dd')}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
+      saveFileOrAlert(`noordzee_surf_advice_error_logs_${format(new Date(), 'yyyy-MM-dd')}.json`, JSON.stringify(logs, null, 2), 'application/json');
     } catch (error) {
       console.error("Error exporting logs:", error);
     }

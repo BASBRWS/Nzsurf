@@ -6,6 +6,8 @@ import { SpotReportAudit } from './SpotReportAudit';
 import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { cn } from '../lib/utils';
+import { saveFileOrAlert } from '../utils/saveFile';
+import { TableHelp } from './TableHelp';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
@@ -34,13 +36,8 @@ const AUDIT_SPOT_ID = 'ouddorp-p-noordweg';
 
 const fmtNum = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
 
-function download(name: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+// Website: download; app: deelmenu (opslaan in Bestanden/Drive, mailen).
+const download = saveFileOrAlert;
 
 export function ForecastAuditPanel() {
   const [period, setPeriod] = useState(30);
@@ -132,7 +129,7 @@ export function ForecastAuditPanel() {
       <div>
         <h3 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-500" /> Voorspellingsaudit — Ouddorp</h3>
         <p className="text-xs text-slate-600 mt-1">
-          Dagelijks om 07:30 slaat een workflow de verwachtingen op; Rijkswaterstaat (Lichteiland Goeree e.o.) levert de metingen.
+          Elke dag legt een workflow de verwachtingen van alle bronnen vast (de eerste ophaalronde van de dag); 4× per dag vult hij de metingen van Rijkswaterstaat aan (golven Schouwenbank, wind Europlatform).
           Fout = verwachting − meting. MAE = gemiddelde afwijking, bias = structureel te hoog (+) of te laag (−).
           Onder {MIN_N} metingen is een score nog niet betrouwbaar.
         </p>
@@ -233,6 +230,14 @@ export function ForecastAuditPanel() {
               Op golfhoogte, periode en wind volgt NzSurf dus vooral die bronnen. Wat NzSurf eigen maakt (spothoogte, getij, kans) meet de boei niet;
               dat staat hieronder bij de spotrapporten. Gebruik de ranglijst om het beste model voor NzSurf te kiezen.
             </p>
+            <div className="mt-2"><TableHelp title="Zo lees je dit">
+              <ul>
+                <li><b>#3 van 9</b> = NzSurf staat op plek 3 van de 9 bronnen met genoeg vergelijkingen (minstens {MIN_N}) voor dat onderdeel.</li>
+                <li><b>MAE</b> = hoeveel de verwachting gemiddeld naast de meting zat. Lager is beter.</li>
+                <li><b>Beste andere</b> = de best scorende bron die niet NzSurf is.</li>
+                <li>De filters bovenaan (periode, looptijd, wind, golf, bronnen) tellen mee.</li>
+              </ul>
+            </TableHelp></div>
           </div>
 
           {/* Ranglijst */}
@@ -255,6 +260,18 @@ export function ForecastAuditPanel() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-1.5"><TableHelp>
+              <p>Alle vergelijkingen samen, ongeacht hoe ver vooruit er voorspeld werd: het eindcijfer per voorspeller. Kies bij de filters een ander onderdeel (golfperiode, wind, …) of één looptijd.</p>
+              <ul>
+                <li><b>n</b> = aantal uren waarvoor zowel een verwachting als een meting is. Een bron die elk uur een waarde geeft (Windfinder Superforecast) heeft een hogere n dan een bron met één waarde per 3 uur.</li>
+                <li><b>MAE</b> = gemiddelde afwijking: hoeveel de verwachting gemiddeld naast de meting zat. Lager is beter; hierop is gesorteerd.</li>
+                <li><b>Bias</b> = structureel te hoog (+) of te laag (−). Zitten alle bronnen aan dezelfde kant, dan ligt dat vaak aan de meetplek: boei Schouwenbank ligt verder op zee dan de rekenpunten bij de kust.</li>
+                <li><b>RMSE</b> = als MAE, maar grote missers wegen zwaarder. Ligt RMSE dicht bij MAE, dan waren er geen uitschieters.</li>
+                <li><b>Grijs</b> = minder dan {MIN_N} vergelijkingen: staat erbij, maar is nog niet betrouwbaar.</li>
+                <li>Verschillen van een paar centimeter na een paar dagen zeggen weinig; pas na weken met verschillend weer wordt het een conclusie.</li>
+                <li>Dit is de golf <b>op zee</b>, niet op het strand. De spothoogte en kans van NzSurf worden onderaan getoetst met spotrapporten.</li>
+              </ul>
+            </TableHelp></div>
           </div>
 
           {/* Fout per vooruitkijktijd */}
@@ -278,6 +295,15 @@ export function ForecastAuditPanel() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-1.5"><TableHelp>
+              <p>Dezelfde MAE als in de ranglijst, maar uitgesplitst naar hoe ver vooruit de verwachting is gedaan. Zo zie je hoe snel een voorspeller minder nauwkeurig wordt.</p>
+              <ul>
+                <li><b>Dag 1</b> = verwachtingen voor 0–24 uur na het ophalen, <b>Dag 2</b> = 24–48 uur vooruit, enz.</li>
+                <li>Normaal loopt de fout op van links naar rechts. Wie langer laag blijft, is verder vooruit betrouwbaar.</li>
+                <li><b>—</b> = nog niet te scoren: een verwachting voor over 5 dagen kan pas vergeleken worden als die dag voorbij en gemeten is. Deze kolommen vullen zich vanzelf.</li>
+                <li><b>Grijs</b> = minder dan {MIN_N} vergelijkingen in dat vak.</li>
+              </ul>
+            </TableHelp></div>
           </div>
 
           {/* Export */}
@@ -286,10 +312,15 @@ export function ForecastAuditPanel() {
               className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Vergelijkingen (CSV, gefilterd)</button>
             <button onClick={() => download(`nzsurf-audit-ranglijst-${param}-${stamp}.csv`, toCsv(ranking.map(r => ({ bron: r.label, onderdeel: r.param, n: r.n, mae: r.mae, bias: r.bias, rmse: r.rmse }))), 'text/csv;charset=utf-8')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ranglijst (CSV)</button>
+            <button onClick={() => download(`nzsurf-audit-per-looptijd-${param}-${stamp}.csv`, toCsv(sources.filter(([id]) => matrix.has(id)).map(([id, s]) => Object.fromEntries([
+                ['bron', s.label],
+                ...LEAD_BUCKETS.flatMap(b => { const c = matrix.get(id)?.get(b.key); return [[`${b.label} mae`, c ? c.mae : ''], [`${b.label} n`, c ? c.n : 0]]; }),
+              ]))), 'text/csv;charset=utf-8')}
+              className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Per looptijd (CSV)</button>
             <button onClick={() => download(`nzsurf-audit-ruw-${stamp}.json`, JSON.stringify({ forecasts, observations }, null, 1), 'application/json')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ruwe data (JSON)</button>
           </div>
-          <p className="text-[10px] text-slate-500">CSV gebruikt puntkomma's en opent direct in Excel. Export werkt op de website; in de app kan downloaden beperkt zijn.</p>
+          <p className="text-[10px] text-slate-500">CSV gebruikt puntkomma's en decimale komma's en opent direct in Excel. In de app opent een export het deelmenu: kies "Opslaan in Bestanden", Drive of mail.</p>
 
           <SpotReportAudit auditDocs={forecasts} auditSpotId={AUDIT_SPOT_ID} onDownload={download} />
         </>

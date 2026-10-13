@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, Board, Wetsuit, SkillLevel, SurfSpot, ForecastData, SpotReport as SpotReportType } from '../types';
 import { SpotReport } from './SpotReport';
 import { AdminPanel } from './AdminPanel';
+import { AppUpdateCard } from './AppUpdateCard';
 import { auth, db } from '../lib/firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { Settings, Camera, Shield, User, Waves, MapPin, Plus, Trash2, Share2, ChevronRight, History, AlertTriangle, RefreshCw, Thermometer, Ruler, CheckCircle2, Database, X, CalendarCheck } from 'lucide-react';
@@ -436,6 +437,7 @@ export function ProfileSettings({
 
       {activeSubTab === 'settings' && (
         <div className="space-y-10">
+          <AppUpdateCard />
           <section className="space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 flex items-center justify-center">
