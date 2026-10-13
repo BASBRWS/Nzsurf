@@ -82,12 +82,17 @@ export const COMPONENTS = [
 ] as const;
 export type ComponentKey = typeof COMPONENTS[number]['key'];
 
-export function componentHits(source: string, p: AuditPoint, o: ObsPoint, rule: SurfRule): Partial<Record<ComponentKey, boolean>> {
-  const ov = observedVars(o);
+/**
+ * Goed/fout per onderdeel. `truth` = de werkelijkheid voor "te surfen?" (uit de
+ * metingen of uit het eindoordeel van de groep, zie TruthFn); de variabelen worden
+ * altijd tegen de metingen getoetst.
+ */
+export function componentHits(source: string, p: AuditPoint, o: ObsPoint | undefined, rule: SurfRule, truth: boolean | undefined): Partial<Record<ComponentKey, boolean>> {
   const out: Partial<Record<ComponentKey, boolean>> = {};
   const fv = forecastVerdict(source, p, rule).ok;
-  const tv = ruleVerdict(ov, rule);
-  if (fv !== undefined && tv !== undefined) out.total = fv === tv;
+  if (fv !== undefined && truth !== undefined) out.total = fv === truth;
+  if (!o) return out;
+  const ov = observedVars(o);
   if (typeof p.hs === 'number' && typeof ov.hs === 'number') out.hs = Math.abs(p.hs - ov.hs) <= Math.max(0.25, 0.25 * ov.hs);
   if (typeof p.tp === 'number' && typeof ov.tp === 'number') out.tp = Math.abs(p.tp - ov.tp) <= 1.5;
   if (typeof p.dir === 'number' && typeof ov.dir === 'number') out.dir = angleDiff(p.dir, ov.dir) <= 30;
@@ -170,7 +175,7 @@ export function outlook(docs: AuditForecastDoc[], sources: string[], days: Date[
 export interface ScoreRow { source: string; n: Partial<Record<ComponentKey, number>>; hit: Partial<Record<ComponentKey, number>> }
 
 /** Alle verwachtingen (elke ophaaldag) tegen de metingen; optioneel alleen één vooruitkijkdag. */
-export function componentScores(docs: AuditForecastDoc[], obs: AuditObsDoc[], rule: SurfRule, onlyLeadDay?: number): Map<string, ScoreRow> {
+export function componentScores(docs: AuditForecastDoc[], obs: AuditObsDoc[], rule: SurfRule, truthFn: TruthFn, onlyLeadDay?: number): Map<string, ScoreRow> {
   const idx = obsIndex(obs);
   const rows = new Map<string, ScoreRow>();
   for (const d of docs) {
@@ -179,9 +184,10 @@ export function componentScores(docs: AuditForecastDoc[], obs: AuditObsDoc[], ru
       if (!isDaytime(t) || p.lead < 0) continue;
       if (onlyLeadDay && leadDay(p.lead) !== onlyLeadDay) continue;
       const o = idx.get(hourKey(t));
-      if (!o) continue;
+      const truth = truthFn(t, d.source);
+      if (!o && truth === undefined) continue;
       const row = rows.get(d.source) || { source: d.source, n: {}, hit: {} };
-      for (const [k, ok] of Object.entries(componentHits(d.source, p, o, rule)) as [ComponentKey, boolean][]) {
+      for (const [k, ok] of Object.entries(componentHits(d.source, p, o, rule, truth)) as [ComponentKey, boolean][]) {
         row.n[k] = (row.n[k] || 0) + 1;
         if (ok) row.hit[k] = (row.hit[k] || 0) + 1;
       }
@@ -200,8 +206,7 @@ export interface StabilityRow {
 }
 
 /** Hoe vroeg wist een voorspeller het, en bleef het oordeel staan? (dag 1–maxDay) */
-export function stability(docs: AuditForecastDoc[], obs: AuditObsDoc[], sources: string[], rule: SurfRule, maxDay = 5): StabilityRow[] {
-  const idx = obsIndex(obs);
+export function stability(docs: AuditForecastDoc[], sources: string[], rule: SurfRule, truthFn: TruthFn, maxDay = 5): StabilityRow[] {
   return sources.map(source => {
     // tijdstip → (vooruitkijkdag → oordeel van de laatste ophaalronde op die dag)
     const byTarget = new Map<string, Map<number, { run: number; ok: boolean }>>();
@@ -224,8 +229,7 @@ export function stability(docs: AuditForecastDoc[], obs: AuditObsDoc[], sources:
     const leadHits = new Map<number, { n: number; ok: number }>();
     let flips = 0, transitions = 0, aheadSum = 0, targets = 0;
     for (const [key, m] of byTarget) {
-      const o = idx.get(key);
-      const truth = o ? observedVerdict(o, rule) : undefined;
+      const truth = truthFn(Date.parse(`${key}:00:00Z`), source);
       const days = [...m.keys()].sort((a, b) => b - a); // ver vooruit → dichtbij
       for (let i = 1; i < days.length; i++) { transitions++; if (m.get(days[i])!.ok !== m.get(days[i - 1])!.ok) flips++; }
       if (truth === undefined) continue;
@@ -251,4 +255,85 @@ export function stability(docs: AuditForecastDoc[], obs: AuditObsDoc[], sources:
       targets,
     };
   });
+}
+
+// ── Werkelijkheid voor "te surfen?" ─────────────────────────────────────────
+
+/** Werkelijkheid voor tijdstip tMs, zoals die geldt bij het beoordelen van `source`. */
+export type TruthFn = (tMs: number, source: string) => boolean | undefined;
+
+/** Uit de metingen van Rijkswaterstaat (dezelfde regel als voor de voorspellers). */
+export function obsTruth(obs: AuditObsDoc[], rule: SurfRule): TruthFn {
+  const idx = obsIndex(obs);
+  return (tMs) => { const o = idx.get(hourKey(tMs)); return o ? observedVerdict(o, rule) : undefined; };
+}
+
+/**
+ * Eindoordeel van de groep: per tijdstip de meerderheid van de laatste verwachting
+ * van elke voorspeller vóór dat moment (dus op het moment zelf). De voorspeller die
+ * beoordeeld wordt telt zelf niet mee (anders beoordeelt hij zichzelf). Minstens
+ * `minVotes` andere stemmen; gelijkspel = geen oordeel.
+ */
+export function consensusTruth(docs: AuditForecastDoc[], sources: string[], rule: SurfRule, nowMs: number, minVotes = 3): TruthFn {
+  const cache = new Map<number, Map<string, boolean>>();
+  const votesAt = (tMs: number) => {
+    const key = Math.round(tMs / 3600e3);
+    let v = cache.get(key);
+    if (!v) {
+      v = new Map();
+      for (const s of sources) {
+        const p = pointFor(docs, s, tMs, nowMs);
+        const ok = p ? forecastVerdict(s, p, rule).ok : undefined;
+        if (ok !== undefined) v.set(s, ok);
+      }
+      cache.set(key, v);
+    }
+    return v;
+  };
+  return (tMs, source) => {
+    if (tMs > nowMs) return undefined;
+    let yes = 0, no = 0;
+    for (const [s, ok] of votesAt(tMs)) { if (s === source) continue; if (ok) yes++; else no++; }
+    if (yes + no < minVotes || yes === no) return undefined;
+    return yes > no;
+  };
+}
+
+/** Bij voorkeur de metingen; waar die ontbreken het eindoordeel van de groep. */
+export function combinedTruth(primary: TruthFn, fallback: TruthFn): TruthFn {
+  return (t, s) => { const v = primary(t, s); return v !== undefined ? v : fallback(t, s); };
+}
+
+// ── Ranglijsten ─────────────────────────────────────────────────────────────
+
+export interface RankRow { source: string; pct: number; n: number }
+
+/** Ranglijst voor één onderdeel: hoogste % goed eerst (bij gelijk: meeste vergelijkingen). */
+export function componentRanking(scores: Map<string, ScoreRow>, key: ComponentKey): RankRow[] {
+  return [...scores.values()]
+    .filter(r => (r.n[key] || 0) > 0)
+    .map(r => ({ source: r.source, pct: Math.round((r.hit[key] || 0) / r.n[key]! * 100), n: r.n[key]! }))
+    .sort((a, b) => b.pct - a.pct || b.n - a.n);
+}
+
+export interface OverallRow { source: string; score: number; parts: number; n: number }
+
+/**
+ * Totaalranglijst: gemiddelde van het % goed over alle onderdelen die een voorspeller
+ * levert, waarbij "te surfen?" dubbel telt (daar draait het om). Onderdelen met minder
+ * dan `minN` vergelijkingen tellen niet mee.
+ */
+export function overallRanking(scores: Map<string, ScoreRow>, minN = 1): OverallRow[] {
+  const out: OverallRow[] = [];
+  for (const r of scores.values()) {
+    let sum = 0, weight = 0, n = 0;
+    for (const c of COMPONENTS) {
+      const cn = r.n[c.key] || 0;
+      if (cn < minN) continue;
+      const w = c.key === 'total' ? 2 : 1;
+      sum += w * (r.hit[c.key] || 0) / cn; weight += w; n = Math.max(n, cn);
+    }
+    if (weight) out.push({ source: r.source, score: Math.round(sum / weight * 100), parts: COMPONENTS.filter(c => (r.n[c.key] || 0) >= minN).length, n });
+  }
+  return out.sort((a, b) => b.score - a.score || b.n - a.n);
 }
