@@ -93,7 +93,7 @@ Workflow `.github/workflows/forecast-audit.yml` draait dagelijks om 05:30 UTC
   KNMI HARMONIE (wind), Open-Meteo best match, Windfinder, Windfinder Superforecast,
   breakfinder.surf, sea-forecast.com. Optioneel Stormglass (secret `STORMGLASS_API_KEY`).
 - **Metingen** (Firestore `auditObservations/{datum}`), per uur, Rijkswaterstaat:
-  golfhoogte/periode/richting Schouwenbank, wind Europlatform, waterstand Lichteiland Goeree.
+  golfhoogte/periode/richting Maasgeul 2 (20 km; terugval Schouwenbank — de posten vlak bij Ouddorp leveren geen actuele golfdata, zie audit-raw-dump "stations"), wind Europlatform, waterstand Lichteiland Goeree.
 - **Surfline en surfnerd** weren de GitHub-servers (Cloudflare). Die haalt de
   Android-app van de admin op, via de gewone telefoonverbinding: automatisch 1x per
   dag bij openen, of met de knop in Beta → Voorspellingsaudit. Ruwe opnames staan in

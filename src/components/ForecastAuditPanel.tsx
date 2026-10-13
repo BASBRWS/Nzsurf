@@ -139,7 +139,7 @@ export function ForecastAuditPanel() {
       <div>
         <h3 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-500" /> Voorspellingsaudit — Ouddorp</h3>
         <p className="text-xs text-slate-600 mt-1">
-          Elke dag legt een workflow de verwachtingen van alle bronnen vast (de eerste ophaalronde van de dag); 4× per dag vult hij de metingen van Rijkswaterstaat aan (golven Schouwenbank, wind Europlatform).
+          Elke dag legt een workflow de verwachtingen van alle bronnen vast (de eerste ophaalronde van de dag); 4× per dag vult hij de metingen van Rijkswaterstaat aan (golven: boei Maasgeul 2, 20 km van Ouddorp — oudere dagen Schouwenbank, 41 km; wind: Europlatform).
           Fout = verwachting − meting. MAE = gemiddelde afwijking, bias = structureel te hoog (+) of te laag (−).
           Onder {MIN_N} metingen is een score nog niet betrouwbaar.
         </p>
@@ -275,7 +275,7 @@ export function ForecastAuditPanel() {
               <ul>
                 <li><b>n</b> = aantal uren waarvoor zowel een verwachting als een meting is. Een bron die elk uur een waarde geeft (Windfinder Superforecast) heeft een hogere n dan een bron met één waarde per 3 uur.</li>
                 <li><b>MAE</b> = gemiddelde afwijking: hoeveel de verwachting gemiddeld naast de meting zat. Lager is beter; hierop is gesorteerd.</li>
-                <li><b>Bias</b> = structureel te hoog (+) of te laag (−). Zitten alle bronnen aan dezelfde kant, dan ligt dat vaak aan de meetplek: boei Schouwenbank ligt verder op zee dan de rekenpunten bij de kust.</li>
+                <li><b>Bias</b> = structureel te hoog (+) of te laag (−). Zitten alle bronnen aan dezelfde kant, dan ligt dat vaak aan de meetplek: de boei ligt verder op zee dan de rekenpunten bij de kust.</li>
                 <li><b>RMSE</b> = als MAE, maar grote missers wegen zwaarder. Ligt RMSE dicht bij MAE, dan waren er geen uitschieters.</li>
                 <li><b>Grijs</b> = minder dan {MIN_N} vergelijkingen: staat erbij, maar is nog niet betrouwbaar.</li>
                 <li>Verschillen van een paar centimeter na een paar dagen zeggen weinig; pas na weken met verschillend weer wordt het een conclusie.</li>

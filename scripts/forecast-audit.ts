@@ -284,7 +284,7 @@ async function findRwsStations(variant: typeof RWS_VARIANTS[number]) {
   const meta: any[] = cat.AquoMetadataLijst || [];
   const links: any[] = cat.AquoMetadataLocatieLijst || [];
   // Kandidaten in de buurt van Goeree / Haringvliet / Brouwersdam.
-  const nameHit = (l: any) => /goeree|lichteiland|haringvliet|brouwers|stellendam|europlatform|schouwenbank/i.test(`${l.Naam} ${l.Code}`);
+  const nameHit = (l: any) => /goeree|lichteiland|haringvliet|brouwers|stellendam|europlatform|schouwenbank|maasgeul/i.test(`${l.Naam} ${l.Code}`);
   const stations = locs.filter(nameHit).map(l => {
     const metaIds = links.filter(k => k.Locatie_MessageID === l.Locatie_MessageID).map(k => k.AquoMetaData_MessageID);
     const metas = meta.filter(m => metaIds.includes(m.AquoMetadata_MessageID));
@@ -351,7 +351,10 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
       if (!stations.length) continue;
       // Per grootheid het dichtstbijzijnde station dat hem meet (voorkeur Lichteiland Goeree).
       // Voorkeursvolgorde: dichtst bij Ouddorp eerst; de eerste met data wint.
-      const ORDER = ['goeree.lichteiland', 'schouwenbank.1', 'schouwenbank.2', 'schouwenbank', 'haringvlietmond', 'europlatform', 'europlatform.3', 'brouwersdam.brouwershavensegat.2'];
+      // Golven: de posten vlak bij Ouddorp (lichteiland, Haringvlietmond, Brouwersdam) leveren
+      // nu geen actuele data; Maasgeul 2 (20 km, open zee) is de dichtstbijzijnde werkende boei,
+      // Schouwenbank (41 km) de terugval. Zie audit-raw-dump 'stations'.
+      const ORDER = ['goeree.lichteiland', 'haringvlietmond', 'maasgeul.2', 'schouwenbank.1', 'schouwenbank.2', 'schouwenbank', 'europlatform', 'europlatform.3', 'brouwersdam.brouwershavensegat.2'];
       const pref = (s: any) => { const i = ORDER.indexOf(s.code); return i === -1 ? 99 : i; };
       const hourly = new Map<string, ObsPoint>();
       const used = new Set<string>();
