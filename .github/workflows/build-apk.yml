@@ -17,6 +17,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Een normale build duurt ±5 min; een vastgelopen Gradle-stap stopt zo na 25 min
+    # i.p.v. pas na 6 uur (GitHub-standaard).
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
