@@ -61,6 +61,8 @@ jobs:
           # gedeployde Express-backend om de AI-features in de APK te activeren.
           # Leeg = de app gebruikt de offline adviesmotor.
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          # Buildnummer in de app, voor de update-knop (vergelijkt met de nieuwste release).
+          VITE_BUILD_NUMBER: ${{ steps.version.outputs.code }}
 
       - name: Add Android platform
         # Het native android/-project staat niet in git; Capacitor genereert het

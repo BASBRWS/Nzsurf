@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, Waves, Settings2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { saveFileOrAlert } from '../utils/saveFile';
+import { TableHelp } from './TableHelp';
 import { degreesToCompass16 } from '../utils/spotKnowledge';
 import { knotsToBft } from '../utils/surfMoments';
 import { AuditForecastDoc, AuditObsDoc, MIN_N, toCsv } from '../utils/forecastAudit';
@@ -202,6 +204,14 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
               </tbody>
             </table>
           </div>
+          <TableHelp>
+            <ul>
+              <li>Per voorspeller en per dag: op hoeveel momenten overdag (07–20 u, elke 3 uur) het "te surfen" is volgens de nieuwste verwachting. <b>3/5</b> = 3 van de 5 momenten.</li>
+              <li><b>Groen</b> = minstens één moment te surfen; <b>grijs</b> = de hele dag niet.</li>
+              <li>NzSurf en breakfinder: kans ≥ 45%. Surfline: rating ≥ "poor to fair". De anderen geven geen eigen oordeel; daar geldt de aanpasbare regel hierboven op hún cijfers (<sup>r</sup>).</li>
+              <li>Tik op een cel om de cijfers achter dat oordeel te zien (tabblad 2).</li>
+            </ul>
+          </TableHelp>
         </div>
       )}
 
@@ -245,6 +255,16 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
               </tbody>
             </table>
           </div>
+          <TableHelp>
+            <ul>
+              <li>Kies een dag (pijltjes) en een tijdstip. Elke rij is de <b>laatste verwachting die een voorspeller vóór dat moment gaf</b>; voor een dag in het verleden dus wat ze toen dachten.</li>
+              <li><b>Golf m</b> = golfhoogte op zee; bij NzSurf tussen haakjes de hoogte op de spot (na correctie voor de ondiepe kust).</li>
+              <li><b>Per. s</b> = golfperiode (piekperiode). <b>Swell</b> = richting waar de golven vandaan komen.</li>
+              <li><b>Wind kn</b> = windsnelheid in knopen (Beaufort). <b>Windhoek</b> = windrichting en of die aflandig, zij- of aanlandig is voor deze kust.</li>
+              <li><b>Te surfen?</b> = het oordeel; erachter de NzSurf/breakfinder-kans of de Surfline-rating. <sup>r</sup> = beoordeeld met de regel hierboven.</li>
+              <li><b>—</b> = deze voorspeller levert dit onderdeel niet.</li>
+            </ul>
+          </TableHelp>
         </div>
       )}
 
@@ -286,6 +306,16 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
             Rijkswaterstaat: golven Schouwenbank, wind Europlatform; de ophaalronde vult de laatste dagen 4× per dag aan. *De boei meet de gemiddelde periode (Tm02); tussen haakjes ≈ piekperiode zoals voorspellers die geven.
             <b> Groep</b> = meerderheid van alle voorspellers op het moment zelf. <b>Geldt</b> = wat telt voor de score (gekozen werkelijkheid).
           </p>
+          <TableHelp>
+            <ul>
+              <li>Wat er écht gemeten is, per tijdstip overdag. Hiermee worden de verwachtingen uit tabblad 2 vergeleken.</li>
+              <li><b>Golf, Per., Swell, Wind, Windhoek</b> = metingen van Rijkswaterstaat op zee (niet op het strand).</li>
+              <li><b>Meting</b> = "te surfen?" volgens de regel hierboven, toegepast op de metingen.</li>
+              <li><b>Groep</b> = wat de meerderheid van de voorspellers op het moment zelf zei (minstens 3 stemmen; bij gelijkspel —).</li>
+              <li><b>Geldt</b> = het antwoord waartegen de score wordt berekend, volgens de keuze "Werkelijkheid" bovenaan.</li>
+              <li>"nog niet opgehaald" = de meting komt bij de volgende ophaalronde (4× per dag); "nog niet gemeten" = ligt in de toekomst.</li>
+            </ul>
+          </TableHelp>
         </div>
       )}
 
@@ -315,6 +345,14 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                 ))}
               </ol>
             ) : <p className="text-xs text-slate-500">Nog geen verwachtingen waarvan de uitkomst bekend is.</p>}
+            <div className="mt-1.5"><TableHelp>
+              <ul>
+                <li><b>Score %</b> = gemiddeld percentage goed over alle onderdelen die de voorspeller levert (golf, periode, swellrichting, wind, windrichting, windhoek); "te surfen?" telt dubbel.</li>
+                <li><b>onderd.</b> = op hoeveel onderdelen hij is beoordeeld. Een bron die alleen wind geeft, wordt alleen op wind beoordeeld; vergelijk dus ook de ranglijst per onderdeel.</li>
+                <li><b>n</b> = aantal beoordeelde momenten. Vaag weergegeven = minder dan {MIN_N}: nog niet betrouwbaar.</li>
+                <li>Met "Vooruitkijktijd" bovenaan zie je de stand voor bijvoorbeeld alleen verwachtingen van 3 dagen vooruit.</li>
+              </ul>
+            </TableHelp></div>
           </div>
 
           {/* Ranglijst per onderdeel */}
@@ -343,6 +381,13 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
               </ol>
             ) : <p className="text-xs text-slate-500">Geen voorspeller levert dit onderdeel, of er is nog niets gemeten.</p>}
             <p className="text-[10px] text-slate-500 mt-1">Vaag = minder dan {MIN_N} vergelijkingen. Alleen daglicht (07–20 u).</p>
+            <div className="mt-1.5"><TableHelp>
+              <ul>
+                <li>Kies een onderdeel. De balk en het % tonen hoe vaak de voorspelling binnen de marge bleef ("goed als …" hierboven).</li>
+                <li><b>n</b> = aantal vergelijkingen. Vaag = minder dan {MIN_N}.</li>
+                <li>Anders dan bij de MAE-tabellen telt hier niet hóéveel iemand ernaast zat, alleen of het binnen de marge viel.</li>
+              </ul>
+            </TableHelp></div>
           </div>
 
           <div className="text-xs font-black uppercase text-slate-900">Alle onderdelen in één tabel</div>
@@ -373,6 +418,13 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
             {COMPONENTS.map(c => <li key={c.key}><b>{c.label}</b> goed als: {c.rule}</li>)}
             <li>Grijs = minder dan {MIN_N} vergelijkingen. Alleen daglicht (07–20 u).</li>
           </ul>
+          <TableHelp>
+            <ul>
+              <li>Hetzelfde als de ranglijst per onderdeel, maar alles naast elkaar: per voorspeller het % goed per onderdeel. Gesorteerd op "Te surfen?".</li>
+              <li><b>—</b> = de voorspeller levert dit onderdeel niet, of er is nog niets gemeten.</li>
+              <li><b>n</b> = aantal beoordeelde momenten. <sup>r</sup> = "te surfen?" bepaald met de regel hierboven.</li>
+            </ul>
+          </TableHelp>
 
           <div>
             <div className="text-xs font-black uppercase text-slate-900 mb-1">Hoe vroeg wist je het, en bleef het zo?</div>
@@ -402,6 +454,14 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                 </tbody>
               </table>
             </div>
+            <div className="mt-1.5"><TableHelp>
+              <ul>
+                <li><b>5d … 1d</b> = hoe vaak "te surfen?" klopte als het 5, 4, … 1 dag van tevoren voorspeld werd. Normaal loopt dit op naar rechts.</li>
+                <li><b>Omslag</b> = hoe vaak het oordeel voor hetzelfde moment veranderde tussen twee opeenvolgende dagen. Lager = rustiger, minder heen en weer.</li>
+                <li><b>Dagen vooraf</b> = gemiddeld vanaf hoeveel dagen vooruit het oordeel goed was én zo bleef. Hoger = eerder zeker.</li>
+                <li><b>—</b> = nog geen verwachting van zo ver vooruit waarvan de uitkomst bekend is. Dit vult zich na een paar dagen.</li>
+              </ul>
+            </TableHelp></div>
           </div>
 
           <button
@@ -410,11 +470,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                 ['voorspeller', s.label],
                 ...COMPONENTS.flatMap(c => [[`${c.label} %`, r!.n[c.key] ? Math.round((r!.hit[c.key] || 0) / r!.n[c.key]! * 100) : ''], [`${c.label} n`, r!.n[c.key] || 0]]),
               ]));
-              const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(blob);
-              a.download = `nzsurf-audit-score-${leadFilter ? `dag${leadFilter}` : 'alle'}-${new Date().toISOString().slice(0, 10)}.csv`;
-              a.click();
+              saveFileOrAlert(`nzsurf-audit-score-${leadFilter ? `dag${leadFilter}` : 'alle'}-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
             }}
             className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"
           >

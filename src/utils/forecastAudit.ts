@@ -122,7 +122,8 @@ export function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return '';
   const cols = Object.keys(rows[0]);
   const esc = (v: unknown) => {
-    const s = v === undefined || v === null ? '' : String(v);
+    // Getallen met decimale komma: anders leest Nederlandse Excel 0.27 als tekst of datum.
+    const s = v === undefined || v === null ? '' : typeof v === 'number' ? String(v).replace('.', ',') : String(v);
     return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // Puntkomma als scheidingsteken: opent direct goed in Nederlandse Excel.

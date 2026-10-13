@@ -3,6 +3,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { Download, Loader2, Camera } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { cn } from '../lib/utils';
+import { TableHelp } from './TableHelp';
 import {
   AuditForecastDoc, MIN_REPORTS, RATING_LABELS, SpotReportLike,
   reportRows, summarizeReports, toCsv,
@@ -96,6 +97,14 @@ export function SpotReportAudit({ auditDocs, auditSpotId, onDownload }: {
                   ))}
                 </tbody>
               </table>
+              <div className="mt-1.5"><TableHelp>
+                <ul>
+                  <li>Spotrapporten gegroepeerd op de NzSurf-kans die op dat moment gold.</li>
+                  <li><b>Rapporten</b> = hoeveel spotrapporten (met een oordeel van de surfer) in die groep vallen.</li>
+                  <li><b>Surfer: Redelijk/Goed</b> = hoeveel daarvan de surfer "Redelijk" of "Goed" noemde. Klopt de kans, dan stijgt dit percentage van boven naar beneden.</li>
+                  <li>Onder {MIN_REPORTS} rapporten is het een indicatie, geen conclusie.</li>
+                </ul>
+              </TableHelp></div>
             </div>
           )}
 
@@ -122,6 +131,13 @@ export function SpotReportAudit({ auditDocs, auditSpotId, onDownload }: {
                 </tbody>
               </table>
             </div>
+            <div className="mt-1.5"><TableHelp>
+              <ul>
+                <li>Elk spotrapport naast wat NzSurf op dat moment verwachtte (max. 100 rijen; alles staat in de CSV).</li>
+                <li><b>Kans</b> = NzSurf-kans. <b>Spot</b> = NzSurf-golfhoogte op de spot, <b>Zee</b> = ruwe golfhoogte op zee, <b>Foto</b> = golfhoogte die de AI op de foto schat.</li>
+                <li><b>Oordeel</b> = het antwoord van de surfer op "Hoe is het om te surfen?".</li>
+              </ul>
+            </TableHelp></div>
           </details>
 
           <button
