@@ -53,8 +53,31 @@ function describeHtml(body: string) {
   console.log('  API-achtige URLs:', [...new Set([...body.matchAll(/https?:\/\/[a-z0-9.-]*(?:api|data|forecast)[a-z0-9./_?=&-]*/gi)].map(m => m[0]))].slice(0, 20).join(' '));
 }
 
+// Controle op onmogelijke waarden in metingen en verwachtingen (RAW_DATE=controle).
+async function checkValues() {
+  const LIMITS: Record<string, [number, number]> = { hs: [0, 15], tm02: [0, 25], tp: [0, 30], windKn: [0, 90], gustKn: [0, 120], dir: [0, 360], windDir: [0, 360], level: [-5, 6] };
+  const bad = (p: any) => Object.entries(LIMITS).filter(([k, [lo, hi]]) => typeof p[k] === 'number' && (p[k] < lo || p[k] > hi || !Number.isFinite(p[k])));
+  const obs = await db.collection('auditObservations').get();
+  for (const d of obs.docs.sort((a, b) => a.id.localeCompare(b.id))) {
+    const x = d.data() as any;
+    const pts: any[] = x.points || [];
+    const max = (k: string) => Math.max(...pts.map(p => (typeof p[k] === 'number' ? p[k] : -Infinity)));
+    console.log(`meting ${d.id}: ${pts.length} uren, bron ${x.source}, bijgewerkt ${x.updatedAt}, max hs ${max('hs')} tm02 ${max('tm02')} wind ${max('windKn')}`);
+    for (const p of pts) { const b = bad(p); if (b.length) console.log('   ONMOGELIJK', JSON.stringify(p)); }
+    const types = new Set(pts.flatMap(p => Object.entries(p).filter(([k]) => k !== 't').map(([k, v]) => `${k}:${typeof v}`)));
+    console.log('   velden:', [...types].join(' '));
+  }
+  const fc = await db.collection('auditForecasts').get();
+  for (const d of fc.docs.sort((a, b) => a.id.localeCompare(b.id))) {
+    const pts: any[] = (d.data() as any).points || [];
+    const b = pts.filter(p => bad(p).length);
+    if (b.length) console.log(`verwachting ${d.id}: ${b.length} onmogelijke punten, bv. ${JSON.stringify(b[0])}`);
+  }
+}
+
 async function main() {
   const want = process.env.RAW_DATE || '';
+  if (want === 'controle') return checkValues();
   const snap = await db.collection('auditRaw').get();
   const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   const dates = [...new Set(docs.map(d => d.runDate))].sort();
