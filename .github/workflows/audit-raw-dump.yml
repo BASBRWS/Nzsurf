@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "Dag (JJJJ-MM-DD), leeg = laatste; \"controle\" = metingen/verwachtingen op onmogelijke waarden controleren"
+        description: "Dag (JJJJ-MM-DD), leeg = laatste; \"controle\" = onmogelijke waarden zoeken; \"stations\" = RWS-golfmeetpunten rond Ouddorp"
         required: false
         default: ""
 
