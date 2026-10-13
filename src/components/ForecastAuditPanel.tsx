@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
 import {
-  AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
+  AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
 } from '../utils/forecastAudit';
 
@@ -49,6 +49,16 @@ export function ForecastAuditPanel() {
   const [forecasts, setForecasts] = useState<AuditForecastDoc[] | null>(null);
   const [observations, setObservations] = useState<AuditObsDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Spotrapporten: de echte strandtoets ("Hoe is het om te surfen?") en de foto-schatting.
+  const [reports, setReports] = useState<SpotReportLike[] | null>(null);
+  const [reportsError, setReportsError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getDocs(collection(db, 'spotReports'))
+      .then(snap => { if (!cancelled) setReports(snap.docs.map(d => d.data() as SpotReportLike)); })
+      .catch(e => { if (!cancelled) setReportsError(e?.message || String(e)); });
+    return () => { cancelled = true; };
+  }, []);
   const [appCollect, setAppCollect] = useState<{ busy: boolean; results?: string[] }>({ busy: false });
 
   useEffect(() => {
@@ -210,7 +220,7 @@ export function ForecastAuditPanel() {
           </div>
 
           {/* Is er te surfen? Verwachting, variabelen, werkelijkheid en score per voorspeller */}
-          <SurfAuditBoard forecasts={forecasts} observations={observations} sources={visibleSources} />
+          <SurfAuditBoard forecasts={forecasts} observations={observations} sources={visibleSources} reports={reports || []} spotId={AUDIT_SPOT_ID} />
 
           {/* Ons algo vs de rest */}
           <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-3">
@@ -322,7 +332,7 @@ export function ForecastAuditPanel() {
           </div>
           <p className="text-[10px] text-slate-500">CSV gebruikt puntkomma's en decimale komma's en opent direct in Excel. In de app opent een export het deelmenu: kies "Opslaan in Bestanden", Drive of mail.</p>
 
-          <SpotReportAudit auditDocs={forecasts} auditSpotId={AUDIT_SPOT_ID} onDownload={download} />
+          <SpotReportAudit reports={reports} reportsError={reportsError} auditDocs={forecasts} auditSpotId={AUDIT_SPOT_ID} onDownload={download} />
         </>
       )}
     </div>

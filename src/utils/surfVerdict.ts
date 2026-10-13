@@ -1,4 +1,4 @@
-import { AuditForecastDoc, AuditObsDoc, AuditPoint, ObsPoint } from './forecastAudit';
+import { AuditForecastDoc, AuditObsDoc, AuditPoint, ObsPoint, SpotReportLike, UserRating } from './forecastAudit';
 import { angleDiff } from './spotKnowledge';
 import { knotsToBft } from './surfMoments';
 
@@ -10,8 +10,9 @@ import { knotsToBft } from './surfMoments';
  * - Eigen oordeel waar een voorspeller dat geeft: NzSurf (kans), breakfinder (score),
  *   Surfline (rating). De anderen krijgen het oordeel van de gedeelde regel op hun
  *   eigen cijfers (gemarkeerd als afgeleid).
- * - Werkelijkheid: dezelfde gedeelde regel op de metingen van Rijkswaterstaat (zee,
- *   niet het strand). Spotrapporten blijven de echte toets op het strand.
+ * - Werkelijkheid: bij voorkeur het oordeel van surfers in spotrapporten (het strand);
+ *   anders dezelfde gedeelde regel op de metingen van Rijkswaterstaat (zee), en
+ *   anders het eindoordeel van de groep.
  * - De regel staat open en is in het scherm aan te passen.
  */
 
@@ -21,7 +22,9 @@ export interface SurfRule {
   maxOnshoreKn: number; // kn, max wind als die aanlandig is
   maxOtherKn: number;   // kn, max wind bij zij- of aflandige wind
 }
-export const DEFAULT_RULE: SurfRule = { minWave: 0.6, minPeriod: 5, maxOnshoreKn: 16, maxOtherKn: 25 };
+// Zijwind boven ~20 kn maakt de Noordzee kapot (korte, rommelige golven); 25 kn
+// telde stormachtige dagen als "te surfen" mee.
+export const DEFAULT_RULE: SurfRule = { minWave: 0.6, minPeriod: 5, maxOnshoreKn: 16, maxOtherKn: 20 };
 
 /** Ouddorp: het strand kijkt naar 300° (WNW). */
 export const COAST_ANGLE = 300;
@@ -299,9 +302,40 @@ export function consensusTruth(docs: AuditForecastDoc[], sources: string[], rule
   };
 }
 
-/** Bij voorkeur de metingen; waar die ontbreken het eindoordeel van de groep. */
-export function combinedTruth(primary: TruthFn, fallback: TruthFn): TruthFn {
-  return (t, s) => { const v = primary(t, s); return v !== undefined ? v : fallback(t, s); };
+/** Het eerste oordeel dat er is, in volgorde (bv. surfers → metingen → groep). */
+export function combinedTruth(...fns: TruthFn[]): TruthFn {
+  return (t, s) => { for (const f of fns) { const v = f(t, s); if (v !== undefined) return v; } return undefined; };
+}
+
+/** "Redelijk" en "Goed" = te surfen; "Werkt niet" en "Matig" = niet. */
+export const RATING_SURFABLE: Record<UserRating, boolean> = { no: false, meh: false, fair: true, good: true };
+
+/**
+ * Oordeel van surfers op het strand: spotrapporten van deze spot met een antwoord op
+ * "Hoe is het om te surfen?" binnen `windowMin` minuten van het tijdstip. Meerdere
+ * rapporten: meerderheid; gelijkspel = geen oordeel.
+ */
+export function reportTruth(reports: SpotReportLike[], spotId: string, windowMin = 90): TruthFn {
+  const rated = reports
+    .filter(r => r.spotId === spotId && r.userRating && r.userRating in RATING_SURFABLE)
+    .map(r => ({ t: Date.parse(r.timestamp), ok: RATING_SURFABLE[r.userRating!] }))
+    .filter(r => Number.isFinite(r.t));
+  return (tMs) => {
+    let yes = 0, no = 0;
+    for (const r of rated) if (Math.abs(r.t - tMs) <= windowMin * 60e3) { if (r.ok) yes++; else no++; }
+    return yes === no ? undefined : yes > no;
+  };
+}
+
+/** Aantal beoordeelde spotrapporten rond een tijdstip (voor de tabel "Werkelijkheid"). */
+export function reportsAt(reports: SpotReportLike[], spotId: string, tMs: number, windowMin = 90): { yes: number; no: number } {
+  let yes = 0, no = 0;
+  for (const r of reports) {
+    if (r.spotId !== spotId || !r.userRating || !(r.userRating in RATING_SURFABLE)) continue;
+    if (Math.abs(Date.parse(r.timestamp) - tMs) > windowMin * 60e3) continue;
+    if (RATING_SURFABLE[r.userRating]) yes++; else no++;
+  }
+  return { yes, no };
 }
 
 // ── Ranglijsten ─────────────────────────────────────────────────────────────
@@ -316,24 +350,52 @@ export function componentRanking(scores: Map<string, ScoreRow>, key: ComponentKe
     .sort((a, b) => b.pct - a.pct || b.n - a.n);
 }
 
-export interface OverallRow { source: string; score: number; parts: number; n: number }
+export interface OverallRow { source: string; score: number; parts: number; n: number; keys: ComponentKey[] }
+
+/** Onderdelen waarop een voorspeller beoordeeld is (minstens `minN` vergelijkingen). */
+export const scoredKeys = (r: ScoreRow, minN = 1) => COMPONENTS.map(c => c.key).filter(k => (r.n[k] || 0) >= minN);
+
+/** Gewogen % goed over de gegeven onderdelen; "te surfen?" telt dubbel (daar draait het om). */
+export function weightedScore(r: ScoreRow, keys: ComponentKey[]): number | null {
+  let sum = 0, weight = 0;
+  for (const k of keys) {
+    const cn = r.n[k] || 0;
+    if (!cn) continue;
+    const w = k === 'total' ? 2 : 1;
+    sum += w * (r.hit[k] || 0) / cn; weight += w;
+  }
+  return weight ? Math.round(sum / weight * 100) : null;
+}
+
+/** Vanaf zoveel onderdelen telt een voorspeller als "volledig" (de rest is alleen wind, alleen golf, …). */
+export const FULL_PARTS = COMPONENTS.length - 1;
 
 /**
  * Totaalranglijst: gemiddelde van het % goed over alle onderdelen die een voorspeller
- * levert, waarbij "te surfen?" dubbel telt (daar draait het om). Onderdelen met minder
- * dan `minN` vergelijkingen tellen niet mee.
+ * levert ("te surfen?" dubbel). Onderdelen met minder dan `minN` vergelijkingen tellen
+ * niet mee. Vergelijk alleen voorspellers met (bijna) alle onderdelen met elkaar:
+ * wie alleen wind levert, scoort makkelijk hoog (zie partialComparison).
  */
 export function overallRanking(scores: Map<string, ScoreRow>, minN = 1): OverallRow[] {
   const out: OverallRow[] = [];
   for (const r of scores.values()) {
-    let sum = 0, weight = 0, n = 0;
-    for (const c of COMPONENTS) {
-      const cn = r.n[c.key] || 0;
-      if (cn < minN) continue;
-      const w = c.key === 'total' ? 2 : 1;
-      sum += w * (r.hit[c.key] || 0) / cn; weight += w; n = Math.max(n, cn);
-    }
-    if (weight) out.push({ source: r.source, score: Math.round(sum / weight * 100), parts: COMPONENTS.filter(c => (r.n[c.key] || 0) >= minN).length, n });
+    const keys = scoredKeys(r, minN);
+    const score = weightedScore(r, keys);
+    if (score === null) continue;
+    out.push({ source: r.source, score, parts: keys.length, n: Math.max(0, ...keys.map(k => r.n[k] || 0)), keys });
   }
   return out.sort((a, b) => b.score - a.score || b.n - a.n);
+}
+
+export interface PartialRow extends OverallRow { refScore: number | null }
+
+/**
+ * Gedeeltelijke voorspellers (minder dan FULL_PARTS onderdelen) eerlijk vergeleken:
+ * hun score naast die van de referentie (NzSurf) op precies dezelfde onderdelen.
+ */
+export function partialComparison(scores: Map<string, ScoreRow>, ref: string, minN = 1): PartialRow[] {
+  const refRow = scores.get(ref);
+  return overallRanking(scores, minN)
+    .filter(r => r.parts < FULL_PARTS && r.source !== ref)
+    .map(r => ({ ...r, refScore: refRow ? weightedScore(refRow, r.keys) : null }));
 }

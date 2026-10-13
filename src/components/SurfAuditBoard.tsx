@@ -5,10 +5,10 @@ import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
 import { degreesToCompass16 } from '../utils/spotKnowledge';
 import { knotsToBft } from '../utils/surfMoments';
-import { AuditForecastDoc, AuditObsDoc, MIN_N, toCsv } from '../utils/forecastAudit';
+import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../utils/forecastAudit';
 import {
-  COMPONENTS, ComponentKey, DEFAULT_RULE, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
-  combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking,
+  COMPONENTS, ComponentKey, DEFAULT_RULE, FULL_PARTS, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
+  combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
   componentScores, daySlots, forecastVerdict, obsIndex, observedVerdict, outlook, pointFor, stability, windAngle,
 } from '../utils/surfVerdict';
 
@@ -27,11 +27,13 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'truth', label: '3 Werkelijkheid' },
   { key: 'score', label: '4 Ranglijst' },
 ];
-const RULE_KEY = 'nzs_audit_rule';
+// v2: standaard max zijwind 25 → 20 kn; een oude opgeslagen regel telt niet meer.
+const RULE_KEY = 'nzs_audit_rule_v2';
 const TRUTH_KEY = 'nzs_audit_truth';
-type TruthMode = 'combined' | 'obs' | 'consensus';
+type TruthMode = 'combined' | 'reports' | 'obs' | 'consensus';
 const TRUTH_MODES: { key: TruthMode; label: string; help: string }[] = [
-  { key: 'combined', label: 'Metingen, aangevuld met de groep', help: 'Waar metingen zijn telt de meting; anders het eindoordeel van de groep.' },
+  { key: 'combined', label: 'Surfers, dan metingen, dan groep', help: 'Is er een spotrapport met oordeel (binnen 1,5 uur), dan telt de surfer; anders de meting; anders het eindoordeel van de groep.' },
+  { key: 'reports', label: 'Alleen surfers (spotrapporten)', help: 'Alleen momenten met een spotrapport met oordeel ("Redelijk"/"Goed" = te surfen) tellen mee. De eerlijkste toets, maar er zijn nog weinig rapporten.' },
   { key: 'obs', label: 'Alleen metingen (RWS)', help: 'Alleen tijdstippen met een meting tellen mee.' },
   { key: 'consensus', label: 'Eindoordeel van de groep', help: 'Meerderheid van de voorspellers op het moment zelf (zonder de beoordeelde voorspeller).' },
 ];
@@ -53,10 +55,13 @@ function Verdict({ ok, own }: { ok?: boolean; own?: boolean }) {
 const thCls = 'text-right px-1.5 font-semibold';
 const stickyTd = (nz: boolean) => cn('py-1 pr-2 sticky left-0 whitespace-nowrap', nz ? 'bg-cyan-50 font-bold' : 'bg-white');
 
-export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 'outlook' }: {
+export function SurfAuditBoard({ forecasts, observations, sources, reports = [], spotId, initialTab = 'outlook' }: {
   forecasts: AuditForecastDoc[];
   observations: AuditObsDoc[];
   sources: Src[];
+  /** Spotrapporten (alle spots); alleen die van `spotId` met een oordeel tellen. */
+  reports?: SpotReportLike[];
+  spotId: string;
   initialTab?: Tab;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -92,15 +97,19 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [forecasts, ids.join(), rule]);
   const measured = useMemo(() => obsTruth(observations, rule), [observations, rule]);
+  const surfers = useMemo(() => reportTruth(reports, spotId), [reports, spotId]);
+  const ratedReports = useMemo(() => reports.filter(r => r.spotId === spotId && r.userRating).length, [reports, spotId]);
   const truthFn: TruthFn = useMemo(
-    () => (truthMode === 'obs' ? measured : truthMode === 'consensus' ? consensus : combinedTruth(measured, consensus)),
-    [truthMode, measured, consensus],
+    () => (truthMode === 'obs' ? measured : truthMode === 'consensus' ? consensus : truthMode === 'reports' ? surfers : combinedTruth(surfers, measured, consensus)),
+    [truthMode, measured, consensus, surfers],
   );
   const scores = useMemo(() => componentScores(forecasts, observations, rule, truthFn, leadFilter || undefined), [forecasts, observations, rule, truthFn, leadFilter]);
   const stab = useMemo(() => stability(forecasts, ids, rule, truthFn),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [forecasts, ids.join(), rule, truthFn]);
-  const overall = useMemo(() => overallRanking(scores), [scores]);
+  const overall = useMemo(() => overallRanking(scores).filter(r => r.parts >= FULL_PARTS), [scores]);
+  const nzId = sources.find(s => s.kind === 'nzsurf')?.source || 'nzsurf';
+  const partial = useMemo(() => partialComparison(scores, nzId), [scores, nzId]);
   const perComponent = useMemo(() => componentRanking(scores, rankKey), [scores, rankKey]);
 
   const DayNav = (
@@ -143,7 +152,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
             </button>
           ))}
         </div>
-        <p className="text-[10px] text-slate-500">{TRUTH_MODES.find(m => m.key === truthMode)!.help} Spotrapporten met een oordeel van surfers zijn de echte strandtoets (onderaan deze pagina).</p>
+        <p className="text-[10px] text-slate-500">{TRUTH_MODES.find(m => m.key === truthMode)!.help} Spotrapporten met oordeel voor deze spot: {ratedReports}.</p>
       </div>
 
       <details className="rounded-xl bg-slate-50 border border-slate-200 p-2">
@@ -278,7 +287,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                 <th className="text-left py-1 pr-2">Tijd</th>
                 <th className={thCls}>Golf m</th><th className={thCls}>Per. s*</th><th className={thCls}>Swell</th>
                 <th className={thCls}>Wind kn</th><th className={thCls}>Windhoek</th><th className={thCls}>Meting</th>
-                <th className={thCls}>Groep</th><th className={thCls}>Geldt</th>
+                <th className={thCls}>Surfer</th><th className={thCls}>Groep</th><th className={thCls}>Geldt</th>
               </tr></thead>
               <tbody>
                 {slots.map(t => {
@@ -294,6 +303,11 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                         <td className="text-right px-1.5">{typeof o.windDir === 'number' ? `${degreesToCompass16(o.windDir)} · ${windAngle(o.windDir)}` : dash}</td>
                         <td className="text-right px-1.5"><Verdict ok={observedVerdict(o, rule)} /></td>
                       </>) : <td colSpan={6} className="text-right px-1.5 text-slate-400">{t > now ? 'nog niet gemeten' : 'nog niet opgehaald (wordt aangevuld)'}</td>}
+                      <td className="text-right px-1.5">{(() => {
+                        const r = reportsAt(reports, spotId, t);
+                        if (!r.yes && !r.no) return dash;
+                        return <><Verdict ok={r.yes === r.no ? undefined : r.yes > r.no} />{r.yes + r.no > 1 && <span className="text-slate-500"> {r.yes}/{r.yes + r.no}</span>}</>;
+                      })()}</td>
                       <td className="text-right px-1.5"><Verdict ok={consensus(t, '')} /></td>
                       <td className="text-right px-1.5"><Verdict ok={truthFn(t, '')} /></td>
                     </tr>
@@ -304,13 +318,14 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
           </div>
           <p className="text-[10px] text-slate-500">
             Rijkswaterstaat: golven Schouwenbank, wind Europlatform; de ophaalronde vult de laatste dagen 4× per dag aan. *De boei meet de gemiddelde periode (Tm02); tussen haakjes ≈ piekperiode zoals voorspellers die geven.
-            <b> Groep</b> = meerderheid van alle voorspellers op het moment zelf. <b>Geldt</b> = wat telt voor de score (gekozen werkelijkheid).
+            <b> Surfer</b> = oordeel uit spotrapporten (±1,5 uur). <b>Groep</b> = meerderheid van alle voorspellers op het moment zelf. <b>Geldt</b> = wat telt voor de score (gekozen werkelijkheid).
           </p>
           <TableHelp>
             <ul>
               <li>Wat er écht gemeten is, per tijdstip overdag. Hiermee worden de verwachtingen uit tabblad 2 vergeleken.</li>
               <li><b>Golf, Per., Swell, Wind, Windhoek</b> = metingen van Rijkswaterstaat op zee (niet op het strand).</li>
               <li><b>Meting</b> = "te surfen?" volgens de regel hierboven, toegepast op de metingen.</li>
+              <li><b>Surfer</b> = wat surfers in een spotrapport antwoordden op "Hoe is het om te surfen?" (binnen 1,5 uur; "Redelijk"/"Goed" = ja). Bij meerdere rapporten staat erachter hoeveel er ja zeiden.</li>
               <li><b>Groep</b> = wat de meerderheid van de voorspellers op het moment zelf zei (minstens 3 stemmen; bij gelijkspel —).</li>
               <li><b>Geldt</b> = het antwoord waartegen de score wordt berekend, volgens de keuze "Werkelijkheid" bovenaan.</li>
               <li>"nog niet opgehaald" = de meting komt bij de volgende ophaalronde (4× per dag); "nog niet gemeten" = ligt in de toekomst.</li>
@@ -332,7 +347,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
           {/* Totaalranglijst */}
           <div>
             <div className="text-xs font-black uppercase text-slate-900 mb-1">🏆 Totaalranglijst</div>
-            <p className="text-[11px] text-slate-600 mb-1">Gemiddelde % goed over alle onderdelen die een voorspeller levert; "te surfen?" telt dubbel. Zet bovenaan de periode op "Alles" voor de stand over alle tijd.</p>
+            <p className="text-[11px] text-slate-600 mb-1">Voorspellers die (bijna) alle {COMPONENTS.length} onderdelen leveren, op gelijke voet. Gemiddelde % goed; "te surfen?" telt dubbel. Zet bovenaan de periode op "Alles" voor de stand over alle tijd.</p>
             {overall.length ? (
               <ol className="space-y-1">
                 {overall.map((r, i) => (
@@ -345,10 +360,32 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                 ))}
               </ol>
             ) : <p className="text-xs text-slate-500">Nog geen verwachtingen waarvan de uitkomst bekend is.</p>}
+            {partial.length > 0 && (
+              <div className="mt-2">
+                <div className="text-[11px] font-bold text-slate-700 mb-1">Gedeeltelijke voorspellers — vergeleken met NzSurf op dezelfde onderdelen</div>
+                <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
+                  <thead><tr className="text-slate-500 border-b border-slate-200">
+                    <th className="text-left py-1 pr-2">Voorspeller</th><th className="text-left pr-2">Onderdelen</th>
+                    <th className={thCls}>Zij</th><th className={thCls}>NzSurf</th>
+                  </tr></thead>
+                  <tbody>
+                    {partial.map(r => (
+                      <tr key={r.source} className={cn('border-b border-slate-100', r.n < MIN_N && 'text-slate-400')}>
+                        <td className="py-1 pr-2">{labelOf(r.source)}</td>
+                        <td className="pr-2 text-slate-500 whitespace-normal">{r.keys.map(k => COMPONENTS.find(c => c.key === k)!.label.toLowerCase()).join(', ')}</td>
+                        <td className="text-right px-1.5 font-bold">{r.score}%</td>
+                        <td className={cn('text-right px-1.5 font-bold', r.refScore !== null && r.refScore >= r.score ? 'text-emerald-700' : 'text-slate-700')}>{r.refScore !== null ? `${r.refScore}%` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="mt-1.5"><TableHelp>
               <ul>
                 <li><b>Score %</b> = gemiddeld percentage goed over alle onderdelen die de voorspeller levert (golf, periode, swellrichting, wind, windrichting, windhoek); "te surfen?" telt dubbel.</li>
-                <li><b>onderd.</b> = op hoeveel onderdelen hij is beoordeeld. Een bron die alleen wind geeft, wordt alleen op wind beoordeeld; vergelijk dus ook de ranglijst per onderdeel.</li>
+                <li><b>onderd.</b> = op hoeveel onderdelen hij is beoordeeld. Alleen voorspellers met minstens {FULL_PARTS} van de {COMPONENTS.length} onderdelen staan in de ranglijst: wie alleen wind levert, scoort anders makkelijk hoog.</li>
+                <li><b>Gedeeltelijke voorspellers</b> (alleen wind, alleen golf, …) staan eronder, met naast hun score die van NzSurf op precies dezelfde onderdelen. Groen = NzSurf minstens zo goed.</li>
                 <li><b>n</b> = aantal beoordeelde momenten. Vaag weergegeven = minder dan {MIN_N}: nog niet betrouwbaar.</li>
                 <li>Met "Vooruitkijktijd" bovenaan zie je de stand voor bijvoorbeeld alleen verwachtingen van 3 dagen vooruit.</li>
               </ul>
