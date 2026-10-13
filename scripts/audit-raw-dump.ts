@@ -180,6 +180,14 @@ async function main() {
   const want = process.env.RAW_DATE || '';
   if (want === 'controle') return checkValues();
   if (want === 'stations') return listStations();
+  // Een pagina verkennen (RAW_DATE=https://…): opbouw, scripts en API-achtige URLs.
+  if (/^https?:\/\//.test(want)) {
+    const res = await fetch(want, { headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', 'Accept-Language': 'nl,en' }, signal: AbortSignal.timeout(30000) });
+    const body = await res.text();
+    console.log(`${want} → HTTP ${res.status}, ${body.length} tekens, ${res.headers.get('content-type')}`);
+    if (/^\s*[\[{]/.test(body)) describeJson(want, body); else describeHtml(body);
+    return;
+  }
   const snap = await db.collection('auditRaw').get();
   const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   const dates = [...new Set(docs.map(d => d.runDate))].sort();
