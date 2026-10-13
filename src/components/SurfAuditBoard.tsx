@@ -137,7 +137,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
       <div>
         <div className="text-xs font-black uppercase text-slate-900 flex items-center gap-1.5"><Waves className="w-3.5 h-3.5 text-cyan-600" /> Is er te surfen? Voorspellers vergeleken</div>
         <p className="text-[11px] text-slate-600 mt-1">
-          NzSurf, breakfinder en Surfline geven een eigen oordeel. Voor de anderen geldt de regel hieronder op hún cijfers (<sup>r</sup>).
+          NzSurf, breakfinder, Surfline en Wompy geven een eigen oordeel. Voor de anderen geldt de regel hieronder op hún cijfers (<sup>r</sup>).
           Werkelijkheid voor "te surfen?": kies hieronder. Golf, wind enz. worden altijd tegen de metingen van Rijkswaterstaat getoetst (op zee, niet het strand).
         </p>
       </div>
@@ -217,7 +217,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
             <ul>
               <li>Per voorspeller en per dag: op hoeveel momenten overdag (07–20 u, elke 3 uur) het "te surfen" is volgens de nieuwste verwachting. <b>3/5</b> = 3 van de 5 momenten.</li>
               <li><b>Groen</b> = minstens één moment te surfen; <b>grijs</b> = de hele dag niet.</li>
-              <li>NzSurf en breakfinder: kans ≥ 45%. Surfline: rating ≥ "poor to fair". De anderen geven geen eigen oordeel; daar geldt de aanpasbare regel hierboven op hún cijfers (<sup>r</sup>).</li>
+              <li>NzSurf en breakfinder: kans ≥ 45%. Surfline: rating ≥ "poor to fair". Wompy: dagoordeel OK, GOOD of EPIC (geldt voor de hele dag en de hele NL-kust). De anderen geven geen eigen oordeel; daar geldt de aanpasbare regel hierboven op hún cijfers (<sup>r</sup>).</li>
               <li>Tik op een cel om de cijfers achter dat oordeel te zien (tabblad 2).</li>
             </ul>
           </TableHelp>

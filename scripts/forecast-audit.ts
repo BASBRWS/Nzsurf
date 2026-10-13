@@ -18,6 +18,7 @@ import { DEFAULT_SPOTS } from '../src/constants';
 import { fetchForecast } from '../src/services/weatherService';
 import { withAreaDefaults } from '../src/utils/spotKnowledge';
 import { plausibleObs } from '../src/utils/forecastAudit';
+import { parseWompy } from '../src/utils/siteParsers';
 
 // ── Instellingen ────────────────────────────────────────────────────────────
 const SPOT = withAreaDefaults(DEFAULT_SPOTS.find(s => s.id === 'ouddorp-p-noordweg')!);
@@ -254,6 +255,16 @@ async function collectSeaForecast(): Promise<SourceResult> {
   return { source: 'seaforecast', label: 'sea-forecast.com (golf, per 6 uur)', kind: 'site', points: uniq };
 }
 
+// ── Bron: Wompy (dagoordeel + golf/wind per dag) ──────────────────────────────
+async function collectWompy(): Promise<SourceResult> {
+  const html = await getHtml('https://www.wompy.nl/spot/ouddorp');
+  const points = parseWompy(html, runAt);
+  return {
+    source: 'wompy', label: 'Wompy (dagoordeel)', kind: 'site', points,
+    note: points.length ? 'oordeel per dag (score voor de NL-kust), golf en wind per dag' : 'uitlezer vond geen dagen — pagina veranderd?',
+  };
+}
+
 // ── Metingen: Rijkswaterstaat (Lichteiland Goeree e.o.) ─────────────────────
 // RWS heeft twee generaties webservices; we proberen beide en loggen wat werkt.
 export interface ObsPoint { t: string; hs?: number; tm02?: number; dir?: number; windKn?: number; windDir?: number; level?: number }
@@ -421,21 +432,28 @@ async function main() {
 
   // De workflow draait meerdere keren per dag (GitHub start geplande runs soms uren
   // te laat of slaat ze over). De eerste run van de dag legt de verwachtingen vast;
-  // latere runs vullen alleen de metingen aan, zodat de vooruitkijktijd klopt.
-  const forecastsDone = !!db && !process.env.AUDIT_FORCE_FORECASTS
-    && (await db.collection('auditForecasts').doc(`${runDate}_nzsurf`).get()).exists;
-  if (forecastsDone) console.log(`Verwachtingen van ${runDate} staan er al; deze run vult alleen de metingen aan.`);
-
-  const jobs: Promise<SourceResult | null>[] = forecastsDone ? [] : [
-    collectNzSurf(),
-    ...MODEL_FAMILIES.map(collectModel),
-    collectStormglass(),
-    collectWindfinder('https://www.windfinder.com/forecast/ouddorp', 'windfinder', 'Windfinder'),
-    collectWindfinder('https://www.windfinder.com/weatherforecast/ouddorp', 'windfinder-super', 'Windfinder Superforecast'),
-    collectBreakfinder(),
-    collectSeaForecast(),
+  // latere runs halen alleen bronnen op die vandaag nog ontbreken (nieuwe bron, of
+  // eerder mislukt) en vullen de metingen aan, zodat de vooruitkijktijd klopt.
+  const SOURCES: [string, () => Promise<SourceResult | null>][] = [
+    ['nzsurf', collectNzSurf],
+    ...MODEL_FAMILIES.map(f => [f.source, () => collectModel(f)] as [string, () => Promise<SourceResult>]),
+    ['stormglass', collectStormglass],
+    ['windfinder', () => collectWindfinder('https://www.windfinder.com/forecast/ouddorp', 'windfinder', 'Windfinder')],
+    ['windfinder-super', () => collectWindfinder('https://www.windfinder.com/weatherforecast/ouddorp', 'windfinder-super', 'Windfinder Superforecast')],
+    ['breakfinder', collectBreakfinder],
+    ['seaforecast', collectSeaForecast],
+    ['wompy', collectWompy],
   ];
-  const results = forecastsDone ? [] : await Promise.allSettled(jobs);
+  const force = !!process.env.AUDIT_FORCE_FORECASTS;
+  const todo: typeof SOURCES = [];
+  for (const entry of SOURCES) {
+    const have = !!db && !force && (await db.collection('auditForecasts').doc(`${runDate}_${entry[0]}`).get()).exists;
+    if (!have) todo.push(entry);
+  }
+  if (todo.length < SOURCES.length) {
+    console.log(`Verwachtingen van ${runDate} staan er al voor ${SOURCES.length - todo.length} bronnen; ${todo.length ? `nu alleen nog: ${todo.map(e => e[0]).join(', ')}` : 'deze run vult alleen de metingen aan'}.`);
+  }
+  const results = await Promise.allSettled(todo.map(([, fn]) => fn()));
   let ok = 0;
   for (const r of results) {
     if (r.status === 'rejected') { console.log(`✗ bron mislukt: ${r.reason?.message || r.reason}`); continue; }
