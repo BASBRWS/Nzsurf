@@ -102,6 +102,9 @@ async function listStations() {
   console.log(`Catalogus: ${locs.length} locaties; voorbeeld: ${JSON.stringify(locs[0])}`);
   const home = toUtm31(OUDDORP.lat, OUDDORP.lng);
   const dist = (l: any) => {
+    if (Number.isFinite(Number(l.Lat)) && Number.isFinite(Number(l.Lon))) {
+      const u = toUtm31(Number(l.Lat), Number(l.Lon)); return Math.hypot(u.x - home.x, u.y - home.y) / 1000;
+    }
     const x = Number(l.X), y = Number(l.Y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return Infinity;
     if (Math.abs(x) <= 180 && Math.abs(y) <= 90) { const u = toUtm31(y, x); return Math.hypot(u.x - home.x, u.y - home.y) / 1000; }
