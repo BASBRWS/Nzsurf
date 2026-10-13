@@ -5,7 +5,8 @@ import { degreesToCompass16 } from '../utils/spotKnowledge';
 import { knotsToBft } from '../utils/surfMoments';
 import { AuditForecastDoc, AuditObsDoc, MIN_N, toCsv } from '../utils/forecastAudit';
 import {
-  COMPONENTS, DEFAULT_RULE, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP,
+  COMPONENTS, ComponentKey, DEFAULT_RULE, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
+  combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking,
   componentScores, daySlots, forecastVerdict, obsIndex, observedVerdict, outlook, pointFor, stability, windAngle,
 } from '../utils/surfVerdict';
 
@@ -22,9 +23,16 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'outlook', label: '1 Verwachting' },
   { key: 'vars', label: '2 Variabelen' },
   { key: 'truth', label: '3 Werkelijkheid' },
-  { key: 'score', label: '4 Score' },
+  { key: 'score', label: '4 Ranglijst' },
 ];
 const RULE_KEY = 'nzs_audit_rule';
+const TRUTH_KEY = 'nzs_audit_truth';
+type TruthMode = 'combined' | 'obs' | 'consensus';
+const TRUTH_MODES: { key: TruthMode; label: string; help: string }[] = [
+  { key: 'combined', label: 'Metingen, aangevuld met de groep', help: 'Waar metingen zijn telt de meting; anders het eindoordeel van de groep.' },
+  { key: 'obs', label: 'Alleen metingen (RWS)', help: 'Alleen tijdstippen met een meting tellen mee.' },
+  { key: 'consensus', label: 'Eindoordeel van de groep', help: 'Meerderheid van de voorspellers op het moment zelf (zonder de beoordeelde voorspeller).' },
+];
 
 const nl = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
 const fmtDay = (d: Date) => d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric' });
@@ -57,6 +65,11 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
     try { return { ...DEFAULT_RULE, ...JSON.parse(localStorage.getItem(RULE_KEY) || '{}') }; } catch { return DEFAULT_RULE; }
   });
   useEffect(() => { try { localStorage.setItem(RULE_KEY, JSON.stringify(rule)); } catch { /* geen opslag */ } }, [rule]);
+  const [truthMode, setTruthMode] = useState<TruthMode>(() => {
+    try { return (localStorage.getItem(TRUTH_KEY) as TruthMode) || 'combined'; } catch { return 'combined'; }
+  });
+  useEffect(() => { try { localStorage.setItem(TRUTH_KEY, truthMode); } catch { /* geen opslag */ } }, [truthMode]);
+  const [rankKey, setRankKey] = useState<ComponentKey>('total');
 
   const now = Date.now();
   const ids = sources.map(s => s.source);
@@ -72,10 +85,21 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
   const out = useMemo(() => outlook(forecasts, ids, outlookDays, now, rule),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [forecasts, ids.join(), rule]);
-  const scores = useMemo(() => componentScores(forecasts, observations, rule, leadFilter || undefined), [forecasts, observations, rule, leadFilter]);
-  const stab = useMemo(() => stability(forecasts, observations, ids, rule),
+  // Werkelijkheid voor "te surfen?" (de variabelen gaan altijd tegen de metingen).
+  const consensus = useMemo(() => consensusTruth(forecasts, ids, rule, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [forecasts, observations, ids.join(), rule]);
+    [forecasts, ids.join(), rule]);
+  const measured = useMemo(() => obsTruth(observations, rule), [observations, rule]);
+  const truthFn: TruthFn = useMemo(
+    () => (truthMode === 'obs' ? measured : truthMode === 'consensus' ? consensus : combinedTruth(measured, consensus)),
+    [truthMode, measured, consensus],
+  );
+  const scores = useMemo(() => componentScores(forecasts, observations, rule, truthFn, leadFilter || undefined), [forecasts, observations, rule, truthFn, leadFilter]);
+  const stab = useMemo(() => stability(forecasts, ids, rule, truthFn),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [forecasts, ids.join(), rule, truthFn]);
+  const overall = useMemo(() => overallRanking(scores), [scores]);
+  const perComponent = useMemo(() => componentRanking(scores, rankKey), [scores, rankKey]);
 
   const DayNav = (
     <div className="flex items-center justify-between gap-2">
@@ -103,8 +127,21 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
         <div className="text-xs font-black uppercase text-slate-900 flex items-center gap-1.5"><Waves className="w-3.5 h-3.5 text-cyan-600" /> Is er te surfen? Voorspellers vergeleken</div>
         <p className="text-[11px] text-slate-600 mt-1">
           NzSurf, breakfinder en Surfline geven een eigen oordeel. Voor de anderen geldt de regel hieronder op hún cijfers (<sup>r</sup>).
-          De werkelijkheid is dezelfde regel op de metingen van Rijkswaterstaat (op zee, niet het strand; spotrapporten blijven de echte strandtoets).
+          Werkelijkheid voor "te surfen?": kies hieronder. Golf, wind enz. worden altijd tegen de metingen van Rijkswaterstaat getoetst (op zee, niet het strand).
         </p>
+      </div>
+
+      <div className="rounded-xl bg-slate-50 border border-slate-200 p-2 space-y-1">
+        <div className="text-[11px] font-bold text-slate-700">Werkelijkheid "te surfen?"</div>
+        <div className="flex flex-wrap gap-1.5">
+          {TRUTH_MODES.map(m => (
+            <button key={m.key} onClick={() => setTruthMode(m.key)}
+              className={cn('text-[11px] px-2 py-1 rounded-full border cursor-pointer', truthMode === m.key ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white border-slate-300 text-slate-700')}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-500">{TRUTH_MODES.find(m => m.key === truthMode)!.help} Spotrapporten met een oordeel van surfers zijn de echte strandtoets (onderaan deze pagina).</p>
       </div>
 
       <details className="rounded-xl bg-slate-50 border border-slate-200 p-2">
@@ -220,7 +257,8 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
               <thead><tr className="text-slate-500 border-b border-slate-200">
                 <th className="text-left py-1 pr-2">Tijd</th>
                 <th className={thCls}>Golf m</th><th className={thCls}>Per. s*</th><th className={thCls}>Swell</th>
-                <th className={thCls}>Wind kn</th><th className={thCls}>Windhoek</th><th className={thCls}>Te surfen?</th>
+                <th className={thCls}>Wind kn</th><th className={thCls}>Windhoek</th><th className={thCls}>Meting</th>
+                <th className={thCls}>Groep</th><th className={thCls}>Geldt</th>
               </tr></thead>
               <tbody>
                 {slots.map(t => {
@@ -235,14 +273,19 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
                         <td className="text-right px-1.5">{typeof o.windKn === 'number' ? `${Math.round(o.windKn)} (${knotsToBft(o.windKn)} Bft)` : dash}</td>
                         <td className="text-right px-1.5">{typeof o.windDir === 'number' ? `${degreesToCompass16(o.windDir)} · ${windAngle(o.windDir)}` : dash}</td>
                         <td className="text-right px-1.5"><Verdict ok={observedVerdict(o, rule)} /></td>
-                      </>) : <td colSpan={6} className="text-right px-1.5 text-slate-400">{t > now ? 'nog niet gemeten' : 'geen meting'}</td>}
+                      </>) : <td colSpan={6} className="text-right px-1.5 text-slate-400">{t > now ? 'nog niet gemeten' : 'nog niet opgehaald (wordt aangevuld)'}</td>}
+                      <td className="text-right px-1.5"><Verdict ok={consensus(t, '')} /></td>
+                      <td className="text-right px-1.5"><Verdict ok={truthFn(t, '')} /></td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-slate-500">Rijkswaterstaat: golven Schouwenbank, wind Europlatform. *De boei meet de gemiddelde periode (Tm02); tussen haakjes ≈ piekperiode zoals voorspellers die geven.</p>
+          <p className="text-[10px] text-slate-500">
+            Rijkswaterstaat: golven Schouwenbank, wind Europlatform; de ophaalronde vult de laatste dagen 4× per dag aan. *De boei meet de gemiddelde periode (Tm02); tussen haakjes ≈ piekperiode zoals voorspellers die geven.
+            <b> Groep</b> = meerderheid van alle voorspellers op het moment zelf. <b>Geldt</b> = wat telt voor de score (gekozen werkelijkheid).
+          </p>
         </div>
       )}
 
@@ -256,6 +299,53 @@ export function SurfAuditBoard({ forecasts, observations, sources, initialTab = 
               {[1, 2, 3, 4, 5].map(d => <option key={d} value={d}>{d} dag{d > 1 ? 'en' : ''} vooruit</option>)}
             </select>
           </div>
+          {/* Totaalranglijst */}
+          <div>
+            <div className="text-xs font-black uppercase text-slate-900 mb-1">🏆 Totaalranglijst</div>
+            <p className="text-[11px] text-slate-600 mb-1">Gemiddelde % goed over alle onderdelen die een voorspeller levert; "te surfen?" telt dubbel. Zet bovenaan de periode op "Alles" voor de stand over alle tijd.</p>
+            {overall.length ? (
+              <ol className="space-y-1">
+                {overall.map((r, i) => (
+                  <li key={r.source} className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-slate-50', r.n < MIN_N && 'opacity-60')}>
+                    <span className="w-6 text-right font-black">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                    <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
+                    <span className="tabular-nums font-black">{r.score}%</span>
+                    <span className="tabular-nums text-[10px] text-slate-500 w-24 text-right whitespace-nowrap">{r.parts} onderd. · n {r.n}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="text-xs text-slate-500">Nog geen verwachtingen waarvan de uitkomst bekend is.</p>}
+          </div>
+
+          {/* Ranglijst per onderdeel */}
+          <div>
+            <div className="text-xs font-black uppercase text-slate-900 mb-1">Per onderdeel: wie zat het vaakst goed?</div>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {COMPONENTS.map(c => (
+                <button key={c.key} onClick={() => setRankKey(c.key)}
+                  className={cn('text-[11px] px-2 py-1 rounded-full border cursor-pointer', rankKey === c.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-300 text-slate-700')}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-500 mb-1">Goed als: {COMPONENTS.find(c => c.key === rankKey)!.rule}.</p>
+            {perComponent.length ? (
+              <ol className="space-y-1">
+                {perComponent.map((r, i) => (
+                  <li key={r.source} className={cn('flex items-center gap-2 rounded-lg px-2 py-1 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-white border border-slate-100', r.n < MIN_N && 'opacity-60')}>
+                    <span className="w-6 text-right font-bold">{i + 1}.</span>
+                    <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
+                    <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${r.pct}%` }} /></div>
+                    <span className="tabular-nums font-bold w-10 text-right">{r.pct}%</span>
+                    <span className="tabular-nums text-[10px] text-slate-500 w-10 text-right">n {r.n}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="text-xs text-slate-500">Geen voorspeller levert dit onderdeel, of er is nog niets gemeten.</p>}
+            <p className="text-[10px] text-slate-500 mt-1">Vaag = minder dan {MIN_N} vergelijkingen. Alleen daglicht (07–20 u).</p>
+          </div>
+
+          <div className="text-xs font-black uppercase text-slate-900">Alle onderdelen in één tabel</div>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
               <thead><tr className="text-slate-500 border-b border-slate-200">

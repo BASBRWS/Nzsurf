@@ -409,7 +409,14 @@ async function main() {
   console.log(`Voorspellingsaudit ${runAt.toISOString()} — spot ${SPOT.name}${DRY_RUN ? ' (DRY RUN)' : ''}`);
   const db = initDb();
 
-  const jobs: Promise<SourceResult | null>[] = [
+  // De workflow draait meerdere keren per dag (GitHub start geplande runs soms uren
+  // te laat of slaat ze over). De eerste run van de dag legt de verwachtingen vast;
+  // latere runs vullen alleen de metingen aan, zodat de vooruitkijktijd klopt.
+  const forecastsDone = !!db && !process.env.AUDIT_FORCE_FORECASTS
+    && (await db.collection('auditForecasts').doc(`${runDate}_nzsurf`).get()).exists;
+  if (forecastsDone) console.log(`Verwachtingen van ${runDate} staan er al; deze run vult alleen de metingen aan.`);
+
+  const jobs: Promise<SourceResult | null>[] = forecastsDone ? [] : [
     collectNzSurf(),
     ...MODEL_FAMILIES.map(collectModel),
     collectStormglass(),
@@ -418,7 +425,7 @@ async function main() {
     collectBreakfinder(),
     collectSeaForecast(),
   ];
-  const results = await Promise.allSettled(jobs);
+  const results = forecastsDone ? [] : await Promise.allSettled(jobs);
   let ok = 0;
   for (const r of results) {
     if (r.status === 'rejected') { console.log(`✗ bron mislukt: ${r.reason?.message || r.reason}`); continue; }

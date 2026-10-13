@@ -2,11 +2,16 @@ name: Voorspellingsaudit (Ouddorp)
 
 # Slaat dagelijks de verwachtingen van NzSurf en andere voorspellers op, plus de
 # werkelijke metingen van Rijkswaterstaat. De Beta-pagina in de app vergelijkt ze.
-# 05:30 UTC ≈ 07:30 NL-tijd.
+# 05:30 UTC ≈ 07:30 NL-tijd. GitHub start geplande runs soms uren te laat of
+# slaat ze over; daarom 4x per dag. De eerste run van de dag legt de verwachtingen
+# vast, latere runs vullen alleen de metingen aan.
 
 on:
   schedule:
     - cron: "30 5 * * *"
+    - cron: "30 11 * * *"
+    - cron: "30 17 * * *"
+    - cron: "45 22 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -31,7 +36,9 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        # Zonder install-scripts: sharp (beeldbibliotheek) is hier niet nodig en zijn
+        # downloadserver gaf een 500, waardoor de hele run mislukte.
+        run: bun install --ignore-scripts
 
       - name: Verzamel verwachtingen en metingen
         run: bun run scripts/forecast-audit.ts
