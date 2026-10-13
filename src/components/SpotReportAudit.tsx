@@ -1,7 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import React, { useMemo } from 'react';
 import { Download, Loader2, Camera } from 'lucide-react';
-import { db } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { TableHelp } from './TableHelp';
 import {
@@ -17,22 +15,13 @@ import {
 
 const fmt = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
 
-export function SpotReportAudit({ auditDocs, auditSpotId, onDownload }: {
+export function SpotReportAudit({ reports, reportsError: error, auditDocs, auditSpotId, onDownload }: {
+  reports: SpotReportLike[] | null;
+  reportsError: string | null;
   auditDocs: AuditForecastDoc[];
   auditSpotId: string;
   onDownload: (name: string, content: string, type: string) => void;
 }) {
-  const [reports, setReports] = useState<SpotReportLike[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getDocs(collection(db, 'spotReports'))
-      .then(snap => { if (!cancelled) setReports(snap.docs.map(d => d.data() as SpotReportLike)); })
-      .catch(e => { if (!cancelled) setError(e?.message || String(e)); });
-    return () => { cancelled = true; };
-  }, []);
-
   const rows = useMemo(() => (reports ? reportRows(reports, auditDocs, auditSpotId) : []), [reports, auditDocs, auditSpotId]);
   const sum = useMemo(() => summarizeReports(rows), [rows]);
   const enough = (n: number) => n >= MIN_REPORTS;
