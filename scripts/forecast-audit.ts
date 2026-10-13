@@ -459,10 +459,20 @@ async function main() {
     for (const [date, points] of Object.entries(obs.days)) {
       console.log(`    ${date}: ${points.length} uren, bv. ${JSON.stringify(points[Math.floor(points.length / 2)])}`);
       if (db) {
-        await db.collection('auditObservations').doc(date).set({
-          date, spotId: SPOT.id, source: `rws-${obs.variant}`, stations: obs.stations, points,
+        // Samenvoegen met wat er al staat: het ophaalvenster (48 u) dekt de oudste dag maar
+        // half; vervangen zou de eerdere uren van die dag wissen. Nieuwe uren gaan voor.
+        const ref = db.collection('auditObservations').doc(date);
+        const existing = (await ref.get()).data();
+        const old = (existing?.points || []) as ObsPoint[];
+        const byT = new Map(old.map(p => [p.t, p]));
+        for (const p of points) byT.set(p.t, { ...byT.get(p.t), ...p });
+        const merged = [...byT.values()].sort((a, b) => a.t.localeCompare(b.t));
+        const stations = [...new Set([...(existing?.stations || []), ...obs.stations])];
+        await ref.set({
+          date, spotId: SPOT.id, source: `rws-${obs.variant}`, stations, points: merged,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
+        if (merged.length !== points.length) console.log(`      samengevoegd met bestaande: ${merged.length} uren`);
       }
     }
   }
