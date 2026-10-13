@@ -7,7 +7,7 @@ import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { cn } from '../lib/utils';
 import {
-  AuditForecastDoc, AuditObsDoc, AuditParam, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
+  AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
 } from '../utils/forecastAudit';
 
@@ -68,7 +68,7 @@ export function ForecastAuditPanel() {
         ]);
         if (cancelled) return;
         setForecasts(fcSnap.docs.map(d => d.data() as AuditForecastDoc));
-        setObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
+        setObservations(cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc)));
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       }
