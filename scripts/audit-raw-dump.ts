@@ -113,9 +113,10 @@ async function listStations() {
   const want = ['Hm0', 'Tm02', 'Th0', 'H1/3', 'Tm-10'];
   const near = locs.map(l => {
     const ids = links.filter(k => k.Locatie_MessageID === l.Locatie_MessageID).map(k => k.AquoMetaData_MessageID);
-    const g = [...new Set(meta.filter(m => ids.includes(m.AquoMetadata_MessageID)).map(m => m.Grootheid?.Code))];
-    return { code: l.Code, naam: l.Naam, km: dist(l), g };
-  }).filter(s => s.km <= 40 && s.g.some(c => want.includes(c))).sort((a, b) => a.km - b.km);
+    const metas = meta.filter(m => ids.includes(m.AquoMetadata_MessageID));
+    const g = [...new Set(metas.map(m => m.Grootheid?.Code))];
+    return { code: l.Code, naam: l.Naam, km: dist(l), g, metas };
+  }).filter(s => (s.km <= 25 || /schouwenbank|europlatform/i.test(s.code)) && s.g.includes('Hm0')).sort((a, b) => a.km - b.km);
   console.log(`\nMeetpunten met golfgrootheden binnen 40 km van Ouddorp: ${near.length}`);
   const to = new Date(); to.setUTCMinutes(0, 0, 0);
   const from = new Date(to.getTime() - 72 * 3600e3);
@@ -125,10 +126,28 @@ async function listStations() {
     let line = `${s.km.toFixed(1).padStart(5)} km  ${s.code.padEnd(36)} ${String(s.naam).slice(0, 40).padEnd(40)} [${s.g.filter(c => want.includes(c)).join(',')}]`;
     if (s.g.includes('Hm0')) {
       try {
-        const d = await rws('/ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen', {
-          Locatie: { Code: s.code }, AquoPlusWaarnemingMetadata: { AquoMetadata: { Compartiment: { Code: 'OW' }, Grootheid: { Code: 'Hm0' } } },
-          Periode: { Begindatumtijd: fmt(from), Einddatumtijd: fmt(to) },
+        // Korte vraag; leeg → elke catalogusvariant (eenheid, hoedanigheid, parameter, procestype).
+        const variants: any[] = [{ Compartiment: { Code: 'OW' }, Grootheid: { Code: 'Hm0' } }];
+        for (const m of s.metas.filter((m: any) => m.Grootheid?.Code === 'Hm0')) variants.push({
+          Compartiment: { Code: m.Compartiment?.Code || 'OW' }, Grootheid: { Code: 'Hm0' },
+          ...(m.Eenheid?.Code ? { Eenheid: { Code: m.Eenheid.Code } } : {}),
+          ...(m.Hoedanigheid?.Code ? { Hoedanigheid: { Code: m.Hoedanigheid.Code } } : {}),
+          ...(m.Parameter?.Code ? { Parameter: { Code: m.Parameter.Code } } : {}),
+          ...(m.ProcesType ? { ProcesType: m.ProcesType } : {}),
         });
+        let d: any = {};
+        const tried: string[] = [];
+        for (const v of variants) {
+          try {
+            d = await rws('/ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen', {
+              Locatie: { Code: s.code }, AquoPlusWaarnemingMetadata: { AquoMetadata: v },
+              Periode: { Begindatumtijd: fmt(from), Einddatumtijd: fmt(to) },
+            });
+            if ((d.WaarnemingenLijst || []).length) break;
+            tried.push('leeg');
+          } catch (e: any) { tried.push(e.message.slice(0, 60)); }
+        }
+        if (!(d.WaarnemingenLijst || []).length) line += `  [${variants.length} varianten: ${[...new Set(tried)].join(' | ')}]`;
         const hourly = new Map<string, number[]>();
         for (const w of d.WaarnemingenLijst || []) for (const m of w.MetingenLijst || []) {
           const v = m.Meetwaarde?.Waarde_Numeriek;
@@ -146,6 +165,7 @@ async function listStations() {
     console.log(line);
   }
   // Vergelijking met Schouwenbank (de huidige bron): gemiddelde verhouding per uur.
+  // Laatste meting per meetpunt (ook oudere) om te zien of een post nog in bedrijf is.
   const ref = series['schouwenbank.1'];
   if (ref) {
     console.log('\nVerhouding t.o.v. schouwenbank.1 (zelfde uren):');
