@@ -284,7 +284,7 @@ async function findRwsStations(variant: typeof RWS_VARIANTS[number]) {
   const meta: any[] = cat.AquoMetadataLijst || [];
   const links: any[] = cat.AquoMetadataLocatieLijst || [];
   // Kandidaten in de buurt van Goeree / Haringvliet / Brouwersdam.
-  const nameHit = (l: any) => /goeree|lichteiland|haringvliet|brouwers|stellendam|europlatform|schouwenbank/i.test(`${l.Naam} ${l.Code}`);
+  const nameHit = (l: any) => /goeree|lichteiland|haringvliet|brouwers|stellendam|europlatform|schouwenbank|maasgeul/i.test(`${l.Naam} ${l.Code}`);
   const stations = locs.filter(nameHit).map(l => {
     const metaIds = links.filter(k => k.Locatie_MessageID === l.Locatie_MessageID).map(k => k.AquoMetaData_MessageID);
     const metas = meta.filter(m => metaIds.includes(m.AquoMetadata_MessageID));
@@ -343,7 +343,9 @@ async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { c
 
 async function collectObservations(): Promise<{ variant: string; stations: string[]; days: Record<string, ObsPoint[]> } | null> {
   const to = new Date(); to.setUTCMinutes(0, 0, 0);
-  const from = new Date(to.getTime() - 48 * 3600e3);
+  // Standaard 48 u; AUDIT_OBS_HOURS (max 14 dagen) om gaten achteraf aan te vullen.
+  const hours = Math.min(336, Math.max(24, Number(process.env.AUDIT_OBS_HOURS) || 48));
+  const from = new Date(to.getTime() - hours * 3600e3);
   for (const variant of RWS_VARIANTS) {
     try {
       const stations = await findRwsStations(variant);
@@ -351,7 +353,10 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
       if (!stations.length) continue;
       // Per grootheid het dichtstbijzijnde station dat hem meet (voorkeur Lichteiland Goeree).
       // Voorkeursvolgorde: dichtst bij Ouddorp eerst; de eerste met data wint.
-      const ORDER = ['goeree.lichteiland', 'schouwenbank.1', 'schouwenbank.2', 'schouwenbank', 'haringvlietmond', 'europlatform', 'europlatform.3', 'brouwersdam.brouwershavensegat.2'];
+      // Golven: de posten vlak bij Ouddorp (lichteiland, Haringvlietmond, Brouwersdam) leveren
+      // nu geen actuele data; Maasgeul 2 (20 km, open zee) is de dichtstbijzijnde werkende boei,
+      // Schouwenbank (41 km) de terugval. Zie audit-raw-dump 'stations'.
+      const ORDER = ['goeree.lichteiland', 'haringvlietmond', 'maasgeul.2', 'schouwenbank.1', 'schouwenbank.2', 'schouwenbank', 'europlatform', 'europlatform.3', 'brouwersdam.brouwershavensegat.2'];
       const pref = (s: any) => { const i = ORDER.indexOf(s.code); return i === -1 ? 99 : i; };
       const hourly = new Map<string, ObsPoint>();
       const used = new Set<string>();
@@ -456,10 +461,20 @@ async function main() {
     for (const [date, points] of Object.entries(obs.days)) {
       console.log(`    ${date}: ${points.length} uren, bv. ${JSON.stringify(points[Math.floor(points.length / 2)])}`);
       if (db) {
-        await db.collection('auditObservations').doc(date).set({
-          date, spotId: SPOT.id, source: `rws-${obs.variant}`, stations: obs.stations, points,
+        // Samenvoegen met wat er al staat: het ophaalvenster (48 u) dekt de oudste dag maar
+        // half; vervangen zou de eerdere uren van die dag wissen. Nieuwe uren gaan voor.
+        const ref = db.collection('auditObservations').doc(date);
+        const existing = (await ref.get()).data();
+        const old = (existing?.points || []) as ObsPoint[];
+        const byT = new Map(old.map(p => [p.t, p]));
+        for (const p of points) byT.set(p.t, { ...byT.get(p.t), ...p });
+        const merged = [...byT.values()].sort((a, b) => a.t.localeCompare(b.t));
+        const stations = [...new Set([...(existing?.stations || []), ...obs.stations])];
+        await ref.set({
+          date, spotId: SPOT.id, source: `rws-${obs.variant}`, stations, points: merged,
           updatedAt: new Date().toISOString(),
         }, { merge: true });
+        if (merged.length !== points.length) console.log(`      samengevoegd met bestaande: ${merged.length} uren`);
       }
     }
   }

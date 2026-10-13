@@ -317,7 +317,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
             </table>
           </div>
           <p className="text-[10px] text-slate-500">
-            Rijkswaterstaat: golven Schouwenbank, wind Europlatform; de ophaalronde vult de laatste dagen 4× per dag aan. *De boei meet de gemiddelde periode (Tm02); tussen haakjes ≈ piekperiode zoals voorspellers die geven.
+            Rijkswaterstaat: golven Maasgeul 2 (20 km van Ouddorp; oudere dagen Schouwenbank), wind Europlatform; de ophaalronde vult de laatste dagen 4× per dag aan. *De boei meet de gemiddelde periode (Tm02); tussen haakjes ≈ piekperiode zoals voorspellers die geven.
             <b> Surfer</b> = oordeel uit spotrapporten (±1,5 uur). <b>Groep</b> = meerderheid van alle voorspellers op het moment zelf. <b>Geldt</b> = wat telt voor de score (gekozen werkelijkheid).
           </p>
           <TableHelp>

@@ -75,9 +75,111 @@ async function checkValues() {
   }
 }
 
+// Welke RWS-meetpunten rond Ouddorp meten golven? (RAW_DATE=stations; alleen lezen)
+const OUDDORP = { lat: 51.8253, lng: 3.8874 };
+function toUtm31(lat: number, lng: number) {
+  // WGS84 → UTM zone 31N (EPSG:25831/32631), genoeg voor afstanden.
+  const a = 6378137, f = 1 / 298.257223563, k0 = 0.9996, e2 = f * (2 - f), ep2 = e2 / (1 - e2);
+  const φ = lat * Math.PI / 180, λ = lng * Math.PI / 180, λ0 = 3 * Math.PI / 180;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(φ) ** 2), T = Math.tan(φ) ** 2, C = ep2 * Math.cos(φ) ** 2, A = Math.cos(φ) * (λ - λ0);
+  const M = a * ((1 - e2 / 4 - 3 * e2 ** 2 / 64) * φ - (3 * e2 / 8 + 3 * e2 ** 2 / 32) * Math.sin(2 * φ) + (15 * e2 ** 2 / 256) * Math.sin(4 * φ));
+  return {
+    x: 500000 + k0 * N * (A + (1 - T + C) * A ** 3 / 6),
+    y: k0 * (M + N * Math.tan(φ) * (A ** 2 / 2 + (5 - T + 9 * C + 4 * C ** 2) * A ** 4 / 24)),
+  };
+}
+async function rws(path: string, body: unknown) {
+  const res = await fetch(`https://ddapi20-waterwebservices.rijkswaterstaat.nl${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(60000),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+  return text.trim() ? JSON.parse(text) : {};
+}
+async function listStations() {
+  const cat = await rws('/METADATASERVICES/OphalenCatalogus', { CatalogusFilter: { Grootheden: true, Eenheden: true, Hoedanigheden: true, Compartimenten: true } });
+  const locs: any[] = cat.LocatieLijst || [], meta: any[] = cat.AquoMetadataLijst || [], links: any[] = cat.AquoMetadataLocatieLijst || [];
+  console.log(`Catalogus: ${locs.length} locaties; voorbeeld: ${JSON.stringify(locs[0])}`);
+  const home = toUtm31(OUDDORP.lat, OUDDORP.lng);
+  const dist = (l: any) => {
+    if (Number.isFinite(Number(l.Lat)) && Number.isFinite(Number(l.Lon))) {
+      const u = toUtm31(Number(l.Lat), Number(l.Lon)); return Math.hypot(u.x - home.x, u.y - home.y) / 1000;
+    }
+    const x = Number(l.X), y = Number(l.Y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return Infinity;
+    if (Math.abs(x) <= 180 && Math.abs(y) <= 90) { const u = toUtm31(y, x); return Math.hypot(u.x - home.x, u.y - home.y) / 1000; }
+    return Math.hypot(x - home.x, y - home.y) / 1000;
+  };
+  const want = ['Hm0', 'Tm02', 'Th0', 'H1/3', 'Tm-10'];
+  const near = locs.map(l => {
+    const ids = links.filter(k => k.Locatie_MessageID === l.Locatie_MessageID).map(k => k.AquoMetaData_MessageID);
+    const metas = meta.filter(m => ids.includes(m.AquoMetadata_MessageID));
+    const g = [...new Set(metas.map(m => m.Grootheid?.Code))];
+    return { code: l.Code, naam: l.Naam, km: dist(l), g, metas };
+  }).filter(s => (s.km <= 25 || /schouwenbank|europlatform/i.test(s.code)) && s.g.includes('Hm0')).sort((a, b) => a.km - b.km);
+  console.log(`\nMeetpunten met golfgrootheden binnen 40 km van Ouddorp: ${near.length}`);
+  const to = new Date(); to.setUTCMinutes(0, 0, 0);
+  const from = new Date(to.getTime() - 72 * 3600e3);
+  const fmt = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, '.000+00:00');
+  const series: Record<string, Map<string, number>> = {};
+  for (const s of near) {
+    let line = `${s.km.toFixed(1).padStart(5)} km  ${s.code.padEnd(36)} ${String(s.naam).slice(0, 40).padEnd(40)} [${s.g.filter(c => want.includes(c)).join(',')}]`;
+    if (s.g.includes('Hm0')) {
+      try {
+        // Korte vraag; leeg → elke catalogusvariant (eenheid, hoedanigheid, parameter, procestype).
+        const variants: any[] = [{ Compartiment: { Code: 'OW' }, Grootheid: { Code: 'Hm0' } }];
+        for (const m of s.metas.filter((m: any) => m.Grootheid?.Code === 'Hm0')) variants.push({
+          Compartiment: { Code: m.Compartiment?.Code || 'OW' }, Grootheid: { Code: 'Hm0' },
+          ...(m.Eenheid?.Code ? { Eenheid: { Code: m.Eenheid.Code } } : {}),
+          ...(m.Hoedanigheid?.Code ? { Hoedanigheid: { Code: m.Hoedanigheid.Code } } : {}),
+          ...(m.Parameter?.Code ? { Parameter: { Code: m.Parameter.Code } } : {}),
+          ...(m.ProcesType ? { ProcesType: m.ProcesType } : {}),
+        });
+        let d: any = {};
+        const tried: string[] = [];
+        for (const v of variants) {
+          try {
+            d = await rws('/ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen', {
+              Locatie: { Code: s.code }, AquoPlusWaarnemingMetadata: { AquoMetadata: v },
+              Periode: { Begindatumtijd: fmt(from), Einddatumtijd: fmt(to) },
+            });
+            if ((d.WaarnemingenLijst || []).length) break;
+            tried.push('leeg');
+          } catch (e: any) { tried.push(e.message.slice(0, 60)); }
+        }
+        if (!(d.WaarnemingenLijst || []).length) line += `  [${variants.length} varianten: ${[...new Set(tried)].join(' | ')}]`;
+        const hourly = new Map<string, number[]>();
+        for (const w of d.WaarnemingenLijst || []) for (const m of w.MetingenLijst || []) {
+          const v = m.Meetwaarde?.Waarde_Numeriek;
+          if (typeof v !== 'number' || v >= 9999 || String(m.WaarnemingMetadata?.KwaliteitswaardecodeLijst?.[0]) === '99') continue;
+          const h = new Date(m.Tijdstip).toISOString().slice(0, 13);
+          (hourly.get(h) || hourly.set(h, []).get(h)!).push(v / 100);
+        }
+        const avg = new Map([...hourly].map(([h, v]) => [h, v.reduce((a, b) => a + b, 0) / v.length]));
+        series[s.code] = avg;
+        const vals = [...avg.values()];
+        const last = [...avg.keys()].sort().pop();
+        line += vals.length ? `  Hm0: ${vals.length} uur, gem ${(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)} m, max ${Math.max(...vals).toFixed(2)} m, laatste ${last}` : '  Hm0: geen recente data';
+      } catch (e: any) { line += `  Hm0: fout ${e.message.slice(0, 80)}`; }
+    }
+    console.log(line);
+  }
+  // Vergelijking met Schouwenbank (de huidige bron): gemiddelde verhouding per uur.
+  // Laatste meting per meetpunt (ook oudere) om te zien of een post nog in bedrijf is.
+  const ref = series['schouwenbank.1'];
+  if (ref) {
+    console.log('\nVerhouding t.o.v. schouwenbank.1 (zelfde uren):');
+    for (const [code, m] of Object.entries(series)) {
+      const r = [...m].filter(([h]) => ref.has(h) && ref.get(h)! > 0.2).map(([h, v]) => v / ref.get(h)!);
+      if (r.length) console.log(`  ${code.padEnd(36)} ${(r.reduce((a, b) => a + b, 0) / r.length).toFixed(2)}× (${r.length} uur)`);
+    }
+  }
+}
+
 async function main() {
   const want = process.env.RAW_DATE || '';
   if (want === 'controle') return checkValues();
+  if (want === 'stations') return listStations();
   const snap = await db.collection('auditRaw').get();
   const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   const dates = [...new Set(docs.map(d => d.runDate))].sort();
