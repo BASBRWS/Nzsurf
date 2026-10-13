@@ -343,7 +343,9 @@ async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { c
 
 async function collectObservations(): Promise<{ variant: string; stations: string[]; days: Record<string, ObsPoint[]> } | null> {
   const to = new Date(); to.setUTCMinutes(0, 0, 0);
-  const from = new Date(to.getTime() - 48 * 3600e3);
+  // Standaard 48 u; AUDIT_OBS_HOURS (max 14 dagen) om gaten achteraf aan te vullen.
+  const hours = Math.min(336, Math.max(24, Number(process.env.AUDIT_OBS_HOURS) || 48));
+  const from = new Date(to.getTime() - hours * 3600e3);
   for (const variant of RWS_VARIANTS) {
     try {
       const stations = await findRwsStations(variant);

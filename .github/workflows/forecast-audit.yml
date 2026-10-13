@@ -18,6 +18,10 @@ on:
         description: "Alleen testen (niets opslaan)"
         type: boolean
         default: false
+      obs_hours:
+        description: "Metingen van de laatste N uur ophalen (standaard 48; max 336 om gaten aan te vullen)"
+        required: false
+        default: "48"
 
 concurrency:
   group: forecast-audit
@@ -46,6 +50,7 @@ jobs:
           # NzSurf-tijden komen als lokale tijd binnen; zo worden ze correct naar UTC omgezet.
           TZ: Europe/Amsterdam
           AUDIT_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          AUDIT_OBS_HOURS: ${{ inputs.obs_hours || '48' }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
           STORMGLASS_API_KEY: ${{ secrets.STORMGLASS_API_KEY }}
