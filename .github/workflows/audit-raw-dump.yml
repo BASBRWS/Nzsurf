@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "Dag (JJJJ-MM-DD), leeg = laatste"
+        description: "Dag (JJJJ-MM-DD), leeg = laatste; \"controle\" = metingen/verwachtingen op onmogelijke waarden controleren"
         required: false
         default: ""
 

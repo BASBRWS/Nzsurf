@@ -17,6 +17,27 @@ export interface AuditObsDoc { date: string; points: ObsPoint[]; stations?: stri
 
 export type AuditParam = 'hs' | 'tp' | 'dir' | 'windKn' | 'windDir';
 
+/**
+ * Natuurkundig mogelijke meetwaarden. Rijkswaterstaat markeert ontbrekende
+ * metingen met codes als 99999 (cm) en 9999 (s); een uurgemiddelde met zo'n
+ * code erin geeft onzin (bv. 334 m golf). Waarden daarbuiten tellen niet mee.
+ */
+export const OBS_LIMITS: Record<Exclude<keyof ObsPoint, 't'>, [number, number]> = {
+  hs: [0, 15], tm02: [0.5, 25], dir: [0, 360], windKn: [0, 90], windDir: [0, 360], level: [-5, 6],
+};
+export function plausibleObs<T extends Partial<ObsPoint>>(p: T): T {
+  const out: any = { ...p };
+  for (const [k, [lo, hi]] of Object.entries(OBS_LIMITS)) {
+    const v = out[k];
+    if (v !== undefined && !(typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi)) delete out[k];
+  }
+  return out;
+}
+/** Metingen zonder onmogelijke waarden (oude opgeslagen data wordt zo ook gefilterd). */
+export function cleanObservations(docs: AuditObsDoc[]): AuditObsDoc[] {
+  return docs.map(d => ({ ...d, points: (d.points || []).map(plausibleObs) }));
+}
+
 export const PARAMS: { key: AuditParam; label: string; unit: string; obsKey: keyof ObsPoint; circular?: boolean; note?: string }[] = [
   { key: 'hs', label: 'Golfhoogte', unit: 'm', obsKey: 'hs' },
   { key: 'tp', label: 'Golfperiode', unit: 's', obsKey: 'tm02', note: 'gemeten: gemiddelde periode (Tm02)' },

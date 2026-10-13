@@ -17,6 +17,7 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { DEFAULT_SPOTS } from '../src/constants';
 import { fetchForecast } from '../src/services/weatherService';
 import { withAreaDefaults } from '../src/utils/spotKnowledge';
+import { plausibleObs } from '../src/utils/forecastAudit';
 
 // ── Instellingen ────────────────────────────────────────────────────────────
 const SPOT = withAreaDefaults(DEFAULT_SPOTS.find(s => s.id === 'ouddorp-p-noordweg')!);
@@ -332,7 +333,9 @@ async function fetchRwsSeries(variant: typeof RWS_VARIANTS[number], station: { c
     const unit = w.AquoMetadata?.Eenheid?.Code || '';
     for (const m of w.MetingenLijst || []) {
       const v = m.Meetwaarde?.Waarde_Numeriek;
-      if (typeof v === 'number' && v < 9e8) out.push({ t: new Date(m.Tijdstip).toISOString(), v, unit });
+      // Kwaliteitscode 99 = ontbrekend/onbetrouwbaar (waarde is dan een code als 99999).
+      const quality = String(m.WaarnemingMetadata?.KwaliteitswaardecodeLijst?.[0] ?? '');
+      if (typeof v === 'number' && v < 9e8 && quality !== '99') out.push({ t: new Date(m.Tijdstip).toISOString(), v, unit });
     }
   }
   return out;
@@ -368,6 +371,8 @@ async function collectObservations(): Promise<{ variant: string; stations: strin
           // Uurwaarde = gemiddelde van de metingen in dat uur (richtingen: vectorgemiddelde).
           const buckets = new Map<string, { v: number[]; unit: string }>();
           for (const m of series) {
+            // Onmogelijke losse metingen (ontbrekend-codes zonder kwaliteitscode) niet meemiddelen.
+            if (plausibleObs({ [p.field]: p.conv(m.v, m.unit) })[p.field] === undefined) continue;
             const h = m.t.slice(0, 13) + ':00:00.000Z';
             if (!buckets.has(h)) buckets.set(h, { v: [], unit: m.unit });
             buckets.get(h)!.v.push(m.v);
