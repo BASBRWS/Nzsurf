@@ -3,7 +3,7 @@ import { ForecastData, SurfSpot } from '../types';
 /**
  * Spotkennis: hoe een spot reageert op getij, swellrichting en demping.
  *
- * Bron: lokale kennis van goedegolven.nl/kennis (o.a. Ouddorp dood bij laagwater
+ * Bron: lokale kennis van goedegolven.nl/kennis (o.a. Ouddorp matig bij laagwater
  * en vlak bij pure ZW-swell; Walcheren max ~1–1,5 m; Domburg met ZW alleen bij
  * laagwater; Wijk aan Zee: lange periode ook bij laag, korte periode hoogwater).
  *
@@ -106,7 +106,9 @@ const PROFILES: SpotProfile[] = [
       { from: 330, to: 30, exposure: 1.0, note: 'N/NW-swell geeft hier de schoonste lijnen.' },
     ],
     tide: (level, trend) => {
-      if (level < 0.25) return { factor: 0.2, note: 'Laagwater: de Oostergronden liggen te ondiep, Ouddorp is dan vrijwel dood. Kom terug vanaf mid-tide opkomend.' };
+      // Was 0,2 ('vrijwel dood'); waarneming 14-10-2026: bij laagwater stond er toch bijna
+      // een meter, wel met veel stroming. Matig, niet dood.
+      if (level < 0.25) return { factor: 0.45, note: 'Laagwater: de golven breken ver uit op de Oostergronden en er staat sterke stroming. Matig; vanaf mid-tide opkomend wordt het beter.' };
       if (level < 0.45) return trend === 'rising'
         ? { factor: 0.65, note: 'Opkomend water richting mid-tide: de banken gaan werken. Let op de sterke vloedstroom.' }
         : { factor: 0.5, note: 'Afgaand richting laagwater: de spot loopt leeg en wordt snel minder.' };

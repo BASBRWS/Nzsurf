@@ -2,7 +2,7 @@
 
 > NzSurf (noordzeesurf.nl) geeft gratis, gepersonaliseerd surfadvies voor de Nederlandse Noordzeekust: golfhoogte op de spot, swellperiode en -richting, wind, getij (incl. getijvenster per spot), watertemperatuur en een AI-surfcoach die rekening houdt met je niveau, gewicht en eigen boards.
 
-De voorspelling combineert Open-Meteo (golven, wind, waterstand) met lokale spotkennis per gebied: Ouddorp werkt bijvoorbeeld niet bij laagwater en blijft vlak bij pure ZW-swell, Walcheren komt zelden boven ~1,5 m, en Hoek van Holland is afgeschermd voor ZW-swell door de pier. Per uur wordt een "kans" berekend dat de spot werkt (hoogte op de spot × periode × wind × getijvenster).
+De voorspelling combineert Open-Meteo (golven, wind, waterstand) met lokale spotkennis per gebied: Ouddorp werkt bijvoorbeeld matig bij laagwater en blijft vlak bij pure ZW-swell, Walcheren komt zelden boven ~1,5 m, en Hoek van Holland is afgeschermd voor ZW-swell door de pier. Per uur wordt een "kans" berekend dat de spot werkt (hoogte op de spot × periode × wind × getijvenster).
 
 ## Spots
 
@@ -14,7 +14,7 @@ Per spot een pagina met de actuele verwachting (per 3 uur, 7 dagen) en wanneer d
 - [Surfverwachting Domburg](https://www.noordzeesurf.nl/surfverwachting/domburg/): Zeeland; beste wind ZO/Z, beste swell NW/N. Met NW-swell rond hoogwater; met ZW-swell werkt Domburg alleen rond laagwater. Meestal maximaal ca. 1,5 m.
 - [Surfverwachting Renesse](https://www.noordzeesurf.nl/surfverwachting/renesse/): Zeeland; beste wind ZO/O/Z, beste swell NW/NNW/N. Rond hoogwater het beste venster; bij laagwater houden de banken veel swell tegen.
 - [Surfverwachting Brouwersdam (zeezijde)](https://www.noordzeesurf.nl/surfverwachting/brouwersdam/): Zeeland; beste wind ZO/O/Z, beste swell NW/NNW/N. Rond hoogwater het beste venster; door de banken voor de kust vaak kleiner dan elders.
-- [Surfverwachting Ouddorp (P Noordweg)](https://www.noordzeesurf.nl/surfverwachting/ouddorp/): Zuid-Holland; beste wind ZO/O/Z, beste swell NW/WNW/W/N. Van mid-tide tot hoogwater; het beste net na hoogwater. Rond laagwater is Ouddorp vrijwel dood.
+- [Surfverwachting Ouddorp (P Noordweg)](https://www.noordzeesurf.nl/surfverwachting/ouddorp/): Zuid-Holland; beste wind ZO/O/Z, beste swell NW/WNW/W/N. Van mid-tide tot hoogwater; het beste net na hoogwater. Rond laagwater matig: de golven breken ver uit en er staat sterke stroming.
 - [Surfverwachting Maasvlakte (P6)](https://www.noordzeesurf.nl/surfverwachting/maasvlakte/): Zuid-Holland; beste wind ZO/O/Z, beste swell NW/NNW/N. Werkt op alle getijden; het getij bepaalt vooral hoe hard de stroming staat.
 - [Surfverwachting Hoek van Holland](https://www.noordzeesurf.nl/surfverwachting/hoek-van-holland/): Zuid-Holland; beste wind ZO/O/NO, beste swell NW/WNW/NNW. Rond hoogwater het beste venster bij de pier; laagwater is minder.
 - [Surfverwachting Ter Heijde](https://www.noordzeesurf.nl/surfverwachting/ter-heijde/): Zuid-Holland; beste wind ZO/O/NO, beste swell NW/WNW/W. Laag tot mid-tide is hier vaak het beste; rond hoogwater voller.
@@ -36,7 +36,7 @@ Per spot een pagina met de actuele verwachting (per 3 uur, 7 dagen) en wanneer d
 
 ## Gidsen
 
-- [Surfen in Ouddorp: wanneer werkt het écht?](https://www.noordzeesurf.nl/blog/surfen-in-ouddorp/): getij (mid- tot hoogwater, dood bij laagwater), swellrichting (N/NW), wind (ZO aflandig), wetsuit per seizoen en veiligheid.
+- [Surfen in Ouddorp: wanneer werkt het écht?](https://www.noordzeesurf.nl/blog/surfen-in-ouddorp/): getij (mid- tot hoogwater, matig bij laagwater), swellrichting (N/NW), wind (ZO aflandig), wetsuit per seizoen en veiligheid.
 
 - [Surfen op de Maasvlakte (P6)](https://www.noordzeesurf.nl/blog/surfen-maasvlakte-p6/): spot voor gevorderden; NW/N-swell met ZO-wind, werkt op alle getijden maar met sterke stroming; holle, krachtige golven; nooit alleen surfen.
 

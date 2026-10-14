@@ -123,7 +123,7 @@ export function AdviceModal({
       else score -= 1.0;
     }
 
-    // Getijvenster van deze spot (bijv. Ouddorp dood bij laagwater).
+    // Getijvenster van deze spot (bijv. Ouddorp matig bij laagwater).
     score += tideScoreAdjustment(data.tideFactor);
 
     // Werkt de spot niet (kans laag), dan ook geen hoge conditiescore.
@@ -146,7 +146,12 @@ export function AdviceModal({
       badgeClass = 'bg-cyan-50 text-cyan-900 border-cyan-300 font-bold';
       dotClass = 'bg-cyan-500';
     } else if (finalScore <= 3.8) {
-      label = 'Kabbel / Flat';
+      // "Flat" alleen als er echt geen golf staat; anders de reden (bv. laagwater bij 0,8 m).
+      const waveOnSpot = data.spotWaveHeight ?? data.waveHeight;
+      label = waveOnSpot < 0.4 ? 'Kabbel / Flat'
+        : (data.tideFactor ?? 1) < 0.6 ? 'Verkeerd getij'
+        : (data.swellExposure ?? 1) < 0.5 ? 'Verkeerde swell'
+        : 'Werkt niet';
       badgeClass = 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
       dotClass = 'bg-slate-400';
     }

@@ -106,7 +106,7 @@ export function generateLocalSurfAdvice(
       thoughts.push(`Korte periode (${swellPeriod}s). De golven hebben weinig kracht en volgen elkaar erg snel op.`);
     }
 
-    // Getij: venster per spot (bijv. Ouddorp dood bij laagwater, Domburg met ZW alleen bij laag).
+    // Getij: venster per spot (bijv. Ouddorp matig bij laagwater, Domburg met ZW alleen bij laag).
     let tideBonus = 0;
     const tideFactor = spotInfo.tide.factor;
     if (tideFactor >= 0.9) tideBonus = 1;
