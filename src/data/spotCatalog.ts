@@ -81,7 +81,7 @@ export const SPOT_CATALOG: CatalogSpot[] = [
     lat: 51.8253, lng: 3.8874, coastlineAngle: 300, tideStation: 'Ouddorp', bathymetryProfile: 'sandbanks',
     bestWind: ['ZO', 'O', 'Z'], bestSwell: ['NW', 'WNW', 'W', 'N'],
     description: 'Ouddorp, op de kop van Goeree-Overflakkee, is een lang zandstrand met uitgestrekte zandbanken voor de kust. Op de goede momenten verrassend schone lijnen, maar een spot die je moet begrijpen: getij en swellrichting bepalen alles.',
-    tideText: 'Van mid-tide tot hoogwater; het beste net na hoogwater. Rond laagwater is Ouddorp vrijwel dood.',
+    tideText: 'Van mid-tide tot hoogwater; het beste net na hoogwater. Rond laagwater matig: de golven breken ver uit en er staat sterke stroming.',
     blog: '/blog/surfen-in-ouddorp/',
   }),
   beach({

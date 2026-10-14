@@ -484,7 +484,7 @@ export function processDailyForecasts(
       // High waves
       envScore = 6.5 + (bestHour.windType === 'offshore' ? 1.5 : -1.0);
     }
-    // Getijvenster van de spot in het beste uur (bijv. Ouddorp dood bij laagwater).
+    // Getijvenster van de spot in het beste uur (bijv. Ouddorp matig bij laagwater).
     envScore += tideScoreAdjustment(bestHour.tideFactor);
     const dayChanceCap = chanceScoreCap(hourChance(bestHour));
     envScore = Math.min(envScore, dayChanceCap);

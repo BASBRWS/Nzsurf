@@ -123,7 +123,7 @@ export function AdviceModal({
       else score -= 1.0;
     }
 
-    // Getijvenster van deze spot (bijv. Ouddorp dood bij laagwater).
+    // Getijvenster van deze spot (bijv. Ouddorp matig bij laagwater).
     score += tideScoreAdjustment(data.tideFactor);
 
     // Werkt de spot niet (kans laag), dan ook geen hoge conditiescore.
