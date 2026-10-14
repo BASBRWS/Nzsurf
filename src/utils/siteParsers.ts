@@ -148,3 +148,113 @@ export function parseSurfnerd(html: string, runAt: Date): AuditPoint[] {
   }
   return keepWindow(points);
 }
+
+// ── Wompy (wompy.nl/spot/<spot>) ─────────────────────────────────────────────
+// Server-side HTML (Next.js). Per dag in de zichtbare tekst:
+//   "WO 14 okt OK 6.8 <tekst> … Golven 0.3 m uit NW Periode 3 s Wind 1–4 Bft luwte–vlagen uit ZW …"
+// Het oordeel (FLAT/POOR/OK/GOOD/EPIC) en de score gelden volgens Wompy voor de
+// Nederlandse kust als geheel; golven en wind zijn voor de spot. Dagwaarden: we
+// zetten ze op elk 3-uurs tijdstip van die (lokale) dag.
+
+const NL_DAY = '(?:MA|DI|WO|DO|VR|ZA|ZO)';
+const NL_MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const COMPASS_NL: Record<string, number> = {
+  N: 0, NNO: 22.5, NO: 45, ONO: 67.5, O: 90, OZO: 112.5, ZO: 135, ZZO: 157.5,
+  Z: 180, ZZW: 202.5, ZW: 225, WZW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
+};
+// Gemiddelde windsnelheid (kn) per Beaufort-kracht.
+const BFT_KN = [0, 2, 5, 8.5, 13.5, 19, 24.5, 30.5, 37, 44, 51.5, 59.5, 64];
+export const WOMPY_VERDICTS = ['FLAT', 'POOR', 'OK', 'GOOD', 'EPIC'] as const;
+
+export function parseWompy(html: string, runAt: Date): AuditPoint[] {
+  const text = htmlToText(html);
+  const num = (s: string) => Number(s.replace(',', '.'));
+  const dayRe = new RegExp(`\\b${NL_DAY} (\\d{1,2}) (${NL_MONTHS.join('|')}) (${WOMPY_VERDICTS.join('|')}) (\\d+(?:[.,]\\d+)?)`, 'g');
+  const heads = [...text.matchAll(dayRe)];
+  const points: AuditPoint[] = [];
+  heads.forEach((h, i) => {
+    const block = text.slice(h.index!, heads[i + 1]?.index ?? h.index! + 3000);
+    // Jaar: de datum rond het ophaalmoment (jaarwisseling).
+    const month = NL_MONTHS.indexOf(h[2]);
+    let year = runAt.getFullYear();
+    if (month < runAt.getMonth() - 6) year++; else if (month > runAt.getMonth() + 6) year--;
+    const day = new Date(year, month, Number(h[1]));
+    const g = block.match(/Golven ([\d.,]+) m uit ([A-Z]+) Periode ([\d.,]+) s/);
+    const w = block.match(/Wind (\d+)(?:\s*[–-]\s*(\d+))? Bft[^.]*? uit ([A-Z]+)/);
+    const lo = w ? Number(w[1]) : undefined, hi = w?.[2] ? Number(w[2]) : lo;
+    for (let hr = 0; hr < 24; hr++) {
+      const local = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hr);
+      if (local.getUTCHours() % STEP_HOURS) continue;
+      const t = local.toISOString();
+      points.push({
+        t, lead: Math.round((local.getTime() - runAt.getTime()) / 3600e3),
+        rating: h[3], chance: Math.round(num(h[4]) * 10),
+        hs: g ? round(num(g[1])) : undefined,
+        dir: g ? COMPASS_NL[g[2]] : undefined,
+        tp: g ? round(num(g[3]), 1) : undefined,
+        // "4–7 Bft luwte–vlagen": gemiddelde ligt dichter bij de luwte; vlagen = bovengrens.
+        windKn: lo !== undefined && hi !== undefined ? round((2 * BFT_KN[lo] + BFT_KN[hi]) / 3, 1) : undefined,
+        gustKn: hi !== undefined ? BFT_KN[hi] : undefined,
+        windDir: w ? COMPASS_NL[w[3]] : undefined,
+      });
+    }
+  });
+  return keepWindow(points);
+}
+
+// ── Secret Swell (alleen een app; schermafbeelding → AI → deze omzetting) ────
+// Het Ouddorp-dashboard toont "Huidige condities" (swell m @ s, golven, wind kt +
+// aanlandig/aflandig/zij, GO/NO-GO) en "Voorspelling" per dag (VANDAAG, DO, VR, …)
+// met golfbereik (m), windbereik (kt) en een gekleurde stip (rood = no-go).
+// Vergrendelde dagen (slotje) hebben geen cijfers en worden overgeslagen.
+
+export type SecretSwellVerdict = 'GO' | 'MAYBE' | 'NO-GO';
+export interface SecretSwellRead {
+  current?: { verdict?: SecretSwellVerdict; swellM?: number; periodS?: number; wavesM?: number; windKt?: number; windAngle?: 'onshore' | 'offshore' | 'cross' };
+  days?: { label: string; waveMin?: number; waveMax?: number; windMin?: number; windMax?: number; verdict?: SecretSwellVerdict; locked?: boolean }[];
+}
+
+const NL_WEEKDAYS = ['ZO', 'MA', 'DI', 'WO', 'DO', 'VR', 'ZA'];
+const mid = (a?: number, b?: number) =>
+  typeof a === 'number' && typeof b === 'number' ? (a + b) / 2 : typeof a === 'number' ? a : b;
+
+export function secretSwellToPoints(read: SecretSwellRead, runAt: Date): AuditPoint[] {
+  const points: AuditPoint[] = [];
+  const today = new Date(runAt.getFullYear(), runAt.getMonth(), runAt.getDate());
+  for (const d of read.days || []) {
+    if (d.locked || (d.waveMin === undefined && d.waveMax === undefined)) continue;
+    const label = d.label.trim().toUpperCase();
+    let offset = 0;
+    if (!/^VANDAAG|^TODAY/.test(label)) {
+      const wd = NL_WEEKDAYS.findIndex(w => label.startsWith(w));
+      if (wd < 0) continue;
+      offset = (wd - today.getDay() + 7) % 7 || 7; // niet vandaag → eerstvolgende
+    }
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+    const hs = mid(d.waveMin, d.waveMax), wind = mid(d.windMin, d.windMax);
+    for (let hr = 0; hr < 24; hr++) {
+      const local = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hr);
+      if (local.getUTCHours() % STEP_HOURS) continue;
+      points.push({
+        t: local.toISOString(), lead: Math.round((local.getTime() - runAt.getTime()) / 3600e3),
+        hs: round(hs), surfMin: round(d.waveMin), surfMax: round(d.waveMax),
+        windKn: round(wind, 1), gustKn: round(d.windMax, 1), rating: d.verdict,
+      });
+    }
+  }
+  // Huidige condities: preciezer dan het dagbereik voor het uur van de schermafbeelding.
+  const c = read.current;
+  if (c && (c.swellM !== undefined || c.windKt !== undefined)) {
+    const hour = new Date(runAt); hour.setMinutes(0, 0, 0);
+    if (hour.getUTCHours() % STEP_HOURS) hour.setHours(hour.getHours() - (hour.getUTCHours() % STEP_HOURS));
+    const t = hour.toISOString();
+    const i = points.findIndex(p => p.t === t);
+    const cur: AuditPoint = {
+      ...(i >= 0 ? points[i] : { t, lead: 0 }),
+      hs: round(c.swellM), tp: round(c.periodS, 1), surfMin: round(c.wavesM), surfMax: round(c.wavesM),
+      windKn: round(c.windKt, 1), gustKn: undefined, rating: c.verdict ?? (i >= 0 ? points[i].rating : undefined),
+    };
+    if (i >= 0) points[i] = cur; else points.push(cur);
+  }
+  return keepWindow(points).sort((a, b) => a.t.localeCompare(b.t));
+}

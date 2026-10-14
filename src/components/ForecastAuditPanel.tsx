@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { Download, Loader2, Trophy, Filter } from 'lucide-react';
+import { Download, Loader2, Trophy, Filter, Camera } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { SpotReportAudit } from './SpotReportAudit';
 import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
+import { importSecretSwellScreenshot } from '../services/secretSwellImport';
 import { cn } from '../lib/utils';
 import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
@@ -59,6 +60,7 @@ export function ForecastAuditPanel() {
       .catch(e => { if (!cancelled) setReportsError(e?.message || String(e)); });
     return () => { cancelled = true; };
   }, []);
+  const [swell, setSwell] = useState<{ busy: boolean; lines?: string[] }>({ busy: false });
   const [appCollect, setAppCollect] = useState<{ busy: boolean; results?: string[] }>({ busy: false });
 
   useEffect(() => {
@@ -165,6 +167,30 @@ export function ForecastAuditPanel() {
       ) : (
         <p className="text-[11px] text-slate-500">Surfline en surfnerd worden opgehaald door de Android-app (browservenster, 1x per dag); op de website kan dat niet.</p>
       )}
+
+      {/* Secret Swell heeft alleen een app: schermafbeelding → AI → bron "secretswell". */}
+      <div className="rounded-xl border border-slate-200 p-3 space-y-1.5">
+        <label className={cn('text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white inline-flex items-center gap-1.5 cursor-pointer', swell.busy && 'opacity-50 pointer-events-none')}>
+          {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} Secret Swell: schermafbeelding toevoegen
+          <input type="file" accept="image/*" className="hidden" onChange={async e => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            setSwell({ busy: true });
+            try {
+              const r = await importSecretSwellScreenshot(file);
+              setSwell({ busy: false, lines: [`✓ ${r.points} punten opgeslagen`, ...r.summary] });
+            } catch (err: any) {
+              setSwell({ busy: false, lines: [`✗ ${err?.message || err}`] });
+            }
+          }} />
+        </label>
+        <p className="text-[11px] text-slate-500">
+          Maak 's ochtends in Secret Swell een schermafbeelding van het Ouddorp-dashboard (huidige condities + voorspelling) en kies hem hier.
+          De AI leest de getallen; controleer ze hieronder. Een nieuwe schermafbeelding op dezelfde dag vervangt de vorige.
+        </p>
+        {swell.lines && <ul className="text-[11px] font-mono text-slate-700">{swell.lines.map(l => <li key={l}>{l}</li>)}</ul>}
+      </div>
 
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}
       {!forecasts && !error && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden…</div>}
