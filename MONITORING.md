@@ -91,15 +91,20 @@ Workflow `.github/workflows/forecast-audit.yml` draait dagelijks om 05:30 UTC
 - **Verwachtingen** (Firestore `auditForecasts/{datum}_{bron}`), per 3 uur, 7 dagen vooruit:
   NzSurf, ECMWF, DWD, Météo-France, GFS (alleen wind; golfpunt ligt op land),
   KNMI HARMONIE (wind), Open-Meteo best match, Windfinder, Windfinder Superforecast,
-  breakfinder.surf, sea-forecast.com. Optioneel Stormglass (secret `STORMGLASS_API_KEY`).
+  breakfinder.surf, sea-forecast.com, Wompy (dagoordeel; geldt volgens Wompy voor de NL-kust).
+  Optioneel Stormglass (secret `STORMGLASS_API_KEY`). De eerste run van de dag legt alles vast;
+  latere runs halen alleen bronnen op die die dag nog ontbreken (nieuw of eerder mislukt).
 - **Metingen** (Firestore `auditObservations/{datum}`), per uur, Rijkswaterstaat:
   golfhoogte/periode/richting Maasgeul 2 (20 km; terugval Schouwenbank — de posten vlak bij Ouddorp leveren geen actuele golfdata, zie audit-raw-dump "stations"), wind Europlatform, waterstand Lichteiland Goeree.
 - **Surfline en surfnerd** weren de GitHub-servers (Cloudflare). Die haalt de
   Android-app van de admin op, via de gewone telefoonverbinding: automatisch 1x per
   dag bij openen, of met de knop in Beta → Voorspellingsaudit. Ruwe opnames staan in
   `auditRaw`; bekijk de opbouw met de workflow *Audit: ruwe opnames bekijken*.
-  Vereist de Firestore-regels voor `auditForecasts` (admin mag alleen surfline/surfnerd
-  schrijven) en `auditRaw` uit `firestore.rules`.
+  Vereist de Firestore-regels voor `auditForecasts` (admin mag alleen surfline/surfnerd/
+  secretswell schrijven) en `auditRaw` uit `firestore.rules`.
+- **Secret Swell** heeft alleen een app: de admin kiest in Beta → Voorspellingsaudit een
+  schermafbeelding van het Ouddorp-dashboard; de AI (`/api/gemini/generateContent`, in de
+  APK via https://www.noordzeesurf.nl) leest de getallen en slaat ze op als bron `secretswell`.
 - **Niet mogelijk**: Windguru (vereist login), surf-forecast.com (geen pagina voor Ouddorp).
 - Resultaten: app → Profiel → Beta → Voorspellingsaudit (alleen admin), met filters en export.
 - Uitlezers van websites zijn kwetsbaar: breekt er een, dan staat die bron in de

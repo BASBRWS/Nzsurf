@@ -153,7 +153,7 @@ service cloud.firestore {
     // daarom mag de admin-app alleen díe twee bronnen zelf opslaan.
     match /auditForecasts/{id} {
       allow read: if isAdmin();
-      allow create, update: if isAdmin() && request.resource.data.source in ['surfline', 'surfnerd'];
+      allow create, update: if isAdmin() && request.resource.data.source in ['surfline', 'surfnerd', 'secretswell'];
       allow delete: if false;
     }
     match /auditObservations/{id} {

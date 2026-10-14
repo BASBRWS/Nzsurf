@@ -201,3 +201,60 @@ export function parseWompy(html: string, runAt: Date): AuditPoint[] {
   });
   return keepWindow(points);
 }
+
+// ── Secret Swell (alleen een app; schermafbeelding → AI → deze omzetting) ────
+// Het Ouddorp-dashboard toont "Huidige condities" (swell m @ s, golven, wind kt +
+// aanlandig/aflandig/zij, GO/NO-GO) en "Voorspelling" per dag (VANDAAG, DO, VR, …)
+// met golfbereik (m), windbereik (kt) en een gekleurde stip (rood = no-go).
+// Vergrendelde dagen (slotje) hebben geen cijfers en worden overgeslagen.
+
+export type SecretSwellVerdict = 'GO' | 'MAYBE' | 'NO-GO';
+export interface SecretSwellRead {
+  current?: { verdict?: SecretSwellVerdict; swellM?: number; periodS?: number; wavesM?: number; windKt?: number; windAngle?: 'onshore' | 'offshore' | 'cross' };
+  days?: { label: string; waveMin?: number; waveMax?: number; windMin?: number; windMax?: number; verdict?: SecretSwellVerdict; locked?: boolean }[];
+}
+
+const NL_WEEKDAYS = ['ZO', 'MA', 'DI', 'WO', 'DO', 'VR', 'ZA'];
+const mid = (a?: number, b?: number) =>
+  typeof a === 'number' && typeof b === 'number' ? (a + b) / 2 : typeof a === 'number' ? a : b;
+
+export function secretSwellToPoints(read: SecretSwellRead, runAt: Date): AuditPoint[] {
+  const points: AuditPoint[] = [];
+  const today = new Date(runAt.getFullYear(), runAt.getMonth(), runAt.getDate());
+  for (const d of read.days || []) {
+    if (d.locked || (d.waveMin === undefined && d.waveMax === undefined)) continue;
+    const label = d.label.trim().toUpperCase();
+    let offset = 0;
+    if (!/^VANDAAG|^TODAY/.test(label)) {
+      const wd = NL_WEEKDAYS.findIndex(w => label.startsWith(w));
+      if (wd < 0) continue;
+      offset = (wd - today.getDay() + 7) % 7 || 7; // niet vandaag → eerstvolgende
+    }
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+    const hs = mid(d.waveMin, d.waveMax), wind = mid(d.windMin, d.windMax);
+    for (let hr = 0; hr < 24; hr++) {
+      const local = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hr);
+      if (local.getUTCHours() % STEP_HOURS) continue;
+      points.push({
+        t: local.toISOString(), lead: Math.round((local.getTime() - runAt.getTime()) / 3600e3),
+        hs: round(hs), surfMin: round(d.waveMin), surfMax: round(d.waveMax),
+        windKn: round(wind, 1), gustKn: round(d.windMax, 1), rating: d.verdict,
+      });
+    }
+  }
+  // Huidige condities: preciezer dan het dagbereik voor het uur van de schermafbeelding.
+  const c = read.current;
+  if (c && (c.swellM !== undefined || c.windKt !== undefined)) {
+    const hour = new Date(runAt); hour.setMinutes(0, 0, 0);
+    if (hour.getUTCHours() % STEP_HOURS) hour.setHours(hour.getHours() - (hour.getUTCHours() % STEP_HOURS));
+    const t = hour.toISOString();
+    const i = points.findIndex(p => p.t === t);
+    const cur: AuditPoint = {
+      ...(i >= 0 ? points[i] : { t, lead: 0 }),
+      hs: round(c.swellM), tp: round(c.periodS, 1), surfMin: round(c.wavesM), surfMax: round(c.wavesM),
+      windKn: round(c.windKt, 1), gustKn: undefined, rating: c.verdict ?? (i >= 0 ? points[i].rating : undefined),
+    };
+    if (i >= 0) points[i] = cur; else points.push(cur);
+  }
+  return keepWindow(points).sort((a, b) => a.t.localeCompare(b.t));
+}
