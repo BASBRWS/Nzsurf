@@ -19,7 +19,7 @@ const CHANCE_LEVELS = [
   { min: 70, label: 'Goed', cls: 'text-emerald-900 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 font-bold shadow-xs', dot: 'bg-emerald-400' },
   { min: 45, label: 'Redelijk', cls: 'text-sky-900 border-sky-200 bg-sky-50 hover:bg-sky-100', dot: 'bg-sky-400' },
   { min: 20, label: 'Matig', cls: 'text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100', dot: 'bg-amber-400' },
-  { min: 0, label: 'Werkt niet / flat', cls: 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100', dot: 'bg-slate-300' },
+  { min: 0, label: 'Werkt niet', cls: 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100', dot: 'bg-slate-300' },
 ];
 
 const getWeatherIcon = (code?: number) => {

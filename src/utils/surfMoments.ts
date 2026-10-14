@@ -14,7 +14,7 @@ export const CHANCE_LEVELS = [
   { min: 70, key: 'good', label: 'Goed', cls: 'text-emerald-900 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 font-bold shadow-xs', dot: 'bg-emerald-400', solid: 'bg-emerald-500', text: 'text-emerald-700' },
   { min: 45, key: 'fair', label: 'Redelijk', cls: 'text-sky-900 border-sky-200 bg-sky-50 hover:bg-sky-100', dot: 'bg-sky-400', solid: 'bg-sky-500', text: 'text-sky-700' },
   { min: 20, key: 'meh', label: 'Matig', cls: 'text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100', dot: 'bg-amber-400', solid: 'bg-amber-500', text: 'text-amber-700' },
-  { min: 0, key: 'no', label: 'Werkt niet / flat', cls: 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100', dot: 'bg-slate-300', solid: 'bg-slate-400', text: 'text-slate-600' },
+  { min: 0, key: 'no', label: 'Werkt niet', cls: 'text-slate-500 border-slate-200 bg-slate-50 hover:bg-slate-100', dot: 'bg-slate-300', solid: 'bg-slate-400', text: 'text-slate-600' },
 ] as const;
 
 export type ChanceLevel = typeof CHANCE_LEVELS[number];
