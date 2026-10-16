@@ -23,14 +23,14 @@ Geef ALLEEN JSON (geen markdown) met de velden die op dit scherm staan:
   "current": { "verdict": "GO" | "MAYBE" | "NO-GO", "swellM": getal, "periodS": getal, "wavesM": getal, "windKt": getal, "windAngle": "onshore" | "offshore" | "cross" },
   "days": [ { "label": "zoals getoond, bv. VANDAAG, Morgen, DO, 'za, okt. 17'", "waveMin": getal, "waveMax": getal, "windMin": getal, "windMax": getal, "verdict": "GO" | "MAYBE" | "NO-GO", "locked": true | false } ],
   "tableDate": "kop boven de uurtabel, bv. 'DONDERDAG 15 OKTOBER'",
-  "hours": [ { "time": "HH:MM", "waveM": getal, "swellM": getal, "periodS": getal, "swellDir": "kompasrichting zoals getoond, bv. WSW", "windKt": getal, "gustKt": getal, "windDir": "bv. SSW" } ]
+  "hours": [ { "time": "HH:MM", "verdict": "GO" | "MAYBE" | "NO-GO", "waveM": getal, "swellM": getal, "periodS": getal, "swellDir": "kompasrichting zoals getoond, bv. WSW", "windKt": getal, "gustKt": getal, "windDir": "bv. SSW" } ]
 }
 Dashboard-scherm:
 - "Huidige condities": "0.7m @ 6s" = swellM en periodS; "0.5m Golven" = wavesM; "5.0kt Onshore" = windKt en windAngle; het gekleurde vak (bv. NO-GO) = verdict.
 - "Voorspelling": per dag golfbereik in m ("0.6-0.8m") en windbereik in kt ("5-8kt"). Stip: rood = "NO-GO", oranje/geel = "MAYBE", groen = "GO". Dag met slotje zonder getallen: "locked": true.
 Spotpagina met uurtabel:
-- Dagkaarten bovenaan ("Vandaag 1.1 - 1.4m", "Morgen", "za, okt. 17"): label + waveMin/waveMax; geen verdict (laat weg).
-- Uurtabel per kolom (tijd): GOLF = waveM; SWELL "1.4m 6s" = swellM en periodS; de rij eronder = swellDir;
+- Dagkaarten bovenaan ("Vandaag 1.1 - 1.4m", "Morgen", "za, okt. 17"): label + waveMin/waveMax. De gekleurde balk onderaan de kaart = verdict: rood = "NO-GO", oranje/geel = "MAYBE", groen = "GO" (geen balk/grijs: laat weg).
+- Uurtabel per kolom (tijd): het gekleurde vak bovenaan ("GEEN GO", "GO", …) = verdict: rood/"GEEN GO" = "NO-GO", oranje/geel = "MAYBE", groen/"GO" = "GO"; GOLF = waveM; SWELL "1.4m 6s" = swellM en periodS; de rij eronder = swellDir;
   WIND (Kt) "19 24" = windKt 19 en gustKt 24 (het kleine rode getal zijn de vlagen); de rij eronder = windDir. Getij en temperatuur niet nodig.
 - Neem alleen kolommen die volledig zichtbaar zijn (geen afgekapte tijd of getallen).`;
 

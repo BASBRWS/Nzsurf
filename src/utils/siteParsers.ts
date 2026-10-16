@@ -209,7 +209,9 @@ export function parseWompy(html: string, runAt: Date): AuditPoint[] {
 //    gekleurde stip (rood = no-go). Vergrendelde dagen (slotje) worden overgeslagen.
 // 2. Spotpagina: dagkaarten (Vandaag/Morgen/"za, okt. 17" met golfbereik) en een
 //    uurtabel onder een kop als "DONDERDAG 15 OKTOBER": golf (m), swell (m + s, richting),
-//    wind (kt + vlagen, richting) en getij. Geen eigen oordeel → de gedeelde regel.
+//    wind (kt + vlagen, richting) en getij, met per uur een oordeel ("GEEN GO" = rood);
+//    dagkaarten hebben een gekleurde balk (rood/oranje/groen).
+// Secret Swell telt alleen met zijn eigen oordeel; zonder oordeel geen "te surfen?".
 // "Golf" = hoogte aan de kust (surfMin/surfMax); "swell" = zee (hs), zoals bij Surfline.
 
 export type SecretSwellVerdict = 'GO' | 'MAYBE' | 'NO-GO';
@@ -219,7 +221,7 @@ export interface SecretSwellRead {
   days?: { label: string; waveMin?: number; waveMax?: number; windMin?: number; windMax?: number; verdict?: SecretSwellVerdict; locked?: boolean }[];
   /** Kop boven de uurtabel, bv. "DONDERDAG 15 OKTOBER". */
   tableDate?: string;
-  hours?: { time: string; waveM?: number; swellM?: number; periodS?: number; swellDir?: string; windKt?: number; gustKt?: number; windDir?: string }[];
+  hours?: { time: string; verdict?: SecretSwellVerdict; waveM?: number; swellM?: number; periodS?: number; swellDir?: string; windKt?: number; gustKt?: number; windDir?: string }[];
 }
 
 const NL_WEEKDAYS = ['ZO', 'MA', 'DI', 'WO', 'DO', 'VR', 'ZA'];
@@ -304,6 +306,7 @@ export function secretSwellToPoints(read: SecretSwellRead, runAt: Date): AuditPo
       hs: round(h.swellM ?? h.waveM), tp: round(h.periodS, 1), dir: compass(h.swellDir),
       surfMin: round(h.waveM), surfMax: round(h.waveM),
       windKn: round(h.windKt, 1), gustKn: round(h.gustKt, 1), windDir: compass(h.windDir),
+      rating: h.verdict,
     });
   }
 

@@ -63,7 +63,8 @@ export function forecastVerdict(source: string, p: AuditPoint, rule: SurfRule): 
   if ((source === 'nzsurf' || source === 'breakfinder') && typeof p.chance === 'number') return { ok: p.chance >= 45, own: true };
   if (source === 'wompy' && p.rating) return { ok: WOMPY_SURFABLE.has(p.rating), own: true };
   // Secret Swell: groen (GO) en oranje (MAYBE) = te surfen; rood (NO-GO) niet.
-  if (source === 'secretswell' && p.rating) return { ok: p.rating !== 'NO-GO', own: true };
+  // Zonder eigen oordeel (alleen een golfbereik) beoordelen we Secret Swell niet met onze regel.
+  if (source === 'secretswell') return { ok: p.rating ? p.rating !== 'NO-GO' : undefined, own: true };
   if (source === 'surfline' && p.rating) {
     const i = SURFLINE_ORDER.indexOf(p.rating);
     if (i >= 0) return { ok: i >= SURFLINE_ORDER.indexOf('POOR_TO_FAIR'), own: true };
