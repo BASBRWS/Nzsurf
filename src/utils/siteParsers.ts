@@ -203,58 +203,119 @@ export function parseWompy(html: string, runAt: Date): AuditPoint[] {
 }
 
 // ── Secret Swell (alleen een app; schermafbeelding → AI → deze omzetting) ────
-// Het Ouddorp-dashboard toont "Huidige condities" (swell m @ s, golven, wind kt +
-// aanlandig/aflandig/zij, GO/NO-GO) en "Voorspelling" per dag (VANDAAG, DO, VR, …)
-// met golfbereik (m), windbereik (kt) en een gekleurde stip (rood = no-go).
-// Vergrendelde dagen (slotje) hebben geen cijfers en worden overgeslagen.
+// Twee schermen:
+// 1. Dashboard: "Huidige condities" (swell m @ s, golven, wind kt + aanlandig/aflandig/zij,
+//    GO/NO-GO) en "Voorspelling" per dag (VANDAAG, DO, …) met golf- en windbereik en een
+//    gekleurde stip (rood = no-go). Vergrendelde dagen (slotje) worden overgeslagen.
+// 2. Spotpagina: dagkaarten (Vandaag/Morgen/"za, okt. 17" met golfbereik) en een
+//    uurtabel onder een kop als "DONDERDAG 15 OKTOBER": golf (m), swell (m + s, richting),
+//    wind (kt + vlagen, richting) en getij. Geen eigen oordeel → de gedeelde regel.
+// "Golf" = hoogte aan de kust (surfMin/surfMax); "swell" = zee (hs), zoals bij Surfline.
 
 export type SecretSwellVerdict = 'GO' | 'MAYBE' | 'NO-GO';
 export interface SecretSwellRead {
+  spot?: string;
   current?: { verdict?: SecretSwellVerdict; swellM?: number; periodS?: number; wavesM?: number; windKt?: number; windAngle?: 'onshore' | 'offshore' | 'cross' };
   days?: { label: string; waveMin?: number; waveMax?: number; windMin?: number; windMax?: number; verdict?: SecretSwellVerdict; locked?: boolean }[];
+  /** Kop boven de uurtabel, bv. "DONDERDAG 15 OKTOBER". */
+  tableDate?: string;
+  hours?: { time: string; waveM?: number; swellM?: number; periodS?: number; swellDir?: string; windKt?: number; gustKt?: number; windDir?: string }[];
 }
 
 const NL_WEEKDAYS = ['ZO', 'MA', 'DI', 'WO', 'DO', 'VR', 'ZA'];
+const NL_MONTHS_FULL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 const mid = (a?: number, b?: number) =>
   typeof a === 'number' && typeof b === 'number' ? (a + b) / 2 : typeof a === 'number' ? a : b;
+const compass = (c?: string) => (c ? COMPASS_NL[c.trim().toUpperCase().replace(/E/g, 'O').replace(/S/g, 'Z')] : undefined);
+
+/** Spotnaam op de schermafbeelding past bij Ouddorp (of is niet leesbaar). */
+export function secretSwellSpotOk(read: SecretSwellRead): boolean {
+  return !read.spot || /ouddorp|goeree|westhoofd|kwade hoek/i.test(read.spot);
+}
+
+/** Dagkaart-label → datum: VANDAAG, MORGEN, MA…ZO of "za, okt. 17". */
+function dayFromLabel(label: string, today: Date): Date | undefined {
+  const l = label.trim().toUpperCase();
+  if (/^(VANDAAG|TODAY)/.test(l)) return today;
+  if (/^(MORGEN|TOMORROW)/.test(l)) return new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const dayNum = l.match(/\b(\d{1,2})\b/);
+  const wd = NL_WEEKDAYS.findIndex(w => l.startsWith(w));
+  if (dayNum) {
+    for (let off = 0; off <= 10; off++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + off);
+      if (d.getDate() === Number(dayNum[1])) return d;
+    }
+  }
+  if (wd < 0) return undefined;
+  const off = (wd - today.getDay() + 7) % 7 || 7; // niet vandaag → eerstvolgende
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate() + off);
+}
+
+/** "DONDERDAG 15 OKTOBER" → datum rond het ophaalmoment. */
+function dateFromHeading(text: string | undefined, runAt: Date): Date | undefined {
+  const m = text?.toLowerCase().match(/(\d{1,2})\s+([a-z]+)/);
+  if (!m) return undefined;
+  const month = NL_MONTHS_FULL.findIndex(n => n.startsWith(m[2].slice(0, 3)));
+  if (month < 0) return undefined;
+  let year = runAt.getFullYear();
+  if (month < runAt.getMonth() - 6) year++; else if (month > runAt.getMonth() + 6) year--;
+  return new Date(year, month, Number(m[1]));
+}
 
 export function secretSwellToPoints(read: SecretSwellRead, runAt: Date): AuditPoint[] {
-  const points: AuditPoint[] = [];
+  const byT = new Map<string, AuditPoint>();
+  const put = (local: Date, p: Omit<AuditPoint, 't' | 'lead'>) => {
+    const t = local.toISOString();
+    byT.set(t, { ...byT.get(t), ...p, t, lead: Math.round((local.getTime() - runAt.getTime()) / 3600e3) });
+  };
   const today = new Date(runAt.getFullYear(), runAt.getMonth(), runAt.getDate());
+
+  // 1. Dagbereiken op elk 3-uurs tijdstip van die dag.
   for (const d of read.days || []) {
     if (d.locked || (d.waveMin === undefined && d.waveMax === undefined)) continue;
-    const label = d.label.trim().toUpperCase();
-    let offset = 0;
-    if (!/^VANDAAG|^TODAY/.test(label)) {
-      const wd = NL_WEEKDAYS.findIndex(w => label.startsWith(w));
-      if (wd < 0) continue;
-      offset = (wd - today.getDay() + 7) % 7 || 7; // niet vandaag → eerstvolgende
-    }
-    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
-    const hs = mid(d.waveMin, d.waveMax), wind = mid(d.windMin, d.windMax);
+    const day = dayFromLabel(d.label, today);
+    if (!day) continue;
     for (let hr = 0; hr < 24; hr++) {
       const local = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hr);
       if (local.getUTCHours() % STEP_HOURS) continue;
-      points.push({
-        t: local.toISOString(), lead: Math.round((local.getTime() - runAt.getTime()) / 3600e3),
-        hs: round(hs), surfMin: round(d.waveMin), surfMax: round(d.waveMax),
-        windKn: round(wind, 1), gustKn: round(d.windMax, 1), rating: d.verdict,
+      put(local, {
+        hs: round(mid(d.waveMin, d.waveMax)), surfMin: round(d.waveMin), surfMax: round(d.waveMax),
+        windKn: round(mid(d.windMin, d.windMax), 1), gustKn: round(d.windMax, 1), rating: d.verdict,
       });
     }
   }
-  // Huidige condities: preciezer dan het dagbereik voor het uur van de schermafbeelding.
+
+  // 2. Uurtabel: preciezer dan het dagbereik.
+  const tableDay = dateFromHeading(read.tableDate, runAt) ?? today;
+  for (const h of read.hours || []) {
+    const m = h.time.match(/(\d{1,2})[:.](\d{2})/);
+    if (!m) continue;
+    const local = new Date(tableDay.getFullYear(), tableDay.getMonth(), tableDay.getDate(), Number(m[1]), Number(m[2]));
+    put(local, {
+      hs: round(h.swellM ?? h.waveM), tp: round(h.periodS, 1), dir: compass(h.swellDir),
+      surfMin: round(h.waveM), surfMax: round(h.waveM),
+      windKn: round(h.windKt, 1), gustKn: round(h.gustKt, 1), windDir: compass(h.windDir),
+    });
+  }
+
+  // 3. Huidige condities (dashboard) voor het 3-uurs tijdstip van de schermafbeelding.
   const c = read.current;
   if (c && (c.swellM !== undefined || c.windKt !== undefined)) {
-    const hour = new Date(runAt); hour.setMinutes(0, 0, 0);
-    if (hour.getUTCHours() % STEP_HOURS) hour.setHours(hour.getHours() - (hour.getUTCHours() % STEP_HOURS));
-    const t = hour.toISOString();
-    const i = points.findIndex(p => p.t === t);
-    const cur: AuditPoint = {
-      ...(i >= 0 ? points[i] : { t, lead: 0 }),
+    // Dichtstbijzijnde 3-uurs tijdstip (UTC-uren deelbaar door 3).
+    const step = STEP_HOURS * 3600e3;
+    const hour = new Date(Math.round(runAt.getTime() / step) * step);
+    const prev = byT.get(hour.toISOString());
+    put(hour, {
       hs: round(c.swellM), tp: round(c.periodS, 1), surfMin: round(c.wavesM), surfMax: round(c.wavesM),
-      windKn: round(c.windKt, 1), gustKn: undefined, rating: c.verdict ?? (i >= 0 ? points[i].rating : undefined),
-    };
-    if (i >= 0) points[i] = cur; else points.push(cur);
+      windKn: round(c.windKt, 1), gustKn: undefined, rating: c.verdict ?? prev?.rating,
+    });
   }
-  return keepWindow(points).sort((a, b) => a.t.localeCompare(b.t));
+  return keepWindow([...byT.values()]).sort((a, b) => a.t.localeCompare(b.t));
+}
+
+/** Punten van meerdere schermafbeeldingen samenvoegen (latere gaan voor, per veld). */
+export function mergeAuditPoints(...sets: AuditPoint[][]): AuditPoint[] {
+  const byT = new Map<string, AuditPoint>();
+  for (const set of sets) for (const p of set) byT.set(p.t, { ...byT.get(p.t), ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) } as AuditPoint);
+  return [...byT.values()].sort((a, b) => a.t.localeCompare(b.t));
 }
