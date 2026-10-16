@@ -337,6 +337,13 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
       {/* 4 — Score */}
       {tab === 'score' && (
         <div className="space-y-3">
+          {truthMode === 'reports' && ratedReports === 0 && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-2.5 text-[12px] text-amber-900">
+              Werkelijkheid staat op <b>"Alleen surfers"</b>, maar er zijn nog geen spotrapporten met een oordeel voor deze spot.
+              Daarom blijven de "te surfen?"-scores leeg (—).{' '}
+              <button onClick={() => setTruthMode('combined')} className="underline font-bold cursor-pointer">Zet op "Surfers, dan metingen, dan groep"</button>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-[11px]">
             <span className="text-slate-600">Vooruitkijktijd:</span>
             <select value={leadFilter} onChange={e => setLeadFilter(Number(e.target.value))} className="border border-slate-300 rounded-lg px-2 py-1 bg-white">
@@ -496,7 +503,8 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                 <li><b>5d … 1d</b> = hoe vaak "te surfen?" klopte als het 5, 4, … 1 dag van tevoren voorspeld werd. Normaal loopt dit op naar rechts.</li>
                 <li><b>Omslag</b> = hoe vaak het oordeel voor hetzelfde moment veranderde tussen twee opeenvolgende dagen. Lager = rustiger, minder heen en weer.</li>
                 <li><b>Dagen vooraf</b> = gemiddeld vanaf hoeveel dagen vooruit het oordeel goed was én zo bleef. Hoger = eerder zeker.</li>
-                <li><b>—</b> = nog geen verwachting van zo ver vooruit waarvan de uitkomst bekend is. Dit vult zich na een paar dagen.</li>
+                <li><b>—</b> = nog geen verwachting van zo ver vooruit waarvan de uitkomst bekend is. Dit vult zich na een paar dagen. Staat alles op —, kijk dan bovenaan bij "Werkelijkheid": met "Alleen surfers" en zonder spotrapporten valt er niets te scoren.</li>
+                <li><b>Omslag</b> heeft geen werkelijkheid nodig (het kijkt alleen of het oordeel veranderde) en is daarom wel gevuld.</li>
               </ul>
             </TableHelp></div>
           </div>
