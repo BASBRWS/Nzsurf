@@ -228,9 +228,18 @@ const mid = (a?: number, b?: number) =>
   typeof a === 'number' && typeof b === 'number' ? (a + b) / 2 : typeof a === 'number' ? a : b;
 const compass = (c?: string) => (c ? COMPASS_NL[c.trim().toUpperCase().replace(/E/g, 'O').replace(/S/g, 'Z')] : undefined);
 
-/** Spotnaam op de schermafbeelding past bij Ouddorp (of is niet leesbaar). */
+const OUDDORP_NAMES = ['ouddorp', 'goeree', 'westhoofd', 'kwade hoek'];
+
+/**
+ * Spotnaam op de schermafbeelding past bij Ouddorp (of is niet leesbaar).
+ * Secret Swell kapt lange namen af ("OUDD...", "BERG..."): dan telt het begin.
+ */
 export function secretSwellSpotOk(read: SecretSwellRead): boolean {
-  return !read.spot || /ouddorp|goeree|westhoofd|kwade hoek/i.test(read.spot);
+  if (!read.spot) return true;
+  const name = read.spot.trim().toLowerCase();
+  if (OUDDORP_NAMES.some(n => name.includes(n))) return true;
+  const base = name.replace(/(\.{2,}|…)\s*$/, '').trim();
+  return base.length >= 3 && OUDDORP_NAMES.some(n => n.startsWith(base));
 }
 
 /** Dagkaart-label → datum: VANDAAG, MORGEN, MA…ZO of "za, okt. 17". */

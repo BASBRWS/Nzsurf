@@ -181,7 +181,8 @@ export function ForecastAuditPanel() {
               const r = await importSecretSwellScreenshots(files);
               setSwell({ busy: false, lines: [`✓ ${r.points} punten opgeslagen`, ...r.summary] });
             } catch (err: any) {
-              setSwell({ busy: false, lines: [`✗ ${err?.message || err}`] });
+              // Eén regel per overgeslagen schermafbeelding, zonder dubbel ✗.
+              setSwell({ busy: false, lines: String(err?.message || err).split(' | ').map(l => (l.startsWith('✗') ? l : `✗ ${l}`)) });
             }
           }} />
         </label>
