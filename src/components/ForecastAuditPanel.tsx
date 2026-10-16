@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { SpotReportAudit } from './SpotReportAudit';
 import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
-import { importSecretSwellScreenshot } from '../services/secretSwellImport';
+import { importSecretSwellScreenshots } from '../services/secretSwellImport';
 import { cn } from '../lib/utils';
 import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
@@ -171,14 +171,14 @@ export function ForecastAuditPanel() {
       {/* Secret Swell heeft alleen een app: schermafbeelding → AI → bron "secretswell". */}
       <div className="rounded-xl border border-slate-200 p-3 space-y-1.5">
         <label className={cn('text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white inline-flex items-center gap-1.5 cursor-pointer', swell.busy && 'opacity-50 pointer-events-none')}>
-          {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} Secret Swell: schermafbeelding toevoegen
-          <input type="file" accept="image/*" className="hidden" onChange={async e => {
-            const file = e.target.files?.[0];
+          {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} Secret Swell: schermafbeelding(en) toevoegen
+          <input type="file" accept="image/*" multiple className="hidden" onChange={async e => {
+            const files = [...(e.target.files || [])];
             e.target.value = '';
-            if (!file) return;
+            if (!files.length) return;
             setSwell({ busy: true });
             try {
-              const r = await importSecretSwellScreenshot(file);
+              const r = await importSecretSwellScreenshots(files);
               setSwell({ busy: false, lines: [`✓ ${r.points} punten opgeslagen`, ...r.summary] });
             } catch (err: any) {
               setSwell({ busy: false, lines: [`✗ ${err?.message || err}`] });
@@ -186,8 +186,9 @@ export function ForecastAuditPanel() {
           }} />
         </label>
         <p className="text-[11px] text-slate-500">
-          Maak 's ochtends in Secret Swell een schermafbeelding van het Ouddorp-dashboard (huidige condities + voorspelling) en kies hem hier.
-          De AI leest de getallen; controleer ze hieronder. Een nieuwe schermafbeelding op dezelfde dag vervangt de vorige.
+          Maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp: het dashboard en/of de spotpagina met de uurtabel
+          (doorscrollen mag, kies ze in één keer). De AI leest de getallen; controleer ze hieronder.
+          Schermafbeeldingen van een andere spot worden overgeslagen. Latere uploads op dezelfde dag vullen aan.
         </p>
         {swell.lines && <ul className="text-[11px] font-mono text-slate-700">{swell.lines.map(l => <li key={l}>{l}</li>)}</ul>}
       </div>
