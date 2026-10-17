@@ -24,6 +24,27 @@ async function fetchSeaLevel(lat: number, lng: number): Promise<{ times: string[
   }
 }
 
+// Open-Meteo weigert soms tijdelijk (429 "Too many concurrent requests", 5xx)
+// of hangt. Zonder timeout en herhaling bleef de app dan eindeloos laden.
+async function fetchWithRetry(url: string, tries = 3, timeoutMs = 12000): Promise<Response> {
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+    try {
+      const res = await fetch(url, controller ? { signal: controller.signal } : undefined);
+      if (res.ok || (res.status !== 429 && res.status < 500)) return res;
+      last = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      last = e;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (i < tries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1) ** 2));
+  }
+  throw last instanceof Error ? last : new Error(String(last));
+}
+
 // Controleert de waterstandreeks tegen de golftijden; null = terugvallen op model.
 function alignSeaLevel(raw: { times: string[]; levels: (number | null)[] } | null, expectedTimes: string[]): number[] | null {
   if (!raw || raw.levels.length !== expectedTimes.length || raw.times[0] !== expectedTimes[0]) return null;
@@ -87,8 +108,8 @@ export async function fetchForecast(inputSpot: SurfSpot): Promise<ForecastData[]
 
   try {
     const [marineRes, weatherRes, seaLevelRaw] = await Promise.all([
-      fetch(marineUrl),
-      fetch(weatherUrl),
+      fetchWithRetry(marineUrl),
+      fetchWithRetry(weatherUrl),
       fetchSeaLevel(lat, lng)
     ]);
 
