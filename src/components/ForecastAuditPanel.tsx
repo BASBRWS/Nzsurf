@@ -10,6 +10,8 @@ import { cn } from '../lib/utils';
 import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
 import { buildConceptDocs } from '../utils/forecastBlend';
+import { buildAuditReport } from '../utils/auditReport';
+import { FileText } from 'lucide-react';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
@@ -353,6 +355,12 @@ export function ForecastAuditPanel() {
 
           {/* Export */}
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => {
+                const { html } = buildAuditReport({ forecasts, observations, reports, auditSpotId: AUDIT_SPOT_ID, spotName: 'Ouddorp',
+                  periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
+                download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8');
+              }}
+              className="text-xs font-bold px-3 py-2 rounded-xl bg-cyan-600 text-white flex items-center gap-1.5 cursor-pointer"><FileText className="w-3.5 h-3.5" /> Rapport NzSurf</button>
             <button onClick={() => download(`nzsurf-audit-vergelijkingen-${stamp}.csv`, toCsv(exportRows(condPairs)), 'text/csv;charset=utf-8')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Vergelijkingen (CSV, gefilterd)</button>
             <button onClick={() => download(`nzsurf-audit-ranglijst-${param}-${stamp}.csv`, toCsv(ranking.map(r => ({ bron: r.label, onderdeel: r.param, n: r.n, mae: r.mae, bias: r.bias, rmse: r.rmse }))), 'text/csv;charset=utf-8')}
