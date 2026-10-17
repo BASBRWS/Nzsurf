@@ -272,22 +272,45 @@ export default function App() {
     return () => unsubscribe();
   }, [authUser]);
 
-  // Fetch live surf forecast data for selected spot
+  // Fetch live surf forecast data for selected spot.
+  // Mislukt het ophalen, dan valt de app terug op de laatste goede verwachting
+  // (max. 24 uur oud) en toont hij een melding met "Opnieuw proberen".
+  const [forecastError, setForecastError] = useState<string | null>(null);
+  const [forecastStaleAt, setForecastStaleAt] = useState<string | null>(null);
+  const [forecastReload, setForecastReload] = useState(0);
   useEffect(() => {
+    let cancelled = false;
+    const cacheKey = selectedSpot ? `nzs_forecast_cache_${selectedSpot.id}` : '';
     const loadForecast = async () => {
       if (!selectedSpot) return;
       setIsForecastLoading(true);
+      setForecastError(null);
       try {
         const data = await fetchForecast(selectedSpot);
+        if (cancelled) return;
         setForecast(data);
+        setForecastStaleAt(null);
+        try { localStorage.setItem(cacheKey, JSON.stringify({ at: new Date().toISOString(), data })); } catch { /* opslag vol of niet beschikbaar */ }
       } catch (error) {
         console.error('Failed to load forecast:', error);
+        if (cancelled) return;
+        let cached: { at: string; data: ForecastData[] } | null = null;
+        try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch { cached = null; }
+        if (cached?.data?.length && Date.now() - Date.parse(cached.at) < 24 * 3600e3) {
+          setForecast(cached.data);
+          setForecastStaleAt(cached.at);
+        } else {
+          setForecast([]);
+          setForecastStaleAt(null);
+        }
+        setForecastError(error instanceof Error ? error.message : String(error));
       } finally {
-        setIsForecastLoading(false);
+        if (!cancelled) setIsForecastLoading(false);
       }
     };
     loadForecast();
-  }, [selectedSpot]);
+    return () => { cancelled = true; };
+  }, [selectedSpot, forecastReload]);
 
   const handleUpdateProfile = async (updatedUser: UserProfile) => {
     setUser(updatedUser);
@@ -579,6 +602,10 @@ export default function App() {
                   spot={selectedSpot}
                   currentForecast={currentForecastData}
                   forecasts={forecast}
+                  isForecastLoading={isForecastLoading}
+                  forecastError={forecastError}
+                  forecastStaleAt={forecastStaleAt}
+                  onRetryForecast={() => setForecastReload(n => n + 1)}
                   user={user}
                   isLoggedIn={!!authUser}
                   onSelectForecastHour={async (selectedHourData) => {

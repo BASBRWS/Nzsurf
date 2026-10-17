@@ -54,6 +54,12 @@ interface TacticalDashboardProps {
   onOpenProfile?: () => void;
   allSpots?: SurfSpot[];
   onSelectSpot?: (spotId: string) => void;
+  isForecastLoading?: boolean;
+  /** Foutmelding als het ophalen mislukte (ook als er een oudere verwachting getoond wordt). */
+  forecastError?: string | null;
+  /** Tijdstip van de getoonde oudere verwachting, als die uit de cache komt. */
+  forecastStaleAt?: string | null;
+  onRetryForecast?: () => void;
 }
 
 export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
@@ -68,6 +74,10 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
   onOpenMap,
   onOpenProfile,
   allSpots,
+  isForecastLoading = false,
+  forecastError = null,
+  forecastStaleAt = null,
+  onRetryForecast,
   onSelectSpot
 }) => {
   // Standaard de tabel (weekoverzicht); dagkaarten pas na een klik.
@@ -204,8 +214,22 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
                 <p className="mt-3 text-[12px] text-slate-500">Geen beter moment in de verwachting voor deze spot. Kijk hieronder bij "Nu elders".</p>
               )}
             </>
+          ) : forecastError && !isForecastLoading ? (
+            <div className="text-sm text-slate-700">
+              <p className="font-bold">Verwachting kon niet worden opgehaald.</p>
+              <p className="text-[12px] text-slate-500 font-mono">De weerbron (Open-Meteo) reageert niet of is tijdelijk overbelast ({forecastError}).</p>
+              {onRetryForecast && (
+                <button onClick={onRetryForecast} className="mt-2 text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-900 text-white">Opnieuw proberen</button>
+              )}
+            </div>
           ) : (
             <p className="text-sm text-slate-600">Verwachting laden…</p>
+          )}
+          {forecastStaleAt && forecastError && !isForecastLoading && (
+            <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              <span>Oudere verwachting van {new Date(forecastStaleAt).toLocaleString('nl-NL', { weekday: 'short', hour: '2-digit', minute: '2-digit' })} — ophalen mislukte.</span>
+              {onRetryForecast && <button onClick={onRetryForecast} className="font-bold underline shrink-0">Opnieuw</button>}
+            </div>
           )}
         </motion.div>
       </div>
