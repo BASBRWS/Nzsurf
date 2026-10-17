@@ -215,3 +215,61 @@ export function blendForecast(
   });
   return { asOf: new Date(asOf).toISOString(), skill, hours: out };
 }
+
+// ── "NzSurf concept" als virtuele auditbron ────────────────────────────────
+export const CONCEPT_SOURCE = 'nzsurf-concept';
+export const CONCEPT_LABEL = 'NzSurf concept';
+
+const SOURCE_NAMES: Record<string, string> = {
+  dwd: 'DWD', meteofrance: 'Météo-France', ecmwf: 'ECMWF', gfs: 'GFS', knmi: 'KNMI',
+};
+const VAR_NAMES: Record<BlendVar, string> = { hs: 'golf', tp: 'periode', windKn: 'wind', windDir: 'windrichting' };
+
+/** Korte bronvermelding, bv. "golf: DWD 38%, Météo-France 38% · wind: GFS 27%, …". */
+export function describeWeights(hour: BlendHour, vars: BlendVar[] = ['hs', 'windKn']): string {
+  return vars.map(v => {
+    const w = hour.weights[v]; if (!w) return null;
+    const parts = Object.entries(w).sort((a, b) => b[1] - a[1])
+      .map(([s, x]) => `${SOURCE_NAMES[s] ?? s} ${Math.round(x * 100)}%`);
+    return `${VAR_NAMES[v]}: ${parts.join(', ')}`;
+  }).filter(Boolean).join(' · ');
+}
+
+/**
+ * Maakt per ophaaldag een verwachting van het NzSurf concept, in hetzelfde
+ * formaat als de opgeslagen bronnen. Elke dag wordt berekend met alleen de
+ * metingen en runs van vóór die ophaalronde, zodat de audit hem eerlijk kan
+ * vergelijken met de andere bronnen.
+ */
+export function buildConceptDocs(
+  forecasts: AuditForecastDoc[], observations: AuditObsDoc[], options: Partial<BlendOptions> = {},
+): AuditForecastDoc[] {
+  const opt = { ...BLEND_DEFAULTS, ...options };
+  // Ophaalmoment per dag = laatste run van een meedoende bron op die dag.
+  const runByDay = new Map<string, { runAt: string; spotId: string }>();
+  for (const f of forecasts) {
+    if (!opt.sources.includes(f.source) || !f.points?.length) continue;
+    const cur = runByDay.get(f.runDate);
+    if (!cur || Date.parse(f.runAt) > Date.parse(cur.runAt)) runByDay.set(f.runDate, { runAt: f.runAt, spotId: f.spotId });
+  }
+  const docs: AuditForecastDoc[] = [];
+  for (const [runDate, { runAt, spotId }] of [...runByDay.entries()].sort()) {
+    const asOf = Date.parse(runAt) + 60_000;
+    const res = blendForecast(forecasts, observations, asOf, opt);
+    const hours = res.hours.filter(h => Date.parse(h.t) >= Date.parse(runAt) - 3_600_000);
+    if (!hours.length) continue;
+    const used = [...new Set(hours.flatMap(h => Object.values(h.weights).flatMap(w => Object.keys(w ?? {}))))]
+      .map(s => SOURCE_NAMES[s] ?? s);
+    const first = hours.find(h => h.weights.hs && h.weights.windKn) ?? hours[0];
+    docs.push({
+      runAt, runDate, spotId,
+      source: CONCEPT_SOURCE, label: CONCEPT_LABEL, kind: 'model',
+      note: `Bronnen: ${used.join(', ')} — gewicht nu: ${describeWeights(first)}`,
+      points: hours.map(h => ({
+        t: h.t, lead: Math.round((Date.parse(h.t) - Date.parse(runAt)) / 3_600_000),
+        hs: h.hs, tp: h.tp, windKn: h.windKn, windDir: h.windDir,
+      })),
+    });
+  }
+  return docs;
+}

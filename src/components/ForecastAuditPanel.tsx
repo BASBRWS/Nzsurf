@@ -9,6 +9,7 @@ import { importSecretSwellScreenshots } from '../services/secretSwellImport';
 import { cn } from '../lib/utils';
 import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
+import { buildConceptDocs } from '../utils/forecastBlend';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
@@ -76,8 +77,14 @@ export function ForecastAuditPanel() {
           getDocs(query(collection(db, 'auditObservations'), where('date', '>=', from))),
         ]);
         if (cancelled) return;
-        setForecasts(fcSnap.docs.map(d => d.data() as AuditForecastDoc));
-        setObservations(cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc)));
+        const fc = fcSnap.docs.map(d => d.data() as AuditForecastDoc);
+        const obs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
+        // NzSurf concept: blend van de eigen modelbronnen, per ophaaldag berekend
+        // met alleen de kennis van vóór die dag (zie utils/forecastBlend.ts).
+        let concept: AuditForecastDoc[] = [];
+        try { concept = buildConceptDocs(fc, obs); } catch (e) { console.warn('NzSurf concept niet berekend', e); }
+        setForecasts([...fc, ...concept]);
+        setObservations(obs);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       }
