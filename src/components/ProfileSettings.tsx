@@ -427,7 +427,7 @@ export function ProfileSettings({
 
       {activeSubTab === 'beta' && isAdmin && (
         <div className="mt-6">
-          <ForecastAuditPanel />
+          <ForecastAuditPanel spots={allSpots} />
         </div>
       )}
 

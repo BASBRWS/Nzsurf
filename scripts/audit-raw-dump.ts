@@ -189,7 +189,7 @@ async function main() {
     return;
   }
   const snap = await db.collection('auditRaw').get();
-  const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter(d => d.kind !== 'webcam');
   const dates = [...new Set(docs.map(d => d.runDate))].sort();
   console.log('Beschikbare dagen:', dates.join(', ') || '(geen)');
   const date = want || dates[dates.length - 1];
