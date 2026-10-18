@@ -6,6 +6,7 @@ import {
 } from '../services/webcamMeasure';
 import { webcamRow, summarizeWebcam, nearbyEstimates } from '../utils/webcamVerify';
 import { SurfSpot } from '../types';
+import { getClaudeKey, setClaudeKey, getClaudeModel, setClaudeModel, maskKey, CLAUDE_DEFAULT_MODEL } from '../services/aiServer';
 
 /**
  * Beta: knop "meet 60 s" voor de webcam aan het Maasvlaktestrand, plus de
@@ -41,6 +42,8 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [run, setRun] = useState<{ busy: boolean; status?: string; error?: string }>({ busy: false });
   const [videoId, setVid] = useState(getVideoId());
+  const [claudeKey, setKeyState] = useState(getClaudeKey());
+  const [keyDraft, setKeyDraft] = useState('');
 
   useEffect(() => {
     loadWebcamMeasurements().then(setItems).catch(e => setLoadError(e?.message || String(e)));
@@ -81,7 +84,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
       {run.status && <p className="text-[11px] font-mono text-slate-700">{run.status}</p>}
       {run.error && <p className="text-[11px] font-mono text-rose-700">✗ {run.error}</p>}
       <p className="text-[11px] text-slate-500">
-        Opent de livestream van Strandweer.nu (camera op de reddingspost, 10 m hoog) en legt 60 s lang elke 5 s een beeld vast; Gemini schat daaruit de brekende golf.
+        Opent de livestream van Strandweer.nu (camera op de reddingspost, 10 m hoog) en legt 60 s lang elke 5 s een beeld vast; de AI schat daaruit de brekende golf.
         Vraagt YouTube om toestemming, tik dan op "Alles accepteren"; speelt de video niet, tik op ▶. De camera draait: beelden zonder zee tellen niet mee.
         De boei Maasgeul 2 ligt vlak voor de Maasvlakte; de boeiwaarde van hetzelfde uur verschijnt na de volgende ophaalronde (4× per dag).
       </p>
@@ -91,6 +94,27 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
           <input defaultValue={videoId} onBlur={e => setVid(setVideoId(e.target.value))}
             className="flex-1 border border-slate-300 rounded-lg px-2 py-1 font-mono text-[11px]" placeholder="YouTube-link of ID" />
           <span className="font-mono">{videoId}</span>
+        </div>
+      </details>
+
+      <details className="text-[11px] text-slate-600" open={!claudeKey && !!run.error && /Gemini-tegoed/.test(run.error)}>
+        <summary className="cursor-pointer">AI-sleutel — nu: <b>{claudeKey ? `Claude ${maskKey(claudeKey)}` : 'Gemini (server)'}</b></summary>
+        <div className="mt-1.5 space-y-1.5">
+          <p>Plak hier je Claude API-sleutel (console.anthropic.com → API keys, begint met <span className="font-mono">sk-ant-</span>). Hij blijft alleen op deze telefoon en wordt gebruikt voor de webcam en de Secret Swell-import.</p>
+          <div className="flex gap-2">
+            <input type="password" autoComplete="off" value={keyDraft} onChange={e => setKeyDraft(e.target.value)} placeholder="sk-ant-…"
+              className="flex-1 border border-slate-300 rounded-lg px-2 py-1 font-mono text-[11px]" />
+            <button onClick={() => { if (keyDraft.trim()) { setClaudeKey(keyDraft); setKeyState(getClaudeKey()); setKeyDraft(''); } }}
+              className="font-bold px-3 py-1 rounded-lg bg-slate-900 text-white cursor-pointer">Opslaan</button>
+          </div>
+          {claudeKey && (
+            <div className="flex gap-2 items-center">
+              <span>Model:</span>
+              <input defaultValue={getClaudeModel()} onBlur={e => setClaudeModel(e.target.value || CLAUDE_DEFAULT_MODEL)}
+                className="flex-1 border border-slate-300 rounded-lg px-2 py-1 font-mono text-[11px]" />
+              <button onClick={() => { setClaudeKey(''); setKeyState(''); }} className="text-rose-700 font-bold cursor-pointer">Verwijderen</button>
+            </div>
+          )}
         </div>
       </details>
 
@@ -162,6 +186,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
 
           {rows.some(r => r.buoy && !r.buoyMaasgeul) && <p className="text-[10px] text-slate-500">* boeiwaarde niet van Maasgeul 2 (terugval Schouwenbank).</p>}
           {rows[0]?.m.result.note && <p className="text-[11px] text-slate-600 italic">Laatste meting: {rows[0].m.result.note}</p>}
+          {rows[0]?.m.forecastError && <p className="text-[11px] text-amber-700">NzSurf-verwachting ontbrak bij de laatste meting: {rows[0].m.forecastError}</p>}
           {rows[0]?.m.thumb && <img src={rows[0].m.thumb} alt="Beeld laatste webcammeting" className="rounded-lg max-w-full w-72 border border-slate-200" />}
           <button onClick={() => onDownload(`nzsurf-webcam-maasvlakte-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows.map(r => ({
               tijd_utc: r.m.runAt, beelden: r.m.frames, bruikbaar: r.m.result.framesUsable, webcam_m: r.beach ?? '',
