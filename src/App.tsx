@@ -59,6 +59,7 @@ import {
   OperationType, 
   User 
 } from './lib/firebase';
+import { isOwnerEmail } from './lib/admin';
 
 // Zware schermen/modals pas laden als ze nodig zijn (kleinere eerste download).
 const SpotMap = lazy(() => import('./components/SpotMap').then(m => ({ default: m.SpotMap })));
@@ -189,7 +190,7 @@ export default function App() {
   const [auditPrompt, setAuditPrompt] = useState<'hidden' | 'ask' | 'busy' | string>('hidden');
   useEffect(() => {
     const email = authUser?.email?.toLowerCase();
-    if (!email || !['sebastiaan.boom@gmail.com', 'sebastiaan.boom2@gmail.com'].includes(email)) return;
+    if (!isOwnerEmail(email)) return;
     if (!Capacitor.isNativePlatform()) return;
     import('./services/auditCollector')
       .then(m => { if (m.appCollectDueToday()) setAuditPrompt('ask'); })

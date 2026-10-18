@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { MessageSquare, Calendar, MapPin, Gauge, ShieldCheck, Zap, AlertTriangle, Trash2, Settings2, Check, X, Maximize2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ADMIN_EMAILS } from '../lib/admin';
 
 interface ExtendedSpotReport extends SpotReport {
   isBeta?: boolean;
@@ -18,7 +19,7 @@ export function AdminReportList() {
   const [multiplier, setMultiplier] = useState<number>(1.0);
   const [selectedReport, setSelectedReport] = useState<ExtendedSpotReport | null>(null);
 
-  const ADMIN_EMAILS = ['sebastiaan.boom2@gmail.com', 'sebastiaan.boom@gmail.com'];
+  
   const isAdmin = auth.currentUser?.email && ADMIN_EMAILS.includes(auth.currentUser.email.toLowerCase());
 
   useEffect(() => {

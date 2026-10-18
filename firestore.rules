@@ -15,7 +15,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (((request.auth.token.email == "sebastiaan.boom2@gmail.com" || request.auth.token.email == "sebastiaan.boom@gmail.com") && request.auth.token.email_verified == true) ||
+        ((request.auth.token.email in ["sebastiaan.boom2@gmail.com", "sebastiaan.boom@gmail.com", "fietsventieltje@gmail.com"] && request.auth.token.email_verified == true) ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
@@ -93,8 +93,10 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data);
-      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data);
+      // Een gebruiker mag zijn eigen rol niet zetten of wijzigen (anders kan iedereen zich admin maken).
+      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data) && !('role' in request.resource.data);
+      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data)
+        && request.resource.data.get('role', null) == resource.data.get('role', null);
       allow delete: if isAdmin();
     }
 
