@@ -1,7 +1,7 @@
 import { InAppBrowser } from '@capgo/inappbrowser';
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { callGenerateContent } from './geminiService';
+import { generateViaServer } from './aiServer';
 import { fetchForecast } from './weatherService';
 import { SPOT_CATALOG, toSurfSpot } from '../data/spotCatalog';
 import { ForecastData, SurfSpot } from '../types';
@@ -135,25 +135,76 @@ export function setVideoId(input: string): string {
 
 // Draait in de YouTube-pagina: wacht tot de video speelt en stuurt elke EVERY_S s een beeld.
 // Het tekenen van de video op een canvas mag hier, omdat het script in de pagina zelf draait.
-const captureScript = `(function () {
+export const captureScript = `(function () {
   if (window.__nzsCam) return; window.__nzsCam = true;
   function post(d) { try { window.mobileApp.postMessage({ detail: d }); } catch (e) {} }
-  var start = Date.now(), lastT = -1, playingSince = 0, n = 0, total = ${Math.round(DURATION_S / EVERY_S)};
+  var DUR = ${DURATION_S * 1000}, EVERY = ${EVERY_S * 1000}, total = ${Math.round(DURATION_S / EVERY_S)};
+  var start = Date.now(), lastT = -1, playingSince = 0, n = 0, t0 = 0, ended = false;
+  var hint, ov, cv, ctx, lbl, bar, sub;
   function video() { var v = document.querySelector('video'); return v && v.videoWidth ? v : null; }
+  function el(tag, css, text) { var e = document.createElement(tag); e.style.cssText = css; if (text) e.textContent = text; return e; }
+
+  // Hint tijdens het wachten (toestemming / play).
+  hint = el('div', 'position:fixed;left:12px;right:12px;bottom:16px;z-index:2147483647;background:#0f172a;color:#fff;padding:12px 14px;border-radius:14px;font:600 14px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4)',
+    'NzSurf: tik zo nodig op "Alles accepteren" of op ▶. De meting van 60 s start vanzelf zodra de stream speelt.');
+  (document.body || document.documentElement).appendChild(hint);
+
+  // Volledig scherm: het livebeeld groot, met afteller en voortgangsbalk.
+  function overlay() {
+    if (hint) hint.remove();
+    ov = el('div', 'position:fixed;inset:0;z-index:2147483647;background:#000;display:flex;flex-direction:column;color:#fff;font-family:system-ui,sans-serif');
+    var top = el('div', 'padding:14px 16px 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px');
+    top.appendChild(el('div', 'font-size:13px;font-weight:700;opacity:.8;line-height:1.3', 'NzSurf meting\\nWebcam Maasvlakte'));
+    top.lastChild.style.whiteSpace = 'pre-line';
+    lbl = el('div', 'font-size:48px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1', '60');
+    top.appendChild(lbl);
+    var track = el('div', 'height:6px;background:#334155;margin:0 16px;border-radius:3px;overflow:hidden');
+    bar = el('div', 'height:100%;width:0;background:#06b6d4;transition:width .25s linear');
+    track.appendChild(bar);
+    cv = el('canvas', 'flex:1;width:100%;min-height:0;object-fit:contain;margin-top:10px');
+    sub = el('div', 'padding:10px 16px 22px;font-size:13px;opacity:.8', 'beeld 0/' + total);
+    ov.appendChild(top); ov.appendChild(track); ov.appendChild(cv); ov.appendChild(sub);
+    document.body.appendChild(ov);
+    ctx = cv.getContext('2d');
+    draw(); tick();
+  }
+  function draw() {
+    var v = video();
+    if (v && ctx) {
+      if (cv.width !== v.videoWidth) { cv.width = v.videoWidth; cv.height = v.videoHeight; }
+      try { ctx.drawImage(v, 0, 0); } catch (e) {}
+    }
+    if (!ended) requestAnimationFrame(draw);
+  }
+  function tick() {
+    if (ended) return;
+    var el2 = Date.now() - t0, left = Math.max(0, Math.ceil((DUR - el2) / 1000));
+    lbl.textContent = String(left);
+    bar.style.width = Math.min(100, el2 / DUR * 100) + '%';
+    setTimeout(tick, 250);
+  }
   function grab(v, w, q) {
     var c = document.createElement('canvas');
     c.width = w; c.height = Math.round(w * v.videoHeight / v.videoWidth);
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
     return c.toDataURL('image/jpeg', q);
   }
+  function fail(msg) { ended = true; if (sub) sub.textContent = '✗ ' + msg; post({ type: 'error', msg: msg }); }
   function shoot() {
     var v = video();
-    if (!v) { post({ type: 'error', msg: 'video verdwenen' }); return; }
+    if (!v) { fail('video verdwenen'); return; }
     try {
       n++;
-      post({ type: 'frame', i: n, total: total, data: grab(v, 768, 0.72), thumb: n === Math.ceil(total / 2) ? grab(v, 420, 0.6) : null });
-    } catch (e) { post({ type: 'error', msg: 'beeld niet vast te leggen: ' + (e && e.message || e) }); return; }
-    if (n >= total) post({ type: 'done' }); else setTimeout(shoot, ${EVERY_S * 1000});
+      post({ type: 'frame', i: n, total: total, left: Math.max(0, Math.ceil((DUR - (Date.now() - t0)) / 1000)),
+        data: grab(v, 768, 0.72), thumb: n === Math.ceil(total / 2) ? grab(v, 420, 0.6) : null });
+      sub.textContent = 'beeld ' + n + '/' + total + ' vastgelegd';
+    } catch (e) { fail('beeld niet vast te leggen: ' + (e && e.message || e)); return; }
+    if (n < total) { setTimeout(shoot, EVERY); return; }
+    setTimeout(function () {
+      ended = true; lbl.textContent = '✓'; bar.style.width = '100%';
+      sub.textContent = 'Klaar — Gemini schat de golven…';
+      post({ type: 'done' });
+    }, Math.max(0, DUR - (Date.now() - t0)));
   }
   function wait() {
     var v = video();
@@ -162,9 +213,13 @@ const captureScript = `(function () {
       if (!v.paused && v.currentTime !== lastT) { if (!playingSince) playingSince = Date.now(); }
       else playingSince = 0;
       lastT = v.currentTime;
-      if (playingSince && Date.now() - playingSince > 2500) { post({ type: 'status', msg: 'opname loopt' }); shoot(); return; }
+      if (playingSince && Date.now() - playingSince > 2500) {
+        t0 = Date.now(); overlay(); post({ type: 'status', msg: 'opname loopt' });
+        setTimeout(shoot, EVERY / 2); // beelden op 2,5 / 7,5 / … / 57,5 s
+        return;
+      }
     }
-    if (Date.now() - start > ${WAIT_FOR_VIDEO_MS}) { post({ type: 'error', msg: 'stream speelt niet (live gestopt of ander adres?)' }); return; }
+    if (Date.now() - start > ${WAIT_FOR_VIDEO_MS}) { if (hint) hint.remove(); fail('stream speelt niet (live gestopt of ander adres?)'); return; }
     if (Date.now() - start > 8000 && !v) post({ type: 'status', msg: 'wacht op video — tik zo nodig op "Alles accepteren" of ▶' });
     setTimeout(wait, 1000);
   }
@@ -181,7 +236,7 @@ export async function captureWebcamFrames(videoId: string, onStatus: (s: string)
   const handles = await Promise.all([
     InAppBrowser.addListener('messageFromWebview', (e: any) => {
       const d = e?.detail || {};
-      if (d.type === 'frame') { frames.push(d.data); if (d.thumb) thumb = d.thumb; onStatus(`beeld ${d.i}/${d.total}`); }
+      if (d.type === 'frame') { frames.push(d.data); if (d.thumb) thumb = d.thumb; onStatus(`nog ${d.left ?? '?'} s · beeld ${d.i}/${d.total}`); }
       else if (d.type === 'status') onStatus(d.msg);
       else if (d.type === 'done') finish();
       else if (d.type === 'error') finish(new Error(d.msg));
@@ -197,6 +252,7 @@ export async function captureWebcamFrames(videoId: string, onStatus: (s: string)
       toolbarType: 'compact' as any, isPresentAfterPageLoad: false,
     });
     await done;
+    await new Promise(r => setTimeout(r, 1200)); // ✓ even laten zien
   } finally {
     clearTimeout(timer);
     await InAppBrowser.close().catch(() => {});
@@ -227,7 +283,7 @@ Antwoord ALLEEN met JSON:
  "waterSurface": "glad"|"gerimpeld"|"schuimkoppen"|null, "surfers": number, "confidence": number tussen 0 en 1,
  "note": "1–2 zinnen in het Nederlands over wat je ziet"}
 Is de branding op geen enkel beeld te zien: framesUsable 0 en de rest null.`;
-  const res = await callGenerateContent({
+  const text = await generateViaServer({
     model: 'gemini-3.7-flash',
     contents: [
       ...frames.map(f => ({ inlineData: { data: f.split(',')[1] || f, mimeType: 'image/jpeg' } })),
@@ -235,7 +291,7 @@ Is de branding op geen enkel beeld te zien: framesUsable 0 en de rest null.`;
     ],
     config: { responseMimeType: 'application/json' },
   });
-  const raw = JSON.parse(String(res.text || '{}').replace(/```json|```/g, '').trim());
+  const raw = JSON.parse(String(text || '{}').replace(/```json|```/g, '').trim());
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
   const out: WebcamResult = {
     framesUsable: num(raw.framesUsable) ?? 0,
