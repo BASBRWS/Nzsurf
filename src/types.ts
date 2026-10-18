@@ -34,6 +34,7 @@ export interface UserProfile {
   createdAt?: string; // ISO string
   lastActiveAt?: string; // ISO string
   lastPlatform?: string; // 'web' | 'android' | 'ios' — waarmee iemand het laatst actief was
+  role?: 'user' | 'admin'; // toegekend door de eigenaar (Admin → Gebruikers)
 }
 
 export interface SurfSpot {

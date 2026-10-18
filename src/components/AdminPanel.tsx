@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { saveFileOrAlert } from '../utils/saveFile';
-import { db } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { cn } from '../lib/utils';
+import { collection, query, orderBy, onSnapshot, getDocs, deleteDoc, doc, writeBatch, updateDoc } from 'firebase/firestore';
+import { isOwnerEmail, ROLE_LABELS, UserRole } from '../lib/admin';
 import { UserProfile } from '../types';
 import { AppErrorLog } from '../services/loggerService';
 import { format, subDays, startOfMonth, isAfter } from 'date-fns';
@@ -14,6 +16,24 @@ export function AdminPanel() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<AppErrorLog[]>([]);
   const [loading, setLoading] = useState(true);
+  // Rechten: alleen de eigenaar kan gebruikers admin maken of dat weer intrekken.
+  const iAmOwner = isOwnerEmail(auth.currentUser?.email);
+  const [roleBusy, setRoleBusy] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const setRole = async (u: UserProfile, role: UserRole) => {
+    if (!u.uid) return;
+    const who = u.email || u.displayName || 'deze gebruiker';
+    if (role === 'admin' && !window.confirm(`${who} admin maken?\n\nAdmins zien de Beta-tab (audit, webcam), de adminpagina met alle gebruikers en e-mailadressen, en kunnen berichten in de community beheren.`)) return;
+    setRoleBusy(u.uid); setRoleError(null);
+    try {
+      await updateDoc(doc(db, 'users', u.uid), { role });
+      setUsers(prev => prev.map(x => (x.uid === u.uid ? { ...x, role } : x)));
+    } catch (e: any) {
+      setRoleError(`Rechten wijzigen mislukt voor ${who}: ${e?.message || e}. Zijn de nieuwe Firestore-regels gepubliceerd?`);
+    } finally {
+      setRoleBusy(null);
+    }
+  };
   const [activeTab, setActiveTab] = useState<'reports' | 'logs' | 'users'>('reports');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
@@ -42,7 +62,7 @@ export function AdminPanel() {
     const fetchUsers = async () => {
       try {
         const snapshot = await getDocs(collection(db, 'users'));
-        const userData = snapshot.docs.map(doc => doc.data() as UserProfile);
+        const userData = snapshot.docs.map(d => ({ ...(d.data() as UserProfile), uid: d.id }));
         setUsers(userData);
       } catch (error) {
         console.error("Error fetching users:", error);
@@ -229,7 +249,9 @@ export function AdminPanel() {
         <div className="space-y-4">
           <div className="flex justify-between items-center px-1">
             <h3 className="text-xs font-mono uppercase tracking-widest font-bold text-slate-500">Geregistreerde Operatives ({users.length})</h3>
+            {iAmOwner && <span className="text-[10px] font-mono text-slate-500">{users.filter(u => u.role === 'admin').length} admin(s)</span>}
           </div>
+          {roleError && <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">{roleError}</p>}
 
           {users.length === 0 ? (
             <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center text-slate-400 flex flex-col items-center justify-center gap-3 shadow-sm">
@@ -261,6 +283,30 @@ export function AdminPanel() {
                       <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-800 font-bold border border-cyan-200">
                         {u.skillLevel || 'intermediate'}
                       </span>
+                    </div>
+
+                    {/* Rechten */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <span className="text-[8px] font-mono text-slate-400 uppercase">Rechten</span>
+                      {isOwnerEmail(u.email) ? (
+                        <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">Eigenaar</span>
+                      ) : iAmOwner ? (
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                          {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => {
+                            const active = (u.role || 'user') === r;
+                            return (
+                              <button key={r} disabled={roleBusy === u.uid || active} onClick={() => setRole(u, r)}
+                                className={cn('text-[10px] font-mono font-bold uppercase px-2.5 py-1 cursor-pointer disabled:cursor-default',
+                                  active ? (r === 'admin' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-white') : 'bg-white text-slate-500 hover:bg-slate-50',
+                                  roleBusy === u.uid && 'opacity-50')}>
+                                {ROLE_LABELS[r]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-mono font-bold uppercase text-slate-600">{ROLE_LABELS[(u.role || 'user') as UserRole]}</span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] font-mono text-slate-600">

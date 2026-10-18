@@ -13,9 +13,15 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Eigenaar: vast. Alleen de eigenaar kan rechten (users/{uid}.role) toekennen.
+    function isOwnerAccount() {
+      return isAuthenticated() && request.auth.token.email_verified == true &&
+        request.auth.token.email in ["sebastiaan.boom2@gmail.com", "sebastiaan.boom@gmail.com"];
+    }
+
     function isAdmin() {
       return isAuthenticated() &&
-        (((request.auth.token.email == "sebastiaan.boom2@gmail.com" || request.auth.token.email == "sebastiaan.boom@gmail.com") && request.auth.token.email_verified == true) ||
+        (isOwnerAccount() ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
@@ -93,9 +99,13 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data);
-      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data);
-      allow delete: if isAdmin();
+      // Een gebruiker mag zijn eigen rol niet zetten of wijzigen (anders kan iedereen zich admin maken).
+      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data) && !('role' in request.resource.data);
+      allow update: if (isOwner(userId) && isValidUserProfile(request.resource.data)
+          && request.resource.data.get('role', null) == resource.data.get('role', null))
+        || (isOwnerAccount() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          && request.resource.data.role in ['user', 'admin']);
+      allow delete: if isOwnerAccount();
     }
 
     match /spotReports/{reportId} {

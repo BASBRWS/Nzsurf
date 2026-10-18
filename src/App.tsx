@@ -59,6 +59,7 @@ import {
   OperationType, 
   User 
 } from './lib/firebase';
+import { isOwnerEmail } from './lib/admin';
 
 // Zware schermen/modals pas laden als ze nodig zijn (kleinere eerste download).
 const SpotMap = lazy(() => import('./components/SpotMap').then(m => ({ default: m.SpotMap })));
@@ -189,7 +190,7 @@ export default function App() {
   const [auditPrompt, setAuditPrompt] = useState<'hidden' | 'ask' | 'busy' | string>('hidden');
   useEffect(() => {
     const email = authUser?.email?.toLowerCase();
-    if (!email || !['sebastiaan.boom@gmail.com', 'sebastiaan.boom2@gmail.com'].includes(email)) return;
+    if (!isOwnerEmail(email)) return;
     if (!Capacitor.isNativePlatform()) return;
     import('./services/auditCollector')
       .then(m => { if (m.appCollectDueToday()) setAuditPrompt('ask'); })
@@ -316,7 +317,10 @@ export default function App() {
     setUser(updatedUser);
     if (authUser) {
       try {
-        await setDoc(doc(db, 'users', authUser.uid), updatedUser);
+        // De rol wordt alleen door de eigenaar gezet; altijd de huidige rol meesturen,
+        // anders weigeren de Firestore-regels het opslaan van het profiel.
+        const { role: _role, ...rest } = updatedUser;
+        await setDoc(doc(db, 'users', authUser.uid), user.role ? { ...rest, role: user.role } : rest);
       } catch (err) {
         console.error("Error updating user:", err);
       }
