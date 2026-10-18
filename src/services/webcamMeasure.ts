@@ -2,6 +2,9 @@ import { InAppBrowser } from '@capgo/inappbrowser';
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { callGenerateContent } from './geminiService';
+import { fetchForecast } from './weatherService';
+import { SPOT_CATALOG, toSurfSpot } from '../data/spotCatalog';
+import { ForecastData, SurfSpot } from '../types';
 
 /**
  * Beta: webcammeting Maasvlakte.
@@ -21,7 +24,9 @@ export const WEBCAM = {
   spotId: 'maasvlakte',
   label: 'Webcam Maasvlakte (Strandweer.nu)',
   defaultVideoId: 'Ud7I4jprFN0',
+  lat: 51.9292, lng: 3.9766, // reddingspost Maasvlaktestrand
 };
+export const NEARBY_KM = 20;
 const VIDEO_KEY = 'nzs_webcam_video';
 const WAIT_FOR_VIDEO_MS = 90_000; // tijd om evt. YouTube-toestemming te geven / op ▶ te tikken
 const DURATION_S = 60;
@@ -51,10 +56,69 @@ export interface WebcamResult {
   note?: string;
 }
 
+/** NzSurf-verwachting voor één spot op het uur van de meting. */
+export interface SpotForecastSnap {
+  spotId: string; name: string; distKm: number; t: string;
+  modelHs: number;      // Open-Meteo op zee bij de spot
+  spotHs?: number;      // NzSurf: hoogte op de spot (demping × richting × plafond)
+  period?: number; swellDir?: number; windKn?: number; windDir?: number; chance?: number;
+}
+
 export interface WebcamMeasurement {
   kind: 'webcam'; name: string; camera: string; spotId: string; videoId: string;
   runAt: string; runDate: string; durationS: number; frames: number;
   result: WebcamResult; thumb?: string; error?: string;
+  forecast?: SpotForecastSnap;      // de spot van de camera
+  nearby?: SpotForecastSnap[];      // overige spots binnen NEARBY_KM
+}
+
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371, D = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * D, dLng = (b.lng - a.lng) * D;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * D) * Math.cos(b.lat * D) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * De spot van de camera (eigen spot binnen 2 km, anders een spot op de camerapositie)
+ * en alle andere spots (eigen + catalogus) binnen NEARBY_KM.
+ */
+export function webcamSpots(userSpots: SurfSpot[] = []) {
+  const byId = new Map<string, SurfSpot>();
+  [...SPOT_CATALOG.map(toSurfSpot), ...userSpots].forEach(s => {
+    if (s && typeof s.lat === 'number' && typeof s.lng === 'number') byId.set(s.id, s);
+  });
+  const withDist = [...byId.values()].map(s => ({ s, d: distanceKm(WEBCAM, s) })).sort((a, b) => a.d - b.d);
+  const own = withDist.find(x => x.d <= 2);
+  const camera: SurfSpot = own?.s ?? {
+    id: 'webcam-maasvlakte', name: 'Maasvlakte (webcam)', lat: WEBCAM.lat, lng: WEBCAM.lng,
+    type: 'beachbreak', bestWind: [], bestSwell: [], coastlineAngle: 300,
+  };
+  const nearby = withDist.filter(x => x.s.id !== camera.id && x.d <= NEARBY_KM).map(x => ({ spot: x.s, distKm: x.d }));
+  return { camera, cameraDistKm: own?.d ?? 0, nearby };
+}
+
+function snapAt(spot: SurfSpot, distKm: number, hours: ForecastData[], at: number): SpotForecastSnap | undefined {
+  let best: ForecastData | undefined, bd = Infinity;
+  for (const h of hours) { const d = Math.abs(Date.parse(h.timestamp) - at); if (d < bd) { bd = d; best = h; } }
+  if (!best || bd > 90 * 60e3) return undefined;
+  const r = (v: unknown, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : undefined);
+  const snap: SpotForecastSnap = {
+    spotId: spot.id, name: spot.name, distKm: r(distKm, 1)!, t: best.timestamp, modelHs: r(best.waveHeight)!,
+    spotHs: r(best.spotWaveHeight), period: r(best.swellPeriod, 1), swellDir: r(best.swellDirection, 0),
+    windKn: r(best.windSpeed, 1), windDir: r(best.windDirection, 0), chance: r(best.surfChance, 0),
+  };
+  return Object.fromEntries(Object.entries(snap).filter(([, v]) => v !== undefined)) as unknown as SpotForecastSnap;
+}
+
+/** NzSurf-verwachting voor de cameraspot en de spots eromheen, op tijdstip `at`. */
+export async function forecastSnapshots(userSpots: SurfSpot[], at: number) {
+  const { camera, cameraDistKm, nearby } = webcamSpots(userSpots);
+  const one = async (spot: SurfSpot, distKm: number) => {
+    try { return snapAt(spot, distKm, await fetchForecast(spot), at); } catch { return undefined; }
+  };
+  const [forecast, ...rest] = await Promise.all([one(camera, cameraDistKm), ...nearby.map(n => one(n.spot, n.distKm))]);
+  return { forecast, nearby: rest.filter((x): x is SpotForecastSnap => !!x) };
 }
 
 export function getVideoId(): string {
@@ -190,9 +254,11 @@ Is de branding op geen enkel beeld te zien: framesUsable 0 en de rest null.`;
 }
 
 /** Volledige meting: opnemen → analyseren → opslaan. */
-export async function runWebcamMeasurement(onStatus: (s: string) => void): Promise<WebcamMeasurement> {
+export async function runWebcamMeasurement(userSpots: SurfSpot[], onStatus: (s: string) => void): Promise<WebcamMeasurement> {
   const videoId = getVideoId();
   const runAt = new Date();
+  // Verwachtingen ophalen terwijl de camera opneemt.
+  const fc = forecastSnapshots(userSpots, runAt.getTime() + 30_000).catch(() => ({ forecast: undefined, nearby: [] as SpotForecastSnap[] }));
   const { frames, thumb } = await captureWebcamFrames(videoId, onStatus);
   if (frames.length < 4) throw new Error(`te weinig beelden (${frames.length})`);
   onStatus(`${frames.length} beelden — Gemini analyseert…`);
@@ -203,6 +269,9 @@ export async function runWebcamMeasurement(onStatus: (s: string) => void): Promi
     durationS: DURATION_S, frames: frames.length, result,
     ...(thumb ? { thumb } : {}),
   };
+  const { forecast, nearby } = await fc;
+  if (forecast) m.forecast = forecast;
+  if (nearby.length) m.nearby = nearby;
   await setDoc(doc(db, 'auditRaw', `webcam_${m.runAt.replace(/[:.]/g, '-')}`), m);
   return m;
 }
