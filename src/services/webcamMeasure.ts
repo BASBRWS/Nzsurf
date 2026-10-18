@@ -1,7 +1,7 @@
 import { InAppBrowser } from '@capgo/inappbrowser';
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { generateViaServer } from './aiServer';
+import { generateViaServer, aiProviderLabel } from './aiServer';
 import { fetchForecast } from './weatherService';
 import { SPOT_CATALOG, toSurfSpot } from '../data/spotCatalog';
 import { ForecastData, SurfSpot } from '../types';
@@ -11,7 +11,7 @@ import { ForecastData, SurfSpot } from '../types';
  *
  * De admin drukt op de knop; de app opent de YouTube-livestream van Strandweer.nu
  * (camera op 10 m hoogte op de post van de Rotterdamse Reddingsbrigade) in een
- * browservenster en legt 60 s lang elke 5 s een beeld vast. Gemini schat daaruit
+ * browservenster en legt 60 s lang elke 5 s een beeld vast. de AI schat daaruit
  * de brekende golf aan het strand. De boei Maasgeul 2 ligt vlak voor de Maasvlakte,
  * dus samen geven ze "golf op zee → golf aan het strand".
  *
@@ -69,6 +69,7 @@ export interface WebcamMeasurement {
   runAt: string; runDate: string; durationS: number; frames: number;
   result: WebcamResult; thumb?: string; error?: string;
   forecast?: SpotForecastSnap;      // de spot van de camera
+  forecastError?: string;           // waarom de verwachting ontbreekt
   nearby?: SpotForecastSnap[];      // overige spots binnen NEARBY_KM
 }
 
@@ -114,11 +115,23 @@ function snapAt(spot: SurfSpot, distKm: number, hours: ForecastData[], at: numbe
 /** NzSurf-verwachting voor de cameraspot en de spots eromheen, op tijdstip `at`. */
 export async function forecastSnapshots(userSpots: SurfSpot[], at: number) {
   const { camera, cameraDistKm, nearby } = webcamSpots(userSpots);
-  const one = async (spot: SurfSpot, distKm: number) => {
-    try { return snapAt(spot, distKm, await fetchForecast(spot), at); } catch { return undefined; }
+  const errors: string[] = [];
+  const one = async (spot: SurfSpot, distKm: number, tries = 1): Promise<SpotForecastSnap | undefined> => {
+    for (let i = 0; i < tries; i++) {
+      try {
+        const snap = snapAt(spot, distKm, await fetchForecast(spot), at);
+        if (snap) return snap;
+        errors.push(`${spot.name}: geen uur binnen 90 min`); return undefined;
+      } catch (e: any) {
+        if (i === tries - 1) errors.push(`${spot.name}: ${e?.message || e}`);
+      }
+    }
+    return undefined;
   };
-  const [forecast, ...rest] = await Promise.all([one(camera, cameraDistKm), ...nearby.map(n => one(n.spot, n.distKm))]);
-  return { forecast, nearby: rest.filter((x): x is SpotForecastSnap => !!x) };
+  // Eerst de cameraspot (met een herkansing), daarna de buurspots.
+  const forecast = await one(camera, cameraDistKm, 2);
+  const rest = await Promise.all(nearby.map(n => one(n.spot, n.distKm)));
+  return { forecast, nearby: rest.filter((x): x is SpotForecastSnap => !!x), errors };
 }
 
 export function getVideoId(): string {
@@ -314,10 +327,13 @@ export async function runWebcamMeasurement(userSpots: SurfSpot[], onStatus: (s: 
   const videoId = getVideoId();
   const runAt = new Date();
   // Verwachtingen ophalen terwijl de camera opneemt.
-  const fc = forecastSnapshots(userSpots, runAt.getTime() + 30_000).catch(() => ({ forecast: undefined, nearby: [] as SpotForecastSnap[] }));
   const { frames, thumb } = await captureWebcamFrames(videoId, onStatus);
   if (frames.length < 4) throw new Error(`te weinig beelden (${frames.length})`);
-  onStatus(`${frames.length} beelden — Gemini analyseert…`);
+  onStatus(`${frames.length} beelden — ${aiProviderLabel()} analyseert, verwachtingen ophalen…`);
+  // Verwachtingen pas ophalen als de app weer op de voorgrond is (tijdens de opname
+  // staat de app op de achtergrond en kan Android verzoeken stilzetten).
+  const fc = forecastSnapshots(userSpots, runAt.getTime() + 30_000)
+    .catch((e: any) => ({ forecast: undefined, nearby: [] as SpotForecastSnap[], errors: [String(e?.message || e)] }));
   const result = await analyzeWebcamFrames(frames);
   const m: WebcamMeasurement = {
     kind: 'webcam', name: WEBCAM.id, camera: WEBCAM.label, spotId: WEBCAM.spotId, videoId,
@@ -325,8 +341,9 @@ export async function runWebcamMeasurement(userSpots: SurfSpot[], onStatus: (s: 
     durationS: DURATION_S, frames: frames.length, result,
     ...(thumb ? { thumb } : {}),
   };
-  const { forecast, nearby } = await fc;
+  const { forecast, nearby, errors } = await fc;
   if (forecast) m.forecast = forecast;
+  else m.forecastError = errors[0] || 'onbekend';
   if (nearby.length) m.nearby = nearby;
   await setDoc(doc(db, 'auditRaw', `webcam_${m.runAt.replace(/[:.]/g, '-')}`), m);
   return m;
