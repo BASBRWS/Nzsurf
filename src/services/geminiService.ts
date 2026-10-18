@@ -4,7 +4,7 @@ import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils
 import { apiUrl } from "../lib/api";
 import { computeSurfChance, tideLevelLabel, degreesToCompass16, chanceScoreCap, spotKnowledgeArea } from "../utils/spotKnowledge";
 
-export async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
+async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
   const url = apiUrl('/api/gemini/generateContent');
   const response = await fetch(url, {
     method: 'POST',

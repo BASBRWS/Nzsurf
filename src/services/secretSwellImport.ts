@@ -1,7 +1,6 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { API_BASE, apiUrl } from '../lib/api';
+import { generateViaServer } from './aiServer';
 import { SecretSwellRead, mergeAuditPoints, secretSwellSpotOk, secretSwellToPoints } from '../utils/siteParsers';
 import { AuditPoint } from '../utils/forecastAudit';
 
@@ -12,8 +11,6 @@ import { AuditPoint } from '../utils/forecastAudit';
  */
 
 const SPOT_ID = 'ouddorp-p-noordweg';
-// In de APK is er geen eigen server; de website draait dezelfde /api-route.
-const SITE = 'https://www.noordzeesurf.nl';
 
 const PROMPT = `Dit is een schermafbeelding van de surf-app Secret Swell.
 Lees de getallen precies af. Verzin niets: laat een veld weg als je het niet zeker ziet.
@@ -34,19 +31,7 @@ Spotpagina met uurtabel:
   WIND (Kt) "19 24" = windKt 19 en gustKt 24 (het kleine rode getal zijn de vlagen); de rij eronder = windDir. Getij en temperatuur niet nodig.
 - Neem alleen kolommen die volledig zichtbaar zijn (geen afgekapte tijd of getallen).`;
 
-async function generate(body: unknown): Promise<string> {
-  if (Capacitor.isNativePlatform() && !API_BASE) {
-    // Native HTTP: geen CORS-beperking van de webview.
-    const res = await CapacitorHttp.post({ url: `${SITE}/api/gemini/generateContent`, headers: { 'Content-Type': 'application/json' }, data: body });
-    const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
-    if (res.status >= 400) throw new Error(data?.error || `HTTP ${res.status}`);
-    return data?.text || '';
-  }
-  const res = await fetch(apiUrl('/api/gemini/generateContent'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-  return data?.text || '';
-}
+const generate = generateViaServer;
 
 /** Afbeelding verkleinen naar JPEG (max 1600 px) en als base64 teruggeven. */
 async function toJpegBase64(file: File): Promise<string> {
