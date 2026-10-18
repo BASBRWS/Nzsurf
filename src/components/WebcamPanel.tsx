@@ -4,7 +4,7 @@ import { AuditObsDoc, ObsPoint, toCsv } from '../utils/forecastAudit';
 import {
   WebcamMeasurement, getVideoId, setVideoId, loadWebcamMeasurements, runWebcamMeasurement, webcamSpots, NEARBY_KM,
 } from '../services/webcamMeasure';
-import { webcamRow, summarizeWebcam, nearbyEstimates } from '../utils/webcamVerify';
+import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt } from '../utils/webcamVerify';
 import { SurfSpot } from '../types';
 import { getClaudeKey, setClaudeKey, getClaudeModel, setClaudeModel, maskKey, CLAUDE_DEFAULT_MODEL } from '../services/aiServer';
 
@@ -15,20 +15,6 @@ import { getClaudeKey, setClaudeKey, getClaudeModel, setClaudeModel, maskKey, CL
 
 const fmt = (v: number | undefined, d = 1) => (typeof v === 'number' ? v.toFixed(d).replace('.', ',') : '—');
 
-/** Dichtstbijzijnde boeimeting (binnen 45 min) en of die van Maasgeul 2 komt. */
-function buoyAt(t: string, observations: AuditObsDoc[]): { p: ObsPoint; maasgeul: boolean } | null {
-  const ms = Date.parse(t);
-  let best: { p: ObsPoint; maasgeul: boolean; d: number } | null = null;
-  for (const doc of observations) {
-    const maasgeul = (doc.stations || []).some(s => /^Hm0@maasgeul/i.test(s));
-    for (const p of doc.points) {
-      if (typeof p.hs !== 'number') continue;
-      const d = Math.abs(Date.parse(p.t) - ms);
-      if (d <= 45 * 60e3 && (!best || d < best.d)) best = { p, maasgeul, d };
-    }
-  }
-  return best ? { p: best.p, maasgeul: best.maasgeul } : null;
-}
 
 const pct = (f: number) => `${f >= 1 ? '+' : '−'}${Math.abs(Math.round((f - 1) * 100))}%`;
 

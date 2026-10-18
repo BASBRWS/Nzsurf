@@ -11,7 +11,7 @@
 // Zonder boeiwaarde is alleen de totale factor bekend: dan is doortrekken een indicatie.
 
 import type { WebcamMeasurement, SpotForecastSnap } from '../services/webcamMeasure';
-import type { ObsPoint } from './forecastAudit';
+import type { AuditObsDoc, ObsPoint } from './forecastAudit';
 
 export interface WebcamRow {
   m: WebcamMeasurement;
@@ -89,4 +89,19 @@ export function nearbyEstimates(nearby: SpotForecastSnap[] = [], seaFactor?: num
     if (ok(totalFactor)) return { snap, nz, corrected: Math.round(nz * totalFactor * 100) / 100, basis: 'totaal' as const };
     return { snap, nz, basis: 'geen' as const };
   }).sort((a, b) => a.snap.distKm - b.snap.distKm);
+}
+
+/** Dichtstbijzijnde boeimeting (binnen 45 min) en of die van Maasgeul 2 komt. */
+export function buoyAt(t: string, observations: AuditObsDoc[]): { p: ObsPoint; maasgeul: boolean } | null {
+  const ms = Date.parse(t);
+  let best: { p: ObsPoint; maasgeul: boolean; d: number } | null = null;
+  for (const doc of observations) {
+    const maasgeul = (doc.stations || []).some(s => /^Hm0@maasgeul/i.test(s));
+    for (const p of doc.points) {
+      if (typeof p.hs !== 'number') continue;
+      const d = Math.abs(Date.parse(p.t) - ms);
+      if (d <= 45 * 60e3 && (!best || d < best.d)) best = { p, maasgeul, d };
+    }
+  }
+  return best ? { p: best.p, maasgeul: best.maasgeul } : null;
 }
