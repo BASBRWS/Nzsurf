@@ -8,6 +8,8 @@ import {
   Pair, Score, SpotReportLike, buildPairs, scorePairs, reportRows, summarizeReports,
 } from './forecastAudit';
 import { CONCEPT_SOURCE } from './forecastBlend';
+import type { WebcamMeasurement } from '../services/webcamMeasure';
+import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt } from './webcamVerify';
 
 export interface AuditReportInput {
   forecasts: AuditForecastDoc[];
@@ -16,6 +18,7 @@ export interface AuditReportInput {
   periodLabel: string;
   spotName?: string;
   auditSpotId?: string;
+  webcam?: WebcamMeasurement[];
   now?: Date;
 }
 
@@ -157,6 +160,7 @@ export function buildAuditReport(input: AuditReportInput): { title: string; html
   }
 
   const conditions = conditionRows(pairs);
+  const webcamSection = webcamHtml(input.webcam || [], input.observations);
   const title = `Duiding NzSurf — ${now.toISOString().slice(0, 10)}`;
   const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
@@ -193,13 +197,42 @@ ${latestConcept ? `<h2>Waar het concept op leunt</h2><p>${esc(latestConcept.note
 
 ${reportSection}
 
+${webcamSection}
+
 <h2>Wat dit rapport niet zegt</h2>
 <ul>
-<li><b>Boei ≠ strand.</b> De meting is op zee (Maasgeul/Schouwenbank). Hoogtes op de spot en de surfkans zijn alleen met spotrapporten te toetsen.</li>
+<li><b>Boei ≠ strand.</b> De meting is op zee (Maasgeul/Schouwenbank). Hoogtes op de spot en de surfkans zijn alleen met spotrapporten en de webcam (AI-schatting, Maasvlakte) te toetsen.</li>
 <li><b>Wind op Europlatform</b> waait harder dan aan de kust; alle bronnen lijken daardoor te laag. Vergelijk de rangorde, niet de absolute fout.</li>
 <li><b>Periode:</b> modellen geven de piekperiode (Tp), de boei de gemiddelde (Tm02). Een vaste afwijking is dus normaal.</li>
 <li><b>Dubbelingen:</b> Open-Meteo best match is golf van Météo-France en wind van KNMI; telt niet als aparte stem.</li>
 </ul>
 </body></html>`;
   return { title, html };
+}
+
+/** Sectie webcam Maasvlakte: NzSurf getoetst aan wat er aan het strand aankomt (AI-schatting). */
+function webcamHtml(items: WebcamMeasurement[], observations: AuditObsDoc[]): string {
+  if (!items.length) return '';
+  const rows = items.map(m => webcamRow(m, buoyAt(m.runAt, observations)));
+  const sum = summarizeWebcam(rows);
+  const usable = rows.filter(r => typeof r.beach === 'number').length;
+  const pct = (f: number) => `${f >= 1 ? '+' : '−'}${Math.abs(Math.round((f - 1) * 100))}%`;
+  const spot = items.find(m => m.forecast)?.forecast?.name || 'de cameraspot';
+  const lines: string[] = [`<li>${items.length} metingen, ${usable} met bruikbaar beeld, ${sum.n} met NzSurf-verwachting, ${sum.nSea} met boeiwaarde (Maasgeul 2).</li>`];
+  if (sum.n && typeof sum.mae === 'number' && typeof sum.bias === 'number') {
+    lines.push(`<li>NzSurf voor ${esc(spot)} wijkt gemiddeld <b>${nl(sum.mae)} m</b> af van de webcam; bias ${signed(sum.bias)} m (${sum.bias > 0.05 ? 'NzSurf te hoog' : sum.bias < -0.05 ? 'NzSurf te laag' : 'geen duidelijke scheefheid'})${typeof sum.total === 'number' ? `, webcam ÷ NzSurf ${nl(sum.total)} (${pct(sum.total)})` : ''}.</li>`);
+  }
+  if (sum.nSea && typeof sum.sea === 'number') {
+    lines.push(`<li>Opgesplitst: golfmodel op zee ${pct(sum.sea)} t.o.v. de boei${typeof sum.beachFactor === 'number' ? `; NzSurf-vertaling zee → strand bij deze spot ${pct(sum.beachFactor)}` : ''}${typeof sum.beachOverBuoy === 'number' ? `; aan het strand komt ~${Math.round(sum.beachOverBuoy * 100)}% van de boeihoogte` : ''}.</li>`);
+  }
+  const latest = rows.find(r => r.m.nearby?.length);
+  const est = nearbyEstimates(latest?.m.nearby, sum.nSea >= 3 ? sum.sea : latest?.sea, sum.n >= 3 ? sum.total : latest?.total);
+  const table = est.length ? `<h3>Spots binnen 20 km — laatste meting, doorgerekend</h3>
+<table><thead><tr><th>Spot</th><th>Afstand</th><th>NzSurf</th><th>Gecorrigeerd</th></tr></thead><tbody>${est.map(e =>
+    `<tr><td>${esc(e.snap.name)}</td><td>${nl(e.snap.distKm, 1)} km</td><td>${typeof e.nz === 'number' ? `${nl(e.nz)} m` : '–'}</td><td>${e.basis === 'geen' ? '–' : `${nl(e.corrected!)} m${e.basis === 'totaal' ? ' ~' : ''}`}</td></tr>`).join('')}</tbody></table>
+<p class="meta">Alleen de afwijking van het golfmodel op zee is doorgetrokken; de strandvertaling blijft per spot die van NzSurf. ~ = nog zonder boeiwaarde, hele afwijking doorgetrokken (indicatie).</p>` : '';
+  const warn = sum.n < 15 ? `<p class="warn">Nog ${sum.n} vergelijkingen: na ±15 metingen op verschillende dagen zijn deze factoren pas betrouwbaar.</p>` : '';
+  return `<h2>Webcam Maasvlakte (aan het strand)</h2>
+<p class="meta">Een AI schat uit 12 webcambeelden (60 s) de hoogte van de brekende golfwand. Dit is een schatting op de Maasvlakte, geen meting en niet in Ouddorp: het telt niet mee in de ranglijst hierboven (die gaat tegen de boei), maar toetst NzSurf's vertaling van zee naar strand.</p>
+<ul>${lines.join('')}</ul>${warn}${table}`;
 }

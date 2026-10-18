@@ -13,6 +13,7 @@ import { buildConceptDocs } from '../utils/forecastBlend';
 import { buildAuditReport } from '../utils/auditReport';
 import { FileText } from 'lucide-react';
 import { WebcamPanel } from './WebcamPanel';
+import { loadWebcamMeasurements } from '../services/webcamMeasure';
 import { SurfSpot } from '../types';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
@@ -360,8 +361,9 @@ export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) 
 
           {/* Export */}
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => {
-                const { html } = buildAuditReport({ forecasts, observations, reports, auditSpotId: AUDIT_SPOT_ID, spotName: 'Ouddorp',
+            <button onClick={async () => {
+                const webcam = await loadWebcamMeasurements().catch(() => []);
+                const { html } = buildAuditReport({ forecasts, observations, reports, webcam, auditSpotId: AUDIT_SPOT_ID, spotName: 'Ouddorp',
                   periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
                 download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8');
               }}
