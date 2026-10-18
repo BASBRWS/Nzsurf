@@ -10,7 +10,7 @@ import { apiUrl } from '../lib/api';
 import { logAppError } from '../services/loggerService';
 import { VotingWidget } from './VotingWidget';
 import { Capacitor } from '@capacitor/core';
-import { isAdminEmail } from '../lib/admin';
+import { useIsAdmin } from '../lib/useIsAdmin';
 
 // Vaste gidsen: losse HTML-pagina's op de website (vindbaar in Google).
 // In de APK openen ze via de echte website.
@@ -83,7 +83,7 @@ const CommunityPostCard: React.FC<{ post: CommunityPost }> = ({ post }) => {
   
   const currentUser = auth.currentUser;
   
-  const isAdmin = isAdminEmail(currentUser?.email);
+  const isAdmin = useIsAdmin();
   const isOwner = currentUser?.uid === post.userId;
   const canDelete = isAdmin || isOwner;
 

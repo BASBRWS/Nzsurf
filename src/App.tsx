@@ -317,7 +317,10 @@ export default function App() {
     setUser(updatedUser);
     if (authUser) {
       try {
-        await setDoc(doc(db, 'users', authUser.uid), updatedUser);
+        // De rol wordt alleen door de eigenaar gezet; altijd de huidige rol meesturen,
+        // anders weigeren de Firestore-regels het opslaan van het profiel.
+        const { role: _role, ...rest } = updatedUser;
+        await setDoc(doc(db, 'users', authUser.uid), user.role ? { ...rest, role: user.role } : rest);
       } catch (err) {
         console.error("Error updating user:", err);
       }

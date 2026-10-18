@@ -11,7 +11,7 @@ import { CALENDAR_ALERT_THRESHOLD } from '../utils/calendarUtils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
-import { isAdminEmail } from '../lib/admin';
+import { isAdminUser } from '../lib/admin';
 
 interface ProfileSettingsProps {
   user: UserProfile;
@@ -226,7 +226,7 @@ export function ProfileSettings({
   const updateCalendarAlerts = (enabled: boolean) => onUpdate({ ...user, calendarAlertsEnabled: enabled });
 
   const currentUserEmail = auth.currentUser?.email?.toLowerCase() || user.email?.toLowerCase();
-  const isAdmin = isAdminEmail(currentUserEmail);
+  const isAdmin = isAdminUser(currentUserEmail, user.role);
 
   const addBoard = () => {
     const newBoard: Board = {
