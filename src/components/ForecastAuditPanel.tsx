@@ -12,6 +12,7 @@ import { TableHelp } from './TableHelp';
 import { buildConceptDocs } from '../utils/forecastBlend';
 import { buildAuditReport } from '../utils/auditReport';
 import { FileText } from 'lucide-react';
+import { WebcamPanel } from './WebcamPanel';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
@@ -202,6 +203,9 @@ export function ForecastAuditPanel() {
         </p>
         {swell.lines && <ul className="text-[11px] font-mono text-slate-700">{swell.lines.map(l => <li key={l}>{l}</li>)}</ul>}
       </div>
+
+      {/* Webcam Maasvlakte: golf aan het strand naast de boei Maasgeul 2. */}
+      <WebcamPanel observations={observations} onDownload={download} enabled={canCollectInApp()} />
 
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}
       {!forecasts && !error && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden…</div>}
