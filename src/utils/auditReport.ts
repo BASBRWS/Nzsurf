@@ -5,7 +5,7 @@
 
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, PARAMS, LEAD_BUCKETS, MIN_N, MIN_REPORTS,
-  Pair, Score, SpotReportLike, buildPairs, scorePairs, reportRows, summarizeReports,
+  Pair, Score, SpotReportLike, buildPairs, scorePairs, reportRows, summarizeReports, energyScores,
 } from './forecastAudit';
 import { CONCEPT_SOURCE } from './forecastBlend';
 import type { WebcamMeasurement } from '../services/webcamMeasure';
@@ -26,7 +26,7 @@ const NZ = 'nzsurf';
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const nl = (x: number, d = 2) => x.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
 const signed = (x: number, d = 2) => (x > 0 ? '+' : '') + nl(x, d);
-const decimals = (p: AuditParam) => (p === 'dir' || p === 'windDir' ? 0 : p === 'windKn' || p === 'tp' ? 1 : 2);
+const decimals = (p: AuditParam) => (p === 'dir' || p === 'windDir' ? 0 : p === 'windKn' || p === 'tp' || p === 'power' ? 1 : 2);
 
 interface ParamVerdict {
   param: AuditParam; label: string; unit: string; total: number;
@@ -161,6 +161,7 @@ export function buildAuditReport(input: AuditReportInput): { title: string; html
 
   const conditions = conditionRows(pairs);
   const webcamSection = webcamHtml(input.webcam || [], input.observations);
+  const energySection = energyHtml(input.forecasts, input.observations);
   const title = `Duiding NzSurf — ${now.toISOString().slice(0, 10)}`;
   const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
@@ -186,7 +187,7 @@ ${maturity}
 <table><thead><tr><th>Onderdeel</th><th>NzSurf</th><th>NzSurf concept</th><th>Beste bron</th></tr></thead><tbody>${verdictRows}</tbody></table>
 
 <h2>Hoe ver vooruit is het betrouwbaar?</h2>
-${bucketTable(pairs, 'hs')}${bucketTable(pairs, 'windKn')}${bucketTable(pairs, 'windDir')}
+${bucketTable(pairs, 'hs')}${bucketTable(pairs, 'power')}${bucketTable(pairs, 'windKn')}${bucketTable(pairs, 'windDir')}
 
 ${conditions ? `<h2>Als het ertoe doet</h2>
 <p class="meta">Dezelfde toets, alleen op momenten met golf van betekenis of harde wind. Hier wordt een surfverwachting op afgerekend.</p>
@@ -194,6 +195,8 @@ ${conditions ? `<h2>Als het ertoe doet</h2>
 
 ${latestConcept ? `<h2>Waar het concept op leunt</h2><p>${esc(latestConcept.note || '')}</p>
 <p class="meta">Het concept rekent per ophaaldag alleen met runs en metingen van vóór die dag; de gewichten verschuiven naar de bron die recent het best presteerde.</p>` : ''}
+
+${energySection}
 
 ${reportSection}
 
@@ -204,6 +207,7 @@ ${webcamSection}
 <li><b>Boei ≠ strand.</b> De meting is op zee (Maasgeul/Schouwenbank). Hoogtes op de spot en de surfkans zijn alleen met spotrapporten en de webcam (AI-schatting, Maasvlakte) te toetsen.</li>
 <li><b>Wind op Europlatform</b> waait harder dan aan de kust; alle bronnen lijken daardoor te laag. Vergelijk de rangorde, niet de absolute fout.</li>
 <li><b>Periode:</b> modellen geven de piekperiode (Tp), de boei de gemiddelde (Tm02). Een vaste afwijking is dus normaal.</li>
+<li><b>Golfkracht</b> is berekend (0,49 × Hs² × 1,2 × T), niet gemeten; sites die een piekperiode geven i.p.v. een gemiddelde komen daardoor hoger uit.</li>
 <li><b>Dubbelingen:</b> Open-Meteo best match is golf van Météo-France en wind van KNMI; telt niet als aparte stem.</li>
 </ul>
 </body></html>`;
@@ -235,4 +239,18 @@ function webcamHtml(items: WebcamMeasurement[], observations: AuditObsDoc[]): st
   return `<h2>Webcam Maasvlakte (aan het strand)</h2>
 <p class="meta">Een AI schat uit 12 webcambeelden (60 s) de hoogte van de brekende golfwand. Dit is een schatting op de Maasvlakte, geen meting en niet in Ouddorp: het telt niet mee in de ranglijst hierboven (die gaat tegen de boei), maar toetst NzSurf's vertaling van zee naar strand.</p>
 <ul>${lines.join('')}</ul>${warn}${table}`;
+}
+
+/** Eigen energiewaarde (kJ) van Surfline/surfnerd tegen de berekende gemeten golfkracht. */
+function energyHtml(forecasts: AuditForecastDoc[], observations: AuditObsDoc[]): string {
+  const sc = energyScores(forecasts, observations);
+  const has = forecasts.some(f => f.points?.some(p => typeof p.energyKj === 'number'));
+  if (!has) return '';
+  if (!sc.length) return `<h2>Energiewaarde van Surfline en surfnerd</h2><p class="meta">Er worden energiewaarden (kJ) verzameld, maar nog minder dan ${MIN_N} met een boeimeting op hetzelfde uur.</p>`;
+  const r = (x?: number) => (typeof x === 'number' && Number.isFinite(x) ? nl(x, 2) : '–');
+  return `<h2>Energiewaarde van Surfline en surfnerd</h2>
+<p class="meta">Hun "energy" (kJ) is een andere grootheid dan kW/m en hun formule is niet openbaar. Daarom: volgt hun getal de gemeten golfkracht (correlatie r, 1 = perfect)? En hoe groot is de fout na één vaste omrekenfactor? Ter vergelijking r van de kracht uit hun eigen hoogte en periode.</p>
+<table><thead><tr><th>Bron</th><th>n</th><th>r (hun kJ)</th><th>r (uit Hs/T)</th><th>kW/m per kJ</th><th>Fout na omrekening</th></tr></thead><tbody>${sc.map(e =>
+    `<tr><td>${esc(e.label)}</td><td>${e.n}</td><td><b>${r(e.rKj)}</b></td><td>${r(e.rCalc)}</td><td>${nl(e.kwPerKj, 3)}</td><td>${nl(e.mae, 1)} kW/m</td></tr>`).join('')}</tbody></table>
+<p class="meta">Is r van hun kJ hoger dan r uit Hs/T, dan bevat hun energiegetal informatie die hoogte en periode alleen niet geven (bijv. meerdere swellsystemen); dan is het de moeite waard om het in NzSurf mee te wegen.</p>`;
 }
