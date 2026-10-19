@@ -8,6 +8,7 @@ import {
   Pair, Score, SpotReportLike, buildPairs, scorePairs, reportRows, summarizeReports, energyScores,
 } from './forecastAudit';
 import { CONCEPT_SOURCE } from './forecastBlend';
+import { HYBRID_SOURCE, HYBRID_RULES } from './forecastHybrid';
 import type { WebcamMeasurement } from '../services/webcamMeasure';
 import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt } from './webcamVerify';
 
@@ -23,6 +24,7 @@ export interface AuditReportInput {
 }
 
 const NZ = 'nzsurf';
+const OURS = [NZ, CONCEPT_SOURCE, HYBRID_SOURCE];
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const nl = (x: number, d = 2) => x.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
 const signed = (x: number, d = 2) => (x > 0 ? '+' : '') + nl(x, d);
@@ -30,7 +32,7 @@ const decimals = (p: AuditParam) => (p === 'dir' || p === 'windDir' ? 0 : p === 
 
 interface ParamVerdict {
   param: AuditParam; label: string; unit: string; total: number;
-  nz?: Score & { rank: number }; concept?: Score & { rank: number }; best?: Score; bestOther?: Score;
+  nz?: Score & { rank: number }; concept?: Score & { rank: number }; hybrid?: Score & { rank: number }; best?: Score; bestOther?: Score;
 }
 
 function rankFor(scores: Score[], source: string) {
@@ -43,8 +45,8 @@ function verdicts(pairs: Pair[]): ParamVerdict[] {
     const sc = scorePairs(pairs.filter(x => x.param === p.key)).filter(s => s.n >= MIN_N);
     return {
       param: p.key, label: p.label, unit: p.unit, total: sc.length,
-      nz: rankFor(sc, NZ), concept: rankFor(sc, CONCEPT_SOURCE), best: sc[0],
-      bestOther: sc.find(s => s.source !== NZ && s.source !== CONCEPT_SOURCE),
+      nz: rankFor(sc, NZ), concept: rankFor(sc, CONCEPT_SOURCE), hybrid: rankFor(sc, HYBRID_SOURCE), best: sc[0],
+      bestOther: sc.find(s => !OURS.includes(s.source)),
     };
   }).filter(v => v.total > 0);
 }
@@ -71,14 +73,14 @@ function bucketTable(pairs: Pair[], param: AuditParam): string {
   const rows = LEAD_BUCKETS.map(b => {
     const sc = scorePairs(pairs.filter(p => p.param === param && p.bucket === b.key)).filter(s => s.n >= MIN_N);
     if (!sc.length) return '';
-    const nz = sc.find(s => s.source === NZ), c = sc.find(s => s.source === CONCEPT_SOURCE);
-    const other = sc.find(s => s.source !== NZ && s.source !== CONCEPT_SOURCE);
+    const nz = sc.find(s => s.source === NZ), c = sc.find(s => s.source === CONCEPT_SOURCE), h = sc.find(s => s.source === HYBRID_SOURCE);
+    const other = sc.find(s => !OURS.includes(s.source));
     const cell = (s?: Score) => s ? `${nl(s.mae, d)} <small>#${sc.indexOf(s) + 1}</small>` : '–';
-    return `<tr><td>${esc(b.label)}</td><td>${cell(nz)}</td><td>${cell(c)}</td><td>${other ? `${nl(other.mae, d)} <small>${esc(other.label)}</small>` : '–'}</td></tr>`;
+    return `<tr><td>${esc(b.label)}</td><td>${cell(nz)}</td><td>${cell(c)}</td><td>${cell(h)}</td><td>${other ? `${nl(other.mae, d)} <small>${esc(other.label)}</small>` : '–'}</td></tr>`;
   }).join('');
   if (!rows) return '';
   return `<h3>${esc(prm.label)} per vooruitkijktijd (${esc(prm.unit)})</h3>
-<table><thead><tr><th>Looptijd</th><th>NzSurf</th><th>Concept</th><th>Beste andere</th></tr></thead><tbody>${rows}</tbody></table>`;
+<table><thead><tr><th>Looptijd</th><th>NzSurf</th><th>Concept</th><th>Hybride</th><th>Beste andere</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /** Hoe doen ze het juist als het ertoe doet (golf van betekenis, harde wind)? */
@@ -93,7 +95,7 @@ function conditionRows(pairs: Pair[]): string {
     if (!sc.length) return '';
     const d = decimals(s.param), unit = PARAMS.find(p => p.key === s.param)!.unit;
     const r = (src: string) => { const i = sc.findIndex(x => x.source === src); return i < 0 ? '–' : `#${i + 1} (${nl(sc[i].mae, d)})`; };
-    return `<tr><td>${esc(s.label)}</td><td>${r(NZ)}</td><td>${r(CONCEPT_SOURCE)}</td><td>${esc(sc[0].label)} (${nl(sc[0].mae, d)} ${esc(unit)})</td><td>${sc.length}</td></tr>`;
+    return `<tr><td>${esc(s.label)}</td><td>${r(NZ)}</td><td>${r(CONCEPT_SOURCE)}</td><td>${r(HYBRID_SOURCE)}</td><td>${esc(sc[0].label)} (${nl(sc[0].mae, d)} ${esc(unit)})</td><td>${sc.length}</td></tr>`;
   }).join('');
 }
 
@@ -105,6 +107,8 @@ export function buildAuditReport(input: AuditReportInput): { title: string; html
   const obsDays = input.observations.length;
   const hasConcept = input.forecasts.some(f => f.source === CONCEPT_SOURCE);
   const latestConcept = input.forecasts.filter(f => f.source === CONCEPT_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
+  const hasHybrid = input.forecasts.some(f => f.source === HYBRID_SOURCE);
+  const latestHybrid = input.forecasts.filter(f => f.source === HYBRID_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
 
   // Kernoordeel in een paar zinnen.
   const top = (src: 'nz' | 'concept') => vs.filter(v => v[src]?.rank === 1).map(v => v.label.toLowerCase());
@@ -130,6 +134,16 @@ export function buildAuditReport(input: AuditReportInput): { title: string; html
     }).map(b => b.label.split(' (')[0].toLowerCase());
     if (wins.length && !top('concept').includes(prm.label.toLowerCase())) summary.push(`Het concept is de beste bron voor ${prm.label.toLowerCase()} op ${list(wins)}.`);
   }
+  // Hybride: de kandidaat-opvolger met vaste regels.
+  if (hasHybrid) {
+    const hv = vs.filter(v => v.hybrid && v.nz);
+    const avg = (k: 'nz' | 'hybrid') => hv.reduce((a, v) => a + v[k]!.rank, 0) / (hv.length || 1);
+    const hTop = vs.filter(v => v.hybrid?.rank === 1).map(v => v.label.toLowerCase());
+    const better = hv.filter(v => v.hybrid!.mae < v.nz!.mae).map(v => v.label.toLowerCase());
+    const worse = hv.filter(v => v.hybrid!.mae > v.nz!.mae * 1.02).map(v => v.label.toLowerCase());
+    if (hv.length) summary.push(`NzSurf hybride (vaste regels): gemiddelde rang ${nl(avg('hybrid'), 1)} tegen ${nl(avg('nz'), 1)} voor NzSurf${hTop.length ? `; beste bron op ${list(hTop)}` : ''}.`);
+    if (better.length) summary.push(`De hybride is beter dan NzSurf op ${list(better)}${worse.length ? `, slechter op ${list(worse)}` : ''}.`);
+  }
   if (!summary.length) summary.push('Nog te weinig vergelijkingen voor een oordeel.');
 
   const maturity = days < 28
@@ -139,8 +153,8 @@ export function buildAuditReport(input: AuditReportInput): { title: string; html
   const verdictRows = vs.map(v => {
     const d = decimals(v.param);
     const cell = (s?: Score & { rank: number }) => s ? `<b>#${s.rank}</b>/${v.total}<br><small>${nl(s.mae, d)} ${esc(v.unit)} · bias ${signed(s.bias, d)}</small>` : '–';
-    return `<tr><td><b>${esc(v.label)}</b></td><td>${cell(v.nz)}</td><td>${hasConcept ? cell(v.concept) : '–'}</td><td>${v.best ? `${esc(v.best.label)}<br><small>${nl(v.best.mae, d)} ${esc(v.unit)}</small>` : '–'}</td></tr>
-<tr class="note"><td></td><td>${esc(judge(v.nz, v))}</td><td>${hasConcept ? esc(judge(v.concept, v)) : ''}</td><td></td></tr>`;
+    return `<tr><td><b>${esc(v.label)}</b></td><td>${cell(v.nz)}</td><td>${hasConcept ? cell(v.concept) : '–'}</td><td>${hasHybrid ? cell(v.hybrid) : '–'}</td><td>${v.best ? `${esc(v.best.label)}<br><small>${nl(v.best.mae, d)} ${esc(v.unit)}</small>` : '–'}</td></tr>
+<tr class="note"><td></td><td>${esc(judge(v.nz, v))}</td><td>${hasConcept ? esc(judge(v.concept, v)) : ''}</td><td>${hasHybrid ? esc(judge(v.hybrid, v)) : ''}</td><td></td></tr>`;
   }).join('');
 
   // Spotrapporten: zegt de surfkans iets over wat je op het strand zag?
@@ -184,14 +198,16 @@ ${maturity}
 
 <h2>Per onderdeel</h2>
 <p class="meta">Rang en gemiddelde afwijking (MAE) t.o.v. de RWS-metingen. Bias = gemiddeld te hoog (+) of te laag (−).</p>
-<table><thead><tr><th>Onderdeel</th><th>NzSurf</th><th>NzSurf concept</th><th>Beste bron</th></tr></thead><tbody>${verdictRows}</tbody></table>
+<table><thead><tr><th>Onderdeel</th><th>NzSurf</th><th>NzSurf concept</th><th>NzSurf hybride</th><th>Beste bron</th></tr></thead><tbody>${verdictRows}</tbody></table>
 
 <h2>Hoe ver vooruit is het betrouwbaar?</h2>
 ${bucketTable(pairs, 'hs')}${bucketTable(pairs, 'power')}${bucketTable(pairs, 'windKn')}${bucketTable(pairs, 'windDir')}
 
 ${conditions ? `<h2>Als het ertoe doet</h2>
 <p class="meta">Dezelfde toets, alleen op momenten met golf van betekenis of harde wind. Hier wordt een surfverwachting op afgerekend.</p>
-<table><thead><tr><th>Omstandigheid</th><th>NzSurf</th><th>Concept</th><th>Beste</th><th>Bronnen</th></tr></thead><tbody>${conditions}</tbody></table>` : ''}
+<table><thead><tr><th>Omstandigheid</th><th>NzSurf</th><th>Concept</th><th>Hybride</th><th>Beste</th><th>Bronnen</th></tr></thead><tbody>${conditions}</tbody></table>` : ''}
+
+${latestHybrid ? `<h2>NzSurf hybride: de regels</h2><p>${esc(HYBRID_RULES)}.</p><p class="meta">${esc((latestHybrid.note || '').replace(`Regels: ${HYBRID_RULES}. `, ''))} Vaste regels, vooraf vastgelegd; de correctie gebruikt alleen metingen van vóór elk ophaalmoment. Kandidaat-opvolger van NzSurf: alleen overnemen als hij na 2–3 weken nog steeds beter is.</p>` : ''}
 
 ${latestConcept ? `<h2>Waar het concept op leunt</h2><p>${esc(latestConcept.note || '')}</p>
 <p class="meta">Het concept rekent per ophaaldag alleen met runs en metingen van vóór die dag; de gewichten verschuiven naar de bron die recent het best presteerde.</p>` : ''}
