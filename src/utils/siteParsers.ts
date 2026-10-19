@@ -58,6 +58,10 @@ export function parseSurfline(src: { wave?: any; swells?: any; surf?: any; wind?
       const dom = parts.reduce((a: any, s: any) => (s.height ** 2 * (s.period || 1) ** 2 > a.height ** 2 * (a.period || 1) ** 2 ? s : a));
       p.tp = round(dom.period, 1);
       p.dir = round(dom.direction, 0);
+      // Surfline 'power' (kJ) per uur, of opgeteld over de deelsystemen.
+      const pw = typeof w.power === 'number' ? w.power
+        : parts.some((s: any) => typeof s.power === 'number') ? parts.reduce((a: number, s: any) => a + (typeof s.power === 'number' ? s.power : 0), 0) : undefined;
+      if (typeof pw === 'number' && pw >= 0) p.energyKj = Math.round(pw);
     }
   }
 
@@ -144,6 +148,7 @@ export function parseSurfnerd(html: string, runAt: Date): AuditPoint[] {
       gustKn: round(toKnots(Number(m[4]), windUnit), 1),
       hs: round(toMeters(Number(m[5]), waveUnit)),
       tp: round(Number(m[6]), 1),
+      energyKj: Math.round(Number(m[7])),
     });
   }
   return keepWindow(points);

@@ -12,6 +12,7 @@
 
 import type { WebcamMeasurement, SpotForecastSnap } from '../services/webcamMeasure';
 import type { AuditObsDoc, ObsPoint } from './forecastAudit';
+import { powerKw } from './forecastAudit';
 
 export interface WebcamRow {
   m: WebcamMeasurement;
@@ -22,6 +23,8 @@ export interface WebcamRow {
   sea?: number;              // boei ÷ model op zee
   beachFactor?: number;      // (webcam ÷ boei) ÷ (NzSurf-spot ÷ model)
   beachOverBuoy?: number;    // webcam ÷ boei
+  nzPower?: number;          // golfkracht volgens NzSurf (model op zee, kW/m)
+  buoyPower?: number;        // golfkracht uit de boei (Hm0, Tm02; kW/m)
 }
 
 const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -32,7 +35,8 @@ export function webcamRow(m: WebcamMeasurement, buoy?: { p: ObsPoint; maasgeul: 
   const nzSpot = m.forecast?.spotHs;
   const model = m.forecast?.modelHs;
   const b = buoy?.p.hs;
-  const row: WebcamRow = { m, beach, nzSpot, buoy: buoy?.p, buoyMaasgeul: buoy?.maasgeul };
+  const row: WebcamRow = { m, beach, nzSpot, buoy: buoy?.p, buoyMaasgeul: buoy?.maasgeul,
+    nzPower: powerKw(model, m.forecast?.period), buoyPower: powerKw(buoy?.p.hs, buoy?.p.tm02) };
   if (ok(beach) && ok(nzSpot) && nzSpot > 0.05) row.total = beach / nzSpot;
   if (ok(b) && ok(model) && model > 0.05) row.sea = b / model;
   if (ok(beach) && ok(b) && b > 0.05) row.beachOverBuoy = beach / b;

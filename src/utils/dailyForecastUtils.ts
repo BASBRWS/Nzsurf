@@ -4,6 +4,7 @@ import { getKiteAlert, KiteAlertInfo } from './kiteAlertUtils';
 import { computeSurfChance, tideScoreAdjustment, tideLevelLabel, chanceScoreCap } from './spotKnowledge';
 import { parseISO, format, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { powerKw } from './forecastAudit';
 
 export interface TideTurn {
   time: string;
@@ -70,7 +71,7 @@ export interface DailySummary {
     dirLabel: string;
     dirArrow: string;
     directionDeg: number;
-    swellEnergyKj: number;
+    swellPowerKw: number; // golfkracht in kW per meter kust (zelfde formule als de audit)
   };
   period: number;
   periodLabel: string;
@@ -799,8 +800,8 @@ export function processDailyForecasts(
     const maxFace = Math.round((maxWave * 1.25) * 10) / 10;
     const breakingFace = minFace === maxFace ? `${maxFace.toFixed(1)}m` : `${minFace.toFixed(1)} – ${maxFace.toFixed(1)}m`;
 
-    // Swell energy (kJ/m2 approximation)
-    const swellEnergyKj = Math.round(Math.pow(maxWave, 2) * avgPeriod * 4.5);
+    // Golfkracht (kW/m): 0,49 × Hs² × Te, Te ≈ 1,2 × gemiddelde periode — zelfde formule als de audit.
+    const swellPowerKw = powerKw(maxWave, avgPeriod) ?? 0;
 
     // Period label
     let periodLabel = `${avgPeriod}s Korte windswell`;
@@ -903,7 +904,7 @@ export function processDailyForecasts(
         dirLabel: swellDirInfo.label,
         dirArrow: swellDirInfo.arrow,
         directionDeg: bestHour.swellDirection,
-        swellEnergyKj
+        swellPowerKw
       },
       period: avgPeriod,
       periodLabel,

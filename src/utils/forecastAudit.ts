@@ -6,6 +6,7 @@ export interface AuditPoint {
   t: string; lead: number;
   hs?: number; tp?: number; dir?: number; windKn?: number; windDir?: number; gustKn?: number;
   spotHs?: number; chance?: number; tide?: number; surfMin?: number; surfMax?: number; rating?: string;
+  energyKj?: number; // eigen energiewaarde van de site (Surfline/surfnerd, kJ) — andere grootheid dan kW/m
 }
 export interface AuditForecastDoc {
   runAt: string; runDate: string; spotId: string;
@@ -15,7 +16,7 @@ export interface AuditForecastDoc {
 export interface ObsPoint { t: string; hs?: number; tm02?: number; dir?: number; windKn?: number; windDir?: number; level?: number }
 export interface AuditObsDoc { date: string; points: ObsPoint[]; stations?: string[]; source?: string }
 
-export type AuditParam = 'hs' | 'tp' | 'dir' | 'windKn' | 'windDir';
+export type AuditParam = 'hs' | 'tp' | 'dir' | 'windKn' | 'windDir' | 'power';
 
 /**
  * Natuurkundig mogelijke meetwaarden. Rijkswaterstaat markeert ontbrekende
@@ -44,7 +45,18 @@ export const PARAMS: { key: AuditParam; label: string; unit: string; obsKey: key
   { key: 'dir', label: 'Golfrichting', unit: '°', obsKey: 'dir', circular: true },
   { key: 'windKn', label: 'Windsnelheid', unit: 'kn', obsKey: 'windKn' },
   { key: 'windDir', label: 'Windrichting', unit: '°', obsKey: 'windDir', circular: true },
+  { key: 'power', label: 'Golfkracht', unit: 'kW/m', obsKey: 'hs', note: 'berekend uit hoogte en periode: 0,49 × Hs² × 1,2 × T (verwachting: T zoals gegeven; boei: Tm02)' },
 ];
+
+// ── Golfkracht ───────────────────────────────────────────────────────────────
+// Energiestroom per meter golfkam (diep water): P = ρg²/(64π) · Hs² · Te ≈ 0,49 · Hs² · Te  [kW/m].
+// Te (energieperiode) ≈ 1,2 × gemiddelde periode (Tm02) bij een gewone windzee/swell-mix.
+// De modellen in de audit geven een gemiddelde periode (Open-Meteo wave_period, ≈ Tm02);
+// we rekenen dus overal met dezelfde omrekening, zodat de vergelijking eerlijk is.
+export const TE_PER_TM = 1.2;
+export const waveFluxKw = (hs: number, te: number) => Math.round(0.49 * hs * hs * te * 10) / 10;
+export const powerKw = (hs?: number, period?: number) =>
+  typeof hs === 'number' && typeof period === 'number' && hs >= 0 && period > 0 ? waveFluxKw(hs, TE_PER_TM * period) : undefined;
 
 export const LEAD_BUCKETS = [
   { key: 'd1', label: 'Dag 1 (0–24 u)', min: -1, max: 24 },
@@ -78,8 +90,8 @@ export function buildPairs(forecasts: AuditForecastDoc[], observations: AuditObs
       const bucket = leadBucketOf(p.lead);
       if (!o || !bucket) continue;
       for (const prm of PARAMS) {
-        const fc = p[prm.key];
-        const ob = o[prm.obsKey] as number | undefined;
+        const fc = prm.key === 'power' ? powerKw(p.hs, p.tp) : p[prm.key];
+        const ob = prm.key === 'power' ? powerKw(o.hs, o.tm02) : o[prm.obsKey] as number | undefined;
         if (typeof fc !== 'number' || typeof ob !== 'number') continue;
         const err = prm.circular ? circDiff(fc, ob) : fc - ob;
         pairs.push({
@@ -231,3 +243,53 @@ export function summarizeReports(rows: ReportRow[]): ReportSummary {
 
 /** Minimaal aantal rapporten voordat we een conclusie tonen. */
 export const MIN_REPORTS = 10;
+
+// ── Eigen energiewaarde van sites (kJ) ──────────────────────────────────────
+// Surfline en surfnerd geven "energy" in kJ: een andere grootheid dan kW/m (en hun
+// formule is niet openbaar). Eerlijke toets: volgt hun getal de gemeten golfkracht?
+// → correlatie (r) en de vaste omrekenfactor (mediaan gemeten kW/m ÷ hun kJ).
+
+export interface EnergyScore {
+  source: string; label: string; n: number;
+  rKj: number;            // correlatie hun kJ ↔ gemeten kW/m
+  rCalc?: number;         // ter vergelijking: correlatie kracht uit hun eigen Hs/T ↔ gemeten
+  kwPerKj: number;        // mediaan gemeten kW/m per kJ
+  mae: number;            // gem. afwijking (kW/m) na die vaste omrekening
+}
+
+const pearson = (xs: number[], ys: number[]) => {
+  const n = xs.length; if (n < 3) return NaN;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) { const dx = xs[i] - mx, dy = ys[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+  return sxx && syy ? sxy / Math.sqrt(sxx * syy) : NaN;
+};
+
+export function energyScores(forecasts: AuditForecastDoc[], observations: AuditObsDoc[], minN = MIN_N): EnergyScore[] {
+  const obsByHour = new Map<string, ObsPoint>();
+  for (const d of observations) for (const p of d.points || []) obsByHour.set(p.t.slice(0, 13), p);
+  const by = new Map<string, { label: string; kj: number[]; obs: number[]; calc: number[]; calcObs: number[] }>();
+  for (const doc of forecasts) {
+    for (const p of doc.points || []) {
+      if (typeof p.energyKj !== 'number' || !leadBucketOf(p.lead)) continue;
+      const o = obsByHour.get(p.t.slice(0, 13));
+      const ob = o ? powerKw(o.hs, o.tm02) : undefined;
+      if (ob === undefined) continue;
+      const g = by.get(doc.source) ?? { label: doc.label, kj: [], obs: [], calc: [], calcObs: [] };
+      g.kj.push(p.energyKj); g.obs.push(ob);
+      const c = powerKw(p.hs, p.tp);
+      if (c !== undefined) { g.calc.push(c); g.calcObs.push(ob); }
+      by.set(doc.source, g);
+    }
+  }
+  const out: EnergyScore[] = [];
+  for (const [source, g] of by) {
+    if (g.kj.length < minN) continue;
+    const ratios = g.kj.map((k, i) => (k > 0 ? g.obs[i] / k : NaN)).filter(Number.isFinite).sort((a, b) => a - b);
+    const f = ratios.length ? ratios[Math.floor(ratios.length / 2)] : 0;
+    const mae = g.kj.reduce((a, k, i) => a + Math.abs(k * f - g.obs[i]), 0) / g.kj.length;
+    const rCalc = pearson(g.calc, g.calcObs);
+    out.push({ source, label: g.label, n: g.kj.length, rKj: pearson(g.kj, g.obs), rCalc: Number.isFinite(rCalc) ? rCalc : undefined, kwPerKj: f, mae });
+  }
+  return out.sort((a, b) => b.rKj - a.rKj);
+}

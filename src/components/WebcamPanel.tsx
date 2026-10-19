@@ -124,7 +124,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
             <table className="w-full text-[11px]">
               <thead><tr className="text-left text-slate-500">
                 <th className="pr-2">Tijd</th><th className="pr-2 text-right">Webcam</th><th className="pr-2 text-right">NzSurf</th><th className="pr-2">Kwaliteit</th>
-                <th className="pr-2 text-right">Model zee</th><th className="pr-2 text-right">Boei Hs</th><th className="pr-2 text-right">Tm02</th><th className="pr-2 text-right">Wind</th><th className="pr-2 text-right">÷ NzSurf</th>
+                <th className="pr-2 text-right">Model zee</th><th className="pr-2 text-right">Boei Hs</th><th className="pr-2 text-right">Tm02</th><th className="pr-2 text-right">Kracht NzSurf</th><th className="pr-2 text-right">Kracht boei</th><th className="pr-2 text-right">Wind</th><th className="pr-2 text-right">÷ NzSurf</th>
               </tr></thead>
               <tbody>
                 {rows.slice(0, 30).map(r => (
@@ -136,6 +136,8 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
                     <td className="pr-2 text-right">{fmt(r.m.forecast?.modelHs, 2)}</td>
                     <td className="pr-2 text-right">{r.buoy ? `${fmt(r.buoy.hs, 2)}${r.buoyMaasgeul ? '' : '*'}` : 'volgt'}</td>
                     <td className="pr-2 text-right">{r.buoy ? fmt(r.buoy.tm02) : ''}</td>
+                    <td className="pr-2 text-right">{typeof r.nzPower === 'number' ? `${fmt(r.nzPower)} kW/m` : '—'}</td>
+                    <td className="pr-2 text-right">{typeof r.buoyPower === 'number' ? `${fmt(r.buoyPower)} kW/m` : ''}</td>
                     <td className="pr-2 text-right">{r.buoy && typeof r.buoy.windKn === 'number' ? `${Math.round(r.buoy.windKn)} kn` : ''}</td>
                     <td className="pr-2 text-right">{fmt(r.total, 2)}</td>
                   </tr>
@@ -143,7 +145,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-slate-500">Webcam = geschatte hoogte van de brekende golfwand; NzSurf = verwachte hoogte op de spot; model zee = Open-Meteo bij de spot; boei = Maasgeul 2 (gemeten). Het verschil in definitie (golfwand vs. significante hoogte) zit in de factoren; vergelijk dus vooral de trend.</p>
+          <p className="text-[10px] text-slate-500">Webcam = geschatte hoogte van de brekende golfwand; NzSurf = verwachte hoogte op de spot; model zee = Open-Meteo bij de spot; boei = Maasgeul 2 (gemeten); kracht = 0,49 × Hs² × 1,2 × periode (kW per meter kust). Het verschil in definitie (golfwand vs. significante hoogte) zit in de factoren; vergelijk dus vooral de trend.</p>
 
           {estimates.length > 0 && (
             <div className="space-y-1">
@@ -178,7 +180,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
               tijd_utc: r.m.runAt, beelden: r.m.frames, bruikbaar: r.m.result.framesUsable, webcam_m: r.beach ?? '',
               webcam_min: r.m.result.rangeM?.[0] ?? '', webcam_max: r.m.result.rangeM?.[1] ?? '', klasse: r.m.result.heightClass ?? '',
               kwaliteit: r.m.result.quality ?? '', lijnen: r.m.result.breakingLines ?? '', water: r.m.result.waterSurface ?? '', surfers: r.m.result.surfers ?? '',
-              zekerheid: r.m.result.confidence ?? '', nzsurf_spot: r.m.forecast?.name ?? '', nzsurf_spot_m: r.nzSpot ?? '', model_zee_m: r.m.forecast?.modelHs ?? '',
+              zekerheid: r.m.result.confidence ?? '', nzsurf_spot: r.m.forecast?.name ?? '', nzsurf_spot_m: r.nzSpot ?? '', model_zee_m: r.m.forecast?.modelHs ?? '', kracht_nzsurf_kw_m: r.nzPower ?? '', kracht_boei_kw_m: r.buoyPower ?? '',
               nzsurf_periode_s: r.m.forecast?.period ?? '', nzsurf_kans: r.m.forecast?.chance ?? '',
               boei_hs_m: r.buoy?.hs ?? '', boei_tm02_s: r.buoy?.tm02 ?? '', boei_richting: r.buoy?.dir ?? '',
               wind_kn: r.buoy?.windKn ?? '', windrichting: r.buoy?.windDir ?? '', boei_maasgeul: r.buoy ? (r.buoyMaasgeul ? 'ja' : 'nee') : '',

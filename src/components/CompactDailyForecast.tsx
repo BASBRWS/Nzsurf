@@ -429,7 +429,7 @@ export function CompactDailyForecast({
                         <span className="text-xs font-mono text-slate-400 font-bold">s</span>
                       </div>
                       <div className="text-[10px] sm:text-[11px] font-mono text-emerald-700 pt-0.5 truncate font-medium">
-                        {day.waveHeight.swellEnergyKj} kJ/m²
+                        {String(day.waveHeight.swellPowerKw).replace('.', ',')} kW/m
                       </div>
                     </div>
                     <div className="text-[10px] sm:text-[11px] font-mono text-slate-500 pt-1 border-t border-slate-100 truncate">
