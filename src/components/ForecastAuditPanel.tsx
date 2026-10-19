@@ -10,6 +10,7 @@ import { cn } from '../lib/utils';
 import { saveFileOrAlert } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
 import { buildConceptDocs } from '../utils/forecastBlend';
+import { buildHybridDocs } from '../utils/forecastHybrid';
 import { buildAuditReport } from '../utils/auditReport';
 import { FileText } from 'lucide-react';
 import { WebcamPanel } from './WebcamPanel';
@@ -88,7 +89,10 @@ export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) 
         // met alleen de kennis van vóór die dag (zie utils/forecastBlend.ts).
         let concept: AuditForecastDoc[] = [];
         try { concept = buildConceptDocs(fc, obs); } catch (e) { console.warn('NzSurf concept niet berekend', e); }
-        setForecasts([...fc, ...concept]);
+        // NzSurf hybride: vaste regels (zie utils/forecastHybrid.ts), alleen in de Beta.
+        let hybrid: AuditForecastDoc[] = [];
+        try { hybrid = buildHybridDocs(fc, obs, concept); } catch (e) { console.warn('NzSurf hybride niet berekend', e); }
+        setForecasts([...fc, ...concept, ...hybrid]);
         setObservations(obs);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
