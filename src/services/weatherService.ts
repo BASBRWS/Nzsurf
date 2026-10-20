@@ -1,5 +1,6 @@
 import { SurfSpot, ForecastData } from '../types';
 import { calculateSunscreenAdvice } from '../utils/sunscreenUtils';
+import { windQualityFor } from '../utils/windQuality';
 import { swellExposure, spotWaveHeight, assessTide, computeSurfChance, findTideTurnsByDay, TideTrend, withAreaDefaults, spotKnowledgeArea } from '../utils/spotKnowledge';
 
 // Echte waterstand (incl. getij) t.o.v. gemiddeld zeeniveau via Open-Meteo Marine.
@@ -181,57 +182,7 @@ export async function fetchForecast(inputSpot: SurfSpot): Promise<ForecastData[]
       const windDir = weatherData.hourly.wind_direction_10m[i] || 0;
       const windSpeed = Math.round((weatherData.hourly.wind_speed_10m[i] || 0) / 1.852); // Knots
       
-      // Calculate angle relative to coastline
-      // offshore is coastlineAngle + 180
-      const offshoreDir = (spot.coastlineAngle + 180) % 360;
-      let diff = Math.abs(windDir - offshoreDir);
-      if (diff > 180) diff = 360 - diff;
-
-      let windType: 'offshore' | 'onshore' | 'side-onshore' | 'side-offshore' | 'cross-shore';
-      let windQuality = 50;
-
-      // Classify wind type purely on angle
-      if (diff <= 30) windType = 'offshore';
-      else if (diff <= 75) windType = 'side-offshore';
-      else if (diff <= 105) windType = 'cross-shore';
-      else if (diff <= 150) windType = 'side-onshore';
-      else windType = 'onshore';
-
-      // Advanced Wind Quality Formula
-      const angleRad = diff * (Math.PI / 180);
-      const windEffect = Math.cos(angleRad); // +1 (pure offshore) to -1 (pure onshore)
-      
-      if (windSpeed < 3) {
-        // Glassy conditions: near perfect regardless of direction
-        windQuality = 100;
-      } else {
-        let speedPenalty = 0;
-        
-        if (windEffect > 0) {
-           // Offshore variants (windEffect > 0)
-           // Safe speed increases as it gets more purely offshore (up to ~18kts safe)
-           const safeSpeed = 10 + (windEffect * 8); 
-           if (windSpeed > safeSpeed) {
-              // Too strong offshore -> hard to paddle into waves
-              speedPenalty = (windSpeed - safeSpeed) * (4 - windEffect); 
-           } else {
-              // Gentle offshore is ideal, minimal penalty
-               speedPenalty = windSpeed * (0.8 - (windEffect * 0.5));
-           }
-        } else {
-           // Onshore, side-shore variants (windEffect <= 0)
-           // Harsher penalties based on how directly onshore it is
-           const harshness = 3 + Math.abs(windEffect) * 4; // Penalty scale: 3 (cross) to 7 (onshore)
-           speedPenalty = (windSpeed * harshness);
-           
-           // Immediate quality drop for any onshore breeze
-           if (windSpeed >= 3) {
-             speedPenalty += 10 + (Math.abs(windEffect) * 15);
-           }
-        }
-        
-        windQuality = Math.max(0, Math.min(100, Math.round(100 - speedPenalty)));
-      }
+      const { windType, windQuality } = windQualityFor(spot.coastlineAngle, windDir, windSpeed);
 
       // Spotkennis: swellrichting, effectieve hoogte op de spot en getijvenster
       const swellDir = marineData.hourly.wave_direction[i] || 0;

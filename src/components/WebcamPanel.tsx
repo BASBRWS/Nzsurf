@@ -174,6 +174,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
 
           {rows.some(r => r.buoy && !r.buoyMaasgeul) && <p className="text-[10px] text-slate-500">* boeiwaarde niet van Maasgeul 2 (terugval Schouwenbank).</p>}
           {rows[0]?.m.result.note && <p className="text-[11px] text-slate-600 italic">Laatste meting: {rows[0].m.result.note}</p>}
+          {rows[0]?.m.result.verdict && <p className="text-[11px] text-slate-700">Oordeel uit beeld — longboard: <b>{rows[0].m.result.verdict.longboard ?? '–'}</b> · mid: <b>{rows[0].m.result.verdict.mid ?? '–'}</b> · shortboard: <b>{rows[0].m.result.verdict.shortboard ?? '–'}</b>{typeof rows[0].m.result.surfers === 'number' ? ` · ${rows[0].m.result.surfers} surfer(s)` : ''}</p>}
           {rows[0]?.m.forecastError && <p className="text-[11px] text-amber-700">NzSurf-verwachting ontbrak bij de laatste meting: {rows[0].m.forecastError}</p>}
           {rows[0]?.m.thumb && <img src={rows[0].m.thumb} alt="Beeld laatste webcammeting" className="rounded-lg max-w-full w-72 border border-slate-200" />}
           <button onClick={() => onDownload(`nzsurf-webcam-maasvlakte-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows.map(r => ({

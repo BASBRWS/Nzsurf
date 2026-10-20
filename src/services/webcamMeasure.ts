@@ -54,7 +54,10 @@ export interface WebcamResult {
   surfers?: number;
   confidence?: number;           // 0–1
   note?: string;
+  /** Surfbaar per soort board, volgens wat de beelden laten zien (los van elke voorspelling). */
+  verdict?: { longboard?: WebcamVerdict; mid?: WebcamVerdict; shortboard?: WebcamVerdict };
 }
+export type WebcamVerdict = 'nee' | 'matig' | 'ja';
 
 /** NzSurf-verwachting voor één spot op het uur van de meting. */
 export interface SpotForecastSnap {
@@ -62,6 +65,8 @@ export interface SpotForecastSnap {
   modelHs: number;      // Open-Meteo op zee bij de spot
   spotHs?: number;      // NzSurf: hoogte op de spot (demping × richting × plafond)
   period?: number; swellDir?: number; windKn?: number; windDir?: number; chance?: number;
+  // Volledig uur (sinds Beta "kans tegen werkelijkheid"): nodig om elke kans exact te herberekenen.
+  windQuality?: number; tideFactor?: number; swellExposure?: number;
 }
 
 export interface WebcamMeasurement {
@@ -108,6 +113,7 @@ function snapAt(spot: SurfSpot, distKm: number, hours: ForecastData[], at: numbe
     spotId: spot.id, name: spot.name, distKm: r(distKm, 1)!, t: best.timestamp, modelHs: r(best.waveHeight)!,
     spotHs: r(best.spotWaveHeight), period: r(best.swellPeriod, 1), swellDir: r(best.swellDirection, 0),
     windKn: r(best.windSpeed, 1), windDir: r(best.windDirection, 0), chance: r(best.surfChance, 0),
+    windQuality: r(best.windQuality, 0), tideFactor: r(best.tideFactor, 2), swellExposure: r(best.swellExposure, 2),
   };
   return Object.fromEntries(Object.entries(snap).filter(([, v]) => v !== undefined)) as unknown as SpotForecastSnap;
 }
@@ -288,12 +294,19 @@ Werkwijze:
    Overdrijf niet: Noordzeegolven zijn vaak 0,3–1,2 m. Schuimrollers ver uit de kust zijn geen hoogte aan de waterlijn.
 3. Tel het aantal brekende lijnen/zandbanken dat je ziet.
 4. Beoordeel de kwaliteit: plat, schoon (nette lijnen, breken netjes), redelijk, rommelig (onshore, chaotisch), closeout (breekt in één keer over de hele breedte).
+5. Tel de surfers in het water.
+6. Oordeel per soort board of je hier NU zou gaan surfen, alleen op basis van wat je ziet (kracht, vorm, rijdbare schouders, stroming/chaos):
+   - longboard (veel drijfvermogen, ook kleine zachte golven)
+   - mid (fish/funboard, gemiddeld drijfvermogen)
+   - shortboard (weinig drijfvermogen, heeft kracht en steilte nodig)
+   "ja" = de moeite waard, "matig" = surfbaar maar niet goed, "nee" = niet de moeite of onverantwoord.
 
 Antwoord ALLEEN met JSON:
 {"framesUsable": number, "waveFaceM": number|null, "rangeM": [min, max]|null,
  "heightClass": "plat"|"enkel"|"knie"|"heup"|"borst"|"schouder"|"hoofd"|"overhead"|null,
  "breakingLines": number|null, "quality": "plat"|"schoon"|"redelijk"|"rommelig"|"closeout"|null,
  "waterSurface": "glad"|"gerimpeld"|"schuimkoppen"|null, "surfers": number, "confidence": number tussen 0 en 1,
+ "verdict": {"longboard": "nee"|"matig"|"ja", "mid": "nee"|"matig"|"ja", "shortboard": "nee"|"matig"|"ja"} | null,
  "note": "1–2 zinnen in het Nederlands over wat je ziet"}
 Is de branding op geen enkel beeld te zien: framesUsable 0 en de rest null.`;
   const text = await generateViaServer({
@@ -317,6 +330,16 @@ Is de branding op geen enkel beeld te zien: framesUsable 0 en de rest null.`;
     surfers: num(raw.surfers),
     confidence: num(raw.confidence),
     note: typeof raw.note === 'string' ? raw.note : undefined,
+    verdict: (() => {
+      const ok = (v: unknown): v is WebcamVerdict => v === 'nee' || v === 'matig' || v === 'ja';
+      const v = raw.verdict;
+      if (!v || typeof v !== 'object') return undefined;
+      const o: WebcamResult['verdict'] = {};
+      if (ok(v.longboard)) o.longboard = v.longboard;
+      if (ok(v.mid)) o.mid = v.mid;
+      if (ok(v.shortboard)) o.shortboard = v.shortboard;
+      return Object.keys(o).length ? o : undefined;
+    })(),
   };
   // Firestore weigert undefined-velden.
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as unknown as WebcamResult;
