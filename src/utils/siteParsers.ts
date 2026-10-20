@@ -98,6 +98,9 @@ export function parseSurfline(src: { wave?: any; swells?: any; surf?: any; wind?
 // ── surfnerd (surfnerd.com/surf-forecast/<spot>) ────────────────────────────
 // Server-side HTML met een uurtabel ("SN Unity"). Zichtbare tekst na de kop:
 //   "💨 Wind mph 🌊 Waves ft ⏱️ Period s. ⚡️ Energy kJ  Su 11 Mo 12 …  12am 26 35 6.4 6.4s. 452  01am …"
+// Sinds okt 2026 ook metrisch en 24-uurs, zonder spaties in de kop:
+//   "💨Windkm/h 🌊Wavesm ⏱️Periods. ⚡️EnergykJ Su 18 Mo 19 … 00 27 36 1.4 6.5s. 260 01 …"
+// Beide formaten worden gelezen.
 // per uur: wind, vlagen, golfhoogte (dominante golf, spot-gecorrigeerd), periode, energie.
 // Tijden zijn lokale tijd van de spot (Europe/Amsterdam; app en workflow draaien op NL-tijd).
 
@@ -113,11 +116,11 @@ export function htmlToText(html: string): string {
 
 export function parseSurfnerd(html: string, runAt: Date): AuditPoint[] {
   const text = htmlToText(html);
-  const head = text.search(/Energy\s+kJ/i);
+  const head = text.search(/Energy\s*kJ/i);
   if (head < 0) return [];
   const before = text.slice(Math.max(0, head - 200), head);
-  const windUnit = before.match(/Wind\s+(mph|km\/h|kts|kn|m\/s)/i)?.[1] || 'mph';
-  const waveUnit = before.match(/Waves\s+(ft|m)\b/i)?.[1] || 'ft';
+  const windUnit = before.match(/Wind\s*(mph|km\/h|kts|kn|m\/s)/i)?.[1] || 'mph';
+  const waveUnit = before.match(/Waves\s*(ft|m)(?![a-z])/i)?.[1] || 'ft';
 
   const rest = text.slice(head);
   const firstDay = rest.match(new RegExp(`${DAY_ABBR}\\s+(\\d{1,2})\\b`));
@@ -131,13 +134,14 @@ export function parseSurfnerd(html: string, runAt: Date): AuditPoint[] {
   }
   if (!base) return [];
 
-  const rowRe = /(\d{1,2})(am|pm)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*s\.\s+(\d+(?:\.\d+)?)/gi;
+  // Uur als "12am"/"01pm" (oud) of "00".."23" (nieuw), dan wind, vlagen, golf, periode + "s.", energie.
+  const rowRe = /(?<![\d.])(\d{1,2})(am|pm)?\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s*s\.\s+(\d+(?:\.\d+)?)/gi;
   const points: AuditPoint[] = [];
   let dayOffset = 0;
   let prevHour = -1;
   for (const m of rest.slice(firstDay.index!).matchAll(rowRe)) {
-    const h12 = Number(m[1]) % 12;
-    const hour = m[2].toLowerCase() === 'pm' ? h12 + 12 : h12;
+    const hour = m[2] ? (Number(m[1]) % 12) + (m[2].toLowerCase() === 'pm' ? 12 : 0) : Number(m[1]);
+    if (hour > 23) continue;
     if (hour <= prevHour) dayOffset++;
     prevHour = hour;
     const local = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset, hour);
