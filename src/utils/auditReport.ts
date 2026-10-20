@@ -11,6 +11,21 @@ import { CONCEPT_SOURCE } from './forecastBlend';
 import { HYBRID_SOURCE, HYBRID_RULES } from './forecastHybrid';
 import type { WebcamMeasurement } from '../services/webcamMeasure';
 import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt, siteHeightAt, maeVsWebcam } from './webcamVerify';
+import { barChart, lineChart, timeChart, pctChart, C, BarRow } from './reportCharts';
+import { DEFAULT_RULE, componentScores, componentRanking, combinedTruth, obsTruth, reportTruth } from './surfVerdict';
+
+/** Eén spot in het rapport. */
+export interface ReportSpot { id: string; name: string; forecasts: AuditForecastDoc[]; buoyNote: string }
+
+export interface FullReportInput {
+  spots: ReportSpot[];
+  observations: AuditObsDoc[];
+  reports?: SpotReportLike[];
+  periodLabel: string;
+  webcam?: WebcamMeasurement[];
+  webcamSites?: AuditForecastDoc[];
+  now?: Date;
+}
 
 export interface AuditReportInput {
   forecasts: AuditForecastDoc[];
@@ -100,135 +115,223 @@ function conditionRows(pairs: Pair[]): string {
   }).join('');
 }
 
-export function buildAuditReport(input: AuditReportInput): { title: string; html: string } {
-  const now = input.now ?? new Date();
-  const pairs = buildPairs(input.forecasts, input.observations);
+
+const roleOf = (source: string, bestOther?: string): BarRow['role'] =>
+  source === NZ ? 'nz' : source === HYBRID_SOURCE ? 'hybrid' : source === bestOther ? 'best' : 'other';
+const list = (xs: string[]) => xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} en ${xs[xs.length - 1]}`;
+
+interface SpotResult { html: string; vs: ParamVerdict[]; days: number; pairs: number; name: string }
+
+/** Hoofdstuk voor één spot: oordeel, grafieken en tabellen. */
+function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: SpotReportLike[] | undefined, withReports: boolean): SpotResult {
+  const forecasts = spot.forecasts;
+  const pairs = buildPairs(forecasts, observations);
   const vs = verdicts(pairs);
-  const days = new Set(input.forecasts.map(f => f.runDate)).size;
-  const obsDays = input.observations.length;
-  const hasConcept = input.forecasts.some(f => f.source === CONCEPT_SOURCE);
-  const latestConcept = input.forecasts.filter(f => f.source === CONCEPT_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
-  const hasHybrid = input.forecasts.some(f => f.source === HYBRID_SOURCE);
-  const latestHybrid = input.forecasts.filter(f => f.source === HYBRID_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
+  const days = new Set(forecasts.map(f => f.runDate)).size;
+  const hasConcept = forecasts.some(f => f.source === CONCEPT_SOURCE);
+  const latestConcept = forecasts.filter(f => f.source === CONCEPT_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
+  const hasHybrid = forecasts.some(f => f.source === HYBRID_SOURCE);
+  const latestHybrid = forecasts.filter(f => f.source === HYBRID_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
+  const labelOf = new Map(forecasts.map(f => [f.source, f.label]));
+  if (!pairs.length) {
+    return { html: `<section class="spot"><h2 class="spot-h">${esc(spot.name)}</h2><p class="warn">Nog geen verwachtingen met een meting op hetzelfde uur. ${days ? `${days} ophaaldag(en) vastgelegd; ` : ''}de eerste vergelijkingen verschijnen zodra de boei de voorspelde uren heeft gemeten.</p></section>`, vs, days, pairs: 0, name: spot.name };
+  }
 
-  // Kernoordeel in een paar zinnen.
-  const top = (src: 'nz' | 'concept') => vs.filter(v => v[src]?.rank === 1).map(v => v.label.toLowerCase());
-  const weak = (src: 'nz' | 'concept') => vs.filter(v => v[src] && v[src]!.rank > Math.ceil(v.total * 2 / 3)).map(v => v.label.toLowerCase());
-  const headToHead = vs.filter(v => v.nz && v.concept).map(v => ({ v, conceptBetter: v.concept!.mae < v.nz!.mae }));
-  const takeOver = headToHead.filter(h => h.conceptBetter).map(h => h.v.label.toLowerCase());
-  const keep = headToHead.filter(h => !h.conceptBetter).map(h => h.v.label.toLowerCase());
-  const list = (xs: string[]) => xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} en ${xs[xs.length - 1]}`;
-
+  // Kernoordeel.
+  const top = (src: 'nz' | 'concept' | 'hybrid') => vs.filter(v => v[src]?.rank === 1).map(v => v.label.toLowerCase());
+  const weak = vs.filter(v => v.nz && v.nz.rank > Math.ceil(v.total * 2 / 3)).map(v => v.label.toLowerCase());
+  const nearTop = vs.filter(v => v.nz && v.nz.rank > 1 && v.best && v.nz.mae <= v.best.mae * 1.1).map(v => v.label.toLowerCase());
   const summary: string[] = [];
   if (top('nz').length) summary.push(`NzSurf is de beste bron op ${list(top('nz'))}.`);
-  const nearTop = vs.filter(v => v.nz && v.nz.rank > 1 && v.best && v.nz.mae <= v.best.mae * 1.1).map(v => v.label.toLowerCase());
   if (nearTop.length) summary.push(`Op ${list(nearTop)} zit NzSurf binnen 10% van de beste bron.`);
-  if (weak('nz').length) summary.push(`NzSurf scoort zwak op ${list(weak('nz'))}.`);
-  if (hasConcept && top('concept').length) summary.push(`Het NzSurf concept (alleen eigen modelbronnen) is de beste bron op ${list(top('concept'))}.`);
-  if (takeOver.length) summary.push(`Het concept is beter dan het huidige NzSurf op ${list(takeOver)}: kandidaat om daar over te nemen.`);
-  if (keep.length && hasConcept) summary.push(`Op ${list(keep)} blijft het huidige NzSurf beter.`);
-  // Per looptijd: waar is het concept de beste van allemaal?
-  if (hasConcept) for (const prm of PARAMS) {
-    const wins = LEAD_BUCKETS.filter(b => {
-      const sc = scorePairs(pairs.filter(x => x.param === prm.key && x.bucket === b.key)).filter(x => x.n >= MIN_N);
-      return sc[0]?.source === CONCEPT_SOURCE;
-    }).map(b => b.label.split(' (')[0].toLowerCase());
-    if (wins.length && !top('concept').includes(prm.label.toLowerCase())) summary.push(`Het concept is de beste bron voor ${prm.label.toLowerCase()} op ${list(wins)}.`);
-  }
-  // Hybride: de kandidaat-opvolger met vaste regels.
+  if (weak.length) summary.push(`NzSurf scoort zwak op ${list(weak)}.`);
   if (hasHybrid) {
     const hv = vs.filter(v => v.hybrid && v.nz);
     const avg = (k: 'nz' | 'hybrid') => hv.reduce((a, v) => a + v[k]!.rank, 0) / (hv.length || 1);
-    const hTop = vs.filter(v => v.hybrid?.rank === 1).map(v => v.label.toLowerCase());
     const better = hv.filter(v => v.hybrid!.mae < v.nz!.mae).map(v => v.label.toLowerCase());
     const worse = hv.filter(v => v.hybrid!.mae > v.nz!.mae * 1.02).map(v => v.label.toLowerCase());
-    if (hv.length) summary.push(`NzSurf hybride (vaste regels): gemiddelde rang ${nl(avg('hybrid'), 1)} tegen ${nl(avg('nz'), 1)} voor NzSurf${hTop.length ? `; beste bron op ${list(hTop)}` : ''}.`);
+    if (hv.length) summary.push(`NzSurf hybride: gemiddelde rang ${nl(avg('hybrid'), 1)} tegen ${nl(avg('nz'), 1)} voor NzSurf${top('hybrid').length ? `; beste bron op ${list(top('hybrid'))}` : ''}.`);
     if (better.length) summary.push(`De hybride is beter dan NzSurf op ${list(better)}${worse.length ? `, slechter op ${list(worse)}` : ''}.`);
   }
+  if (hasConcept && top('concept').length) summary.push(`Het NzSurf concept is de beste bron op ${list(top('concept'))}.`);
   if (!summary.length) summary.push('Nog te weinig vergelijkingen voor een oordeel.');
-
   const maturity = days < 28
-    ? `<p class="warn"><b>Voorlopig oordeel.</b> ${days} ophaaldagen; pas na ongeveer 4–6 weken met verschillende weertypes (westelijke en noordelijke swell, rustig en storm) is de ranglijst stabiel. Het concept leert ook nog: zijn correctie wordt sterker naarmate er meer dagen zijn.</p>`
+    ? `<p class="warn"><b>Voorlopig oordeel.</b> ${days} ophaaldagen; pas na ongeveer 4–6 weken met verschillende weertypes is de ranglijst stabiel.</p>`
     : `<p class="ok">${days} ophaaldagen: genoeg voor een stabiel oordeel, mits er verschillende weertypes in zaten.</p>`;
+
+  // Grafieken: afwijking per bron.
+  const barsFor = (param: AuditParam) => {
+    const v = vs.find(x => x.param === param);
+    if (!v) return '';
+    const sc = scorePairs(pairs.filter(p => p.param === param)).filter(x => x.n >= MIN_N);
+    return barChart(`${v.label}: afwijking per bron`, v.unit, sc.map(x => ({ label: x.label, value: x.mae, role: roleOf(x.source, v.bestOther?.source) })), decimals(param));
+  };
+
+  // Grafieken: per looptijd (NzSurf, hybride, beste andere bron over de hele periode).
+  const leadFor = (param: AuditParam) => {
+    const v = vs.find(x => x.param === param);
+    if (!v) return '';
+    const val = (src?: string) => LEAD_BUCKETS.map(b => {
+      if (!src) return undefined;
+      const sc = scorePairs(pairs.filter(p => p.param === param && p.bucket === b.key && p.source === src));
+      return sc[0] && sc[0].n >= MIN_N ? sc[0].mae : undefined;
+    });
+    return lineChart(`${v.label} per looptijd`, `gem. afwijking, ${v.unit}`, LEAD_BUCKETS.map(b => b.label.replace(/ \(.*\)/, '').replace('Dag ', 'd')), [
+      { name: 'NzSurf', color: C.nz, values: val(NZ) },
+      { name: 'Hybride', color: C.hybrid, values: val(hasHybrid ? HYBRID_SOURCE : undefined) },
+      { name: v.bestOther ? v.bestOther.label.split(' (')[0] : 'Beste andere', color: C.best, values: val(v.bestOther?.source), dashed: true },
+    ], decimals(param));
+  };
+
+  // Tijdreeks golfhoogte: meting tegen de verwachting van de dag ervoor (dag 1).
+  const series = (src: string) => {
+    const byT = new Map<number, { v: number; lead: number }>();
+    for (const p of pairs) {
+      if (p.param !== 'hs' || p.source !== src || p.bucket !== 'd1') continue;
+      const t = Date.parse(p.t), cur = byT.get(t);
+      if (!cur || p.lead < cur.lead) byT.set(t, { v: p.fc, lead: p.lead });
+    }
+    return [...byT.entries()].map(([t, x]) => ({ t, v: x.v }));
+  };
+  const obsSeries = (() => {
+    const byT = new Map<number, number>();
+    for (const p of pairs) if (p.param === 'hs') byT.set(Date.parse(p.t), p.obs);
+    return [...byT.entries()].map(([t, v]) => ({ t, v }));
+  })();
+  const time = timeChart('Golfhoogte: gemeten en voorspeld (dag 1)', 'm', [
+    { name: 'Gemeten (boei)', color: C.obs, points: obsSeries, width: 2.5 },
+    { name: 'NzSurf', color: C.nz, points: series(NZ) },
+    ...(hasHybrid ? [{ name: 'Hybride', color: C.hybrid, points: series(HYBRID_SOURCE) }] : []),
+  ]);
+
+  // Te surfen? — gebalanceerde score (werkelijkheid: spotrapporten, anders de boeiregel).
+  const truth = combinedTruth(reportTruth(reports || [], spot.id), obsTruth(observations, DEFAULT_RULE));
+  const surfRank = componentRanking(componentScores(forecasts, observations, DEFAULT_RULE, truth), 'total').filter(r => r.n >= MIN_N);
+  const bestSurfOther = surfRank.find(r => !OURS.includes(r.source))?.source;
+  const surfChart = pctChart('Te surfen?: gebalanceerde score', surfRank.map(r => ({
+    label: labelOf.get(r.source) || r.source, pct: r.pct, role: roleOf(r.source, bestSurfOther),
+    sub: r.caught !== undefined ? `gevangen ${r.caught}% · terecht nee ${r.rightNo ?? '–'}% · zegt ja ${r.saysYes ?? '–'}%` : undefined,
+  })), 'Gemiddelde van "surfbare momenten gevangen" en "terecht nee"; wie altijd nee zegt, komt op 50% (stippellijn). Werkelijkheid: spotrapporten, anders de regel op de boei (golf ≥ 0,6 m, periode ≥ 5 s, wind ≤ 16 kn aanlandig / 20 kn anders).');
 
   const verdictRows = vs.map(v => {
     const d = decimals(v.param);
-    const cell = (s?: Score & { rank: number }) => s ? `<b>#${s.rank}</b>/${v.total}<br><small>${nl(s.mae, d)} ${esc(v.unit)} · bias ${signed(s.bias, d)}</small>` : '–';
-    return `<tr><td><b>${esc(v.label)}</b></td><td>${cell(v.nz)}</td><td>${hasConcept ? cell(v.concept) : '–'}</td><td>${hasHybrid ? cell(v.hybrid) : '–'}</td><td>${v.best ? `${esc(v.best.label)}<br><small>${nl(v.best.mae, d)} ${esc(v.unit)}</small>` : '–'}</td></tr>
-<tr class="note"><td></td><td>${esc(judge(v.nz, v))}</td><td>${hasConcept ? esc(judge(v.concept, v)) : ''}</td><td>${hasHybrid ? esc(judge(v.hybrid, v)) : ''}</td><td></td></tr>`;
+    const cell = (x?: Score & { rank: number }) => x ? `<b>#${x.rank}</b>/${v.total}<br><small>${nl(x.mae, d)} ${esc(v.unit)} · bias ${signed(x.bias, d)}</small>` : '–';
+    return `<tr><td><b>${esc(v.label)}</b></td><td>${cell(v.nz)}</td><td>${hasHybrid ? cell(v.hybrid) : '–'}</td><td>${hasConcept ? cell(v.concept) : '–'}</td><td>${v.best ? `${esc(v.best.label)}<br><small>${nl(v.best.mae, d)} ${esc(v.unit)}</small>` : '–'}</td></tr>
+<tr class="note"><td></td><td colspan="4">${esc(judge(v.nz, v))}</td></tr>`;
   }).join('');
 
-  // Spotrapporten: zegt de surfkans iets over wat je op het strand zag?
   let reportSection = '';
-  if (input.reports?.length) {
-    const rs = summarizeReports(reportRows(input.reports, input.forecasts, input.auditSpotId));
+  if (withReports && reports?.length) {
+    const rs = summarizeReports(reportRows(reports, forecasts, spot.id));
     const lines: string[] = [];
-    if (rs.chance && rs.chance.n >= MIN_REPORTS) {
-      lines.push(`<li>NzSurf-kans klopt met je eigen oordeel ("werkt" bij ≥ 45%) in <b>${rs.chance.agree}%</b> van ${rs.chance.n} rapporten${rs.breakfinder && rs.breakfinder.n >= MIN_REPORTS ? `; breakfinder ${rs.breakfinder.agree}% (${rs.breakfinder.n} rapporten)` : ''}.</li>`);
-    }
-    if (rs.wave && rs.wave.n >= MIN_REPORTS) {
-      lines.push(`<li>Golfhoogte op de spot wijkt gemiddeld ${nl(rs.wave.maeSpot)} m af van de foto, tegen ${nl(rs.wave.maeSea)} m voor de hoogte op zee: ${rs.wave.maeSpot < rs.wave.maeSea ? 'de vertaling naar de spot helpt' : 'de vertaling naar de spot maakt het niet beter; herzien'}.</li>`);
-    }
-    reportSection = lines.length
-      ? `<h2>Surfkans getoetst aan spotrapporten</h2><ul>${lines.join('')}</ul>`
-      : `<h2>Surfkans getoetst aan spotrapporten</h2><p>Minder dan ${MIN_REPORTS} bruikbare rapporten. De kans en de spothoogte zijn alleen met eigen waarnemingen te toetsen: blijf rapporten maken (foto + oordeel).</p>`;
+    if (rs.chance && rs.chance.n >= MIN_REPORTS) lines.push(`<li>NzSurf-kans klopt met je eigen oordeel in <b>${rs.chance.agree}%</b> van ${rs.chance.n} rapporten${rs.breakfinder && rs.breakfinder.n >= MIN_REPORTS ? `; breakfinder ${rs.breakfinder.agree}%` : ''}.</li>`);
+    if (rs.wave && rs.wave.n >= MIN_REPORTS) lines.push(`<li>Hoogte op de spot wijkt ${nl(rs.wave.maeSpot)} m af van de foto, de hoogte op zee ${nl(rs.wave.maeSea)} m.</li>`);
+    reportSection = `<h3>Spotrapporten</h3>${lines.length ? `<ul>${lines.join('')}</ul>` : `<p class="meta">Minder dan ${MIN_REPORTS} bruikbare rapporten.</p>`}`;
   }
 
   const conditions = conditionRows(pairs);
-  const webcamSection = webcamHtml(input.webcam || [], input.observations, input.webcamSites || []);
-  const energySection = energyHtml(input.forecasts, input.observations);
-  const title = `Duiding NzSurf — ${now.toISOString().slice(0, 10)}`;
-  const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title>
-<style>
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;max-width:860px;margin:0 auto;padding:20px;line-height:1.45}
-h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:26px 0 8px;border-bottom:2px solid #0891b2;padding-bottom:3px}h3{font-size:14px;margin:16px 0 6px}
-.meta{color:#64748b;font-size:12px}table{border-collapse:collapse;width:100%;font-size:13px;margin:6px 0}
-th,td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid #e2e8f0}th{background:#f1f5f9}
-tr.note td{color:#475569;font-size:12px;border-bottom:2px solid #cbd5e1}small{color:#64748b}
-.sum{background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:10px 14px}.warn{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;font-size:13px}
-.ok{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;font-size:13px}ul{padding-left:18px}li{margin:4px 0}
-@media print{body{padding:0}h2{break-after:avoid}table{break-inside:avoid}}
-</style></head><body>
-<h1>Duiding NzSurf${input.spotName ? ` — ${esc(input.spotName)}` : ''}</h1>
-<p class="meta">Gemaakt ${esc(now.toLocaleString('nl-NL'))} · periode ${esc(input.periodLabel)} · ${days} ophaaldagen · ${obsDays} meetdagen · ${pairs.length} vergelijkingen · alleen vakken met ≥ ${MIN_N} vergelijkingen tellen mee</p>
-
-<h2>Kernoordeel</h2>
-<div class="sum"><ul>${summary.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>
+  const energy = energyHtml(forecasts, observations);
+  const html = `<section class="spot">
+<h2 class="spot-h">${esc(spot.name)}</h2>
+<p class="meta">${days} ophaaldagen · ${pairs.length} vergelijkingen · meting: ${esc(spot.buoyNote)}</p>
+<div class="sum"><ul>${summary.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
 ${maturity}
 
-<h2>Per onderdeel</h2>
-<p class="meta">Rang en gemiddelde afwijking (MAE) t.o.v. de RWS-metingen. Bias = gemiddeld te hoog (+) of te laag (−).</p>
-<table><thead><tr><th>Onderdeel</th><th>NzSurf</th><th>NzSurf concept</th><th>NzSurf hybride</th><th>Beste bron</th></tr></thead><tbody>${verdictRows}</tbody></table>
+<h3>Per onderdeel</h3>
+<p class="meta">Rang en gemiddelde afwijking t.o.v. de metingen. Bias = gemiddeld te hoog (+) of te laag (−).</p>
+<table><thead><tr><th>Onderdeel</th><th>NzSurf</th><th>Hybride</th><th>Concept</th><th>Beste bron</th></tr></thead><tbody>${verdictRows}</tbody></table>
 
-<h2>Hoe ver vooruit is het betrouwbaar?</h2>
-${bucketTable(pairs, 'hs')}${bucketTable(pairs, 'power')}${bucketTable(pairs, 'windKn')}${bucketTable(pairs, 'windDir')}
+<div class="legend"><span><i style="background:${C.nz}"></i>NzSurf</span><span><i style="background:${C.hybrid}"></i>Hybride</span><span><i style="background:${C.best}"></i>Beste andere bron</span><span><i style="background:${C.other}"></i>Overige</span></div>
+${barsFor('hs')}
+${barsFor('windKn')}
 
-${conditions ? `<h2>Als het ertoe doet</h2>
-<p class="meta">Dezelfde toets, alleen op momenten met golf van betekenis of harde wind. Hier wordt een surfverwachting op afgerekend.</p>
+<h3>Hoe ver vooruit is het betrouwbaar?</h3>
+<div class="pair">${leadFor('hs')}${leadFor('windKn')}</div>
+${bucketTable(pairs, 'hs')}${bucketTable(pairs, 'power')}${bucketTable(pairs, 'windKn')}
+
+${time}
+
+<h3>Te surfen?</h3>
+${surfChart}
+
+${conditions ? `<h3>Als het ertoe doet</h3>
 <table><thead><tr><th>Omstandigheid</th><th>NzSurf</th><th>Concept</th><th>Hybride</th><th>Beste</th><th>Bronnen</th></tr></thead><tbody>${conditions}</tbody></table>` : ''}
 
-${latestHybrid ? `<h2>NzSurf hybride: de regels</h2><p>${esc(HYBRID_RULES)}.</p><p class="meta">${esc((latestHybrid.note || '').replace(`Regels: ${HYBRID_RULES}. `, ''))} Vaste regels, vooraf vastgelegd; de correctie gebruikt alleen metingen van vóór elk ophaalmoment. Kandidaat-opvolger van NzSurf: alleen overnemen als hij na 2–3 weken nog steeds beter is.</p>` : ''}
-
-${latestConcept ? `<h2>Waar het concept op leunt</h2><p>${esc(latestConcept.note || '')}</p>
-<p class="meta">Het concept rekent per ophaaldag alleen met runs en metingen van vóór die dag; de gewichten verschuiven naar de bron die recent het best presteerde.</p>` : ''}
-
-${energySection}
-
+${latestHybrid ? `<h3>NzSurf hybride: de regels</h3><p>${esc(HYBRID_RULES)}.</p><p class="meta">${esc((latestHybrid.note || '').replace(`Regels: ${HYBRID_RULES}. `, ''))}</p>` : ''}
+${latestConcept ? `<h3>Waar het concept op leunt</h3><p class="meta">${esc(latestConcept.note || '')}</p>` : ''}
+${energy.replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>')}
 ${reportSection}
+</section>`;
+  return { html, vs, days, pairs: pairs.length, name: spot.name };
+}
 
-${webcamSection}
+const STYLE = `
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;background:#fff;max-width:860px;margin:0 auto;padding:20px;line-height:1.45}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px;border-bottom:2px solid #0891b2;padding-bottom:3px}h3{font-size:14px;margin:18px 0 6px}
+.spot-h{font-size:20px;background:#0f172a;color:#fff;border:0;border-radius:8px;padding:6px 12px}
+.meta{color:#64748b;font-size:12px}table{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0}
+th,td{text-align:left;vertical-align:top;padding:5px 7px;border-bottom:1px solid #e2e8f0}th{background:#f1f5f9}
+tr.note td{color:#475569;font-size:11.5px;border-bottom:2px solid #cbd5e1}small{color:#64748b}
+.sum{background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:8px 14px}.warn{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;font-size:13px}
+.ok{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;font-size:13px}ul{padding-left:18px}li{margin:3px 0}
+figure.chart{margin:10px 0}figure.chart figcaption{font-size:12.5px;font-weight:700;margin-bottom:2px}figure.chart figcaption span{font-weight:400;color:#64748b}
+.pair{display:flex;flex-wrap:wrap;gap:8px}.pair figure.small{flex:1 1 300px;margin:4px 0}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#52514e;margin:8px 0 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.glance td,.glance th{text-align:center}.glance td:first-child,.glance th:first-child{text-align:left}
+@media print{body{padding:0}h2,h3{break-after:avoid}table,figure{break-inside:avoid}section.spot{break-before:page}}
+`;
+
+/** Volledig rapport over alle auditspots, met grafieken. */
+export function buildFullReport(input: FullReportInput): { title: string; html: string } {
+  const now = input.now ?? new Date();
+  const results = input.spots.map((sp, i) => spotSection(sp, input.observations, input.reports, i === 0));
+
+  // In één oogopslag: per onderdeel de rang van NzSurf en de hybride per spot.
+  const glanceRows = PARAMS.map(p => {
+    const cells = results.map(r => {
+      const v = r.vs.find(x => x.param === p.key);
+      if (!v) return '<td>–</td><td>–</td><td>–</td>';
+      return `<td>${v.nz ? `#${v.nz.rank}` : '–'}</td><td>${v.hybrid ? `#${v.hybrid.rank}` : '–'}</td><td><small>${v.best ? esc(v.best.label.split(' (')[0]) : '–'}</small></td>`;
+    }).join('');
+    return `<tr><td><b>${esc(p.label)}</b></td>${cells}</tr>`;
+  }).join('');
+  const glance = `<table class="glance"><thead><tr><th rowspan="2">Onderdeel</th>${results.map(r => `<th colspan="3">${esc(r.name)}</th>`).join('')}</tr>
+<tr>${results.map(() => '<th>NzSurf</th><th>Hybride</th><th>Beste</th>').join('')}</tr></thead><tbody>${glanceRows}</tbody></table>
+<p class="meta">Rang onder alle bronnen met ≥ ${MIN_N} vergelijkingen (1 = beste). Per spot verschilt het aantal bronnen.</p>`;
+
+  const webcam = webcamHtml(input.webcam || [], input.observations, input.webcamSites || []);
+  const title = `Duiding NzSurf — ${now.toISOString().slice(0, 10)}`;
+  const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title><style>${STYLE}</style></head><body>
+<h1>Duiding NzSurf — ${esc(results.map(r => r.name).join(' & '))}</h1>
+<p class="meta">Gemaakt ${esc(now.toLocaleString('nl-NL'))} · periode ${esc(input.periodLabel)} · ${input.observations.length} meetdagen · alleen vakken met ≥ ${MIN_N} vergelijkingen tellen mee</p>
+
+<h2>In één oogopslag</h2>
+${glance}
+
+${results.map(r => r.html).join('\n')}
+
+${webcam ? `<section class="spot">${webcam}</section>` : ''}
 
 <h2>Wat dit rapport niet zegt</h2>
 <ul>
-<li><b>Boei ≠ strand.</b> De meting is op zee (Maasgeul/Schouwenbank). Hoogtes op de spot en de surfkans zijn alleen met spotrapporten en de webcam (AI-schatting, Maasvlakte) te toetsen.</li>
+<li><b>Boei ≠ strand.</b> De meting is op zee (Maasgeul 2, oudere dagen Schouwenbank): voor de Maasvlakte ±5 km, voor Ouddorp 20 km. Hoogtes op de spot en de surfkans zijn alleen met spotrapporten en de webcam te toetsen.</li>
 <li><b>Wind op Europlatform</b> waait harder dan aan de kust; alle bronnen lijken daardoor te laag. Vergelijk de rangorde, niet de absolute fout.</li>
-<li><b>Periode:</b> modellen geven de piekperiode (Tp), de boei de gemiddelde (Tm02). Een vaste afwijking is dus normaal.</li>
-<li><b>Golfkracht</b> is berekend (0,49 × Hs² × 1,2 × T), niet gemeten; sites die een piekperiode geven i.p.v. een gemiddelde komen daardoor hoger uit.</li>
+<li><b>Periode:</b> de boei meet de gemiddelde periode (Tm02); een vaste afwijking is normaal.</li>
+<li><b>Golfkracht</b> is berekend (0,49 × Hs² × 1,2 × T), niet gemeten.</li>
 <li><b>Dubbelingen:</b> Open-Meteo best match is golf van Météo-France en wind van KNMI; telt niet als aparte stem.</li>
 </ul>
 </body></html>`;
   return { title, html };
+}
+
+/** Oude ingang (één spot); gebruikt het nieuwe rapport. */
+export function buildAuditReport(input: AuditReportInput): { title: string; html: string } {
+  return buildFullReport({
+    spots: [{ id: input.auditSpotId || 'ouddorp-p-noordweg', name: input.spotName || 'Ouddorp', forecasts: input.forecasts, buoyNote: 'boei Maasgeul 2 / Schouwenbank, wind Europlatform' }],
+    observations: input.observations, reports: input.reports, periodLabel: input.periodLabel,
+    webcam: input.webcam, webcamSites: input.webcamSites, now: input.now,
+  });
 }
 
 /** Sectie webcam Maasvlakte: NzSurf getoetst aan wat er aan het strand aankomt (AI-schatting). */

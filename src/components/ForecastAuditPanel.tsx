@@ -7,11 +7,12 @@ import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { importSecretSwellScreenshots } from '../services/secretSwellImport';
 import { cn } from '../lib/utils';
-import { saveFileOrAlert } from '../utils/saveFile';
+import { saveFileOrAlert, saveBinaryFile } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
 import { buildConceptDocs } from '../utils/forecastBlend';
 import { buildHybridDocs } from '../utils/forecastHybrid';
-import { buildAuditReport } from '../utils/auditReport';
+import { buildFullReport } from '../utils/auditReport';
+import { htmlToPdfBase64 } from '../utils/reportPdf';
 import { FileText } from 'lucide-react';
 import { WebcamPanel } from './WebcamPanel';
 import { loadWebcamMeasurements } from '../services/webcamMeasure';
@@ -165,6 +166,41 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
     onderdeel: p.param, verwachting: p.fc, meting: p.obs, fout: p.err, gemeten_wind_kn: p.obsWindKn ?? '', gemeten_golf_m: p.obsHs ?? '',
   }));
   const stamp = new Date().toISOString().slice(0, 10);
+
+  // Rapport over alle auditspots (Ouddorp én Maasvlakte), met grafieken; als PDF of HTML.
+  const [reportBusy, setReportBusy] = useState<string | null>(null);
+  const makeReport = async (kind: 'pdf' | 'html') => {
+    setReportBusy('gegevens laden…');
+    try {
+      const fcFrom = period ? new Date(Date.now() - (period + 7) * 86400e3).toISOString().slice(0, 10) : '0000';
+      const [snap, webcam] = await Promise.all([
+        getDocs(query(collection(db, 'auditForecasts'), where('runDate', '>=', fcFrom))),
+        loadWebcamMeasurements().catch(() => [] as Awaited<ReturnType<typeof loadWebcamMeasurements>>),
+      ]);
+      const docs = snap.docs.map(d => d.data() as AuditForecastDoc);
+      setReportBusy('rekenen…');
+      const spots = AUDIT_SPOTS.map(sp => {
+        const fc = docs.filter(f => (f.spotId || 'ouddorp-p-noordweg') === sp.id);
+        let extra: AuditForecastDoc[] = [];
+        try {
+          const concept = buildConceptDocs(fc, observations);
+          extra = [...concept, ...buildHybridDocs(fc, observations, concept)];
+        } catch (e) { console.warn('concept/hybride niet berekend', e); }
+        return { id: sp.id, name: sp.name, forecasts: [...fc, ...extra], buoyNote: sp.buoy };
+      });
+      const webcamSites = docs.filter(f => f.spotId === 'maasvlakte');
+      const { html } = buildFullReport({ spots, observations, reports: reports || [], webcam, webcamSites,
+        periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
+      if (kind === 'html') { download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8'); return; }
+      const b64 = await htmlToPdfBase64(html, st => setReportBusy(st));
+      setReportBusy('opslaan…');
+      await saveBinaryFile(`nzsurf-rapport-${stamp}.pdf`, b64, 'application/pdf');
+    } catch (e: any) {
+      window.alert(`Rapport maken mislukt: ${e?.message || e}`);
+    } finally {
+      setReportBusy(null);
+    }
+  };
 
   return (
     <div className="bg-white/90 border border-slate-200 rounded-3xl p-4 sm:p-6 space-y-5">
@@ -390,15 +426,11 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
 
           {/* Export */}
           <div className="flex flex-wrap gap-2">
-            <button onClick={async () => {
-                const webcam = await loadWebcamMeasurements().catch(() => []);
-                const webcamSites = await getDocs(query(collection(db, 'auditForecasts'), where('spotId', '==', 'maasvlakte')))
-                  .then(s => s.docs.map(d => d.data() as AuditForecastDoc)).catch(() => [] as AuditForecastDoc[]);
-                const { html } = buildAuditReport({ forecasts, observations, reports, webcam, webcamSites, auditSpotId: AUDIT_SPOT_ID, spotName: auditSpot.name,
-                  periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
-                download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8');
-              }}
-              className="text-xs font-bold px-3 py-2 rounded-xl bg-cyan-600 text-white flex items-center gap-1.5 cursor-pointer"><FileText className="w-3.5 h-3.5" /> Rapport NzSurf</button>
+            <button disabled={!!reportBusy} onClick={() => makeReport('pdf')}
+              className="text-xs font-bold px-3 py-2 rounded-xl bg-cyan-600 text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-60">
+              {reportBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />} {reportBusy || 'Rapport (PDF)'}</button>
+            <button disabled={!!reportBusy} onClick={() => makeReport('html')}
+              className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-cyan-600 text-cyan-800 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><FileText className="w-3.5 h-3.5" /> Rapport (HTML)</button>
             <button onClick={() => download(`nzsurf-audit-vergelijkingen-${stamp}.csv`, toCsv(exportRows(condPairs)), 'text/csv;charset=utf-8')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Vergelijkingen (CSV, gefilterd)</button>
             <button onClick={() => download(`nzsurf-audit-ranglijst-${param}-${stamp}.csv`, toCsv(ranking.map(r => ({ bron: r.label, onderdeel: r.param, n: r.n, mae: r.mae, bias: r.bias, rmse: r.rmse }))), 'text/csv;charset=utf-8')}

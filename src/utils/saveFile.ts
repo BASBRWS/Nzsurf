@@ -30,6 +30,26 @@ export async function saveFile(name: string, content: string, type: string): Pro
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Binair bestand (bv. PDF) als base64 bewaren/delen; zelfde gedrag als saveFile. */
+export async function saveBinaryFile(name: string, base64: string, type: string): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
+    const { uri } = await Filesystem.writeFile({ path: name, data: base64, directory: Directory.Cache });
+    try {
+      await Share.share({ title: name, files: [uri], dialogTitle: 'Bestand opslaan of delen' });
+    } catch (e: any) {
+      if (!/cancel/i.test(String(e?.message || e))) throw e;
+    }
+    return;
+  }
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Zelfde als saveFile, maar toont een melding als het misgaat (voor knoppen). */
 export function saveFileOrAlert(name: string, content: string, type: string): void {
   saveFile(name, content, type).catch(e => window.alert(`Exporteren mislukt: ${e?.message || e}`));
