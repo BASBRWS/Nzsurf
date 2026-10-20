@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { generateViaServer } from './aiServer';
-import { SecretSwellRead, mergeAuditPoints, secretSwellSpotOk, secretSwellToPoints } from '../utils/siteParsers';
+import { SecretSwellRead, SECRETSWELL_SPOTS, mergeAuditPoints, secretSwellSpotOf, secretSwellToPoints } from '../utils/siteParsers';
 import { AuditPoint } from '../utils/forecastAudit';
 
 /**
@@ -10,7 +10,6 @@ import { AuditPoint } from '../utils/forecastAudit';
  * leest de getallen eruit; we slaan ze op als bron "secretswell" in auditForecasts.
  */
 
-const SPOT_ID = 'ouddorp-p-noordweg';
 
 const PROMPT = `Dit is een schermafbeelding van de surf-app Secret Swell.
 Lees de getallen precies af. Verzin niets: laat een veld weg als je het niet zeker ziet.
@@ -56,44 +55,61 @@ async function readScreenshot(file: File): Promise<SecretSwellRead> {
 }
 
 /**
- * Een of meer schermafbeeldingen (dashboard en/of uurtabel, eventueel doorgescrold)
- * aflezen en samenvoegen met wat er vandaag al staat.
+ * Een of meer schermafbeeldingen (dashboard en/of uurtabel, eventueel doorgescrold), van
+ * Ouddorp en/of de Maasvlakte door elkaar: elke schermafbeelding gaat naar de spot die
+ * erop staat en wordt samengevoegd met wat er vandaag al voor die spot staat.
  */
 export async function importSecretSwellScreenshots(files: File[]): Promise<{ points: number; summary: string[] }> {
   // Tijdstip van de verwachting = wanneer de (eerste) schermafbeelding gemaakt is, anders nu.
   const first = Math.min(...files.map(f => (f.lastModified && Date.now() - f.lastModified < 36 * 3600e3 ? f.lastModified : Date.now())));
   const shotAt = new Date(first);
   const runDate = shotAt.toISOString().slice(0, 10);
-  const ref = doc(db, 'auditForecasts', `${runDate}_secretswell`);
-  const existing = (await getDoc(ref)).data();
-  // Eerdere upload vandaag: die vooruitkijktijd houden (verwachting telt vanaf de eerste blik).
-  const runAt = existing?.runAt && Date.parse(existing.runAt) < first ? new Date(existing.runAt) : shotAt;
 
   const summary: string[] = [];
-  const sets: AuditPoint[][] = [existing?.points || []];
-  const reads: SecretSwellRead[] = [];
+  const bySpot = new Map<string, SecretSwellRead[]>();
+  const unknown: { file: File; read: SecretSwellRead }[] = [];
   for (const file of files) {
     const read = await readScreenshot(file);
-    if (!secretSwellSpotOk(read)) {
-      summary.push(`✗ ${file.name}: dit is "${read.spot}", niet Ouddorp — overgeslagen`);
-      continue;
-    }
-    const pts = secretSwellToPoints(read, runAt);
-    sets.push(pts);
-    reads.push(read);
-    const c = read.current;
-    if (c) summary.push(`nu: ${c.verdict ?? '?'} · swell ${c.swellM ?? '?'} m @ ${c.periodS ?? '?'} s · golven ${c.wavesM ?? '?'} m · wind ${c.windKt ?? '?'} kt ${c.windAngle ?? ''}`);
-    for (const d of (read.days || []).filter(d => !d.locked)) summary.push(`${d.label}: ${d.verdict ?? ''} ${d.waveMin ?? '?'}–${d.waveMax ?? '?'} m${d.windMin !== undefined ? ` · ${d.windMin}–${d.windMax ?? '?'} kt` : ''}`);
-    for (const h of read.hours || []) summary.push(`${read.tableDate ?? ''} ${h.time}: golf ${h.waveM ?? '?'} m · swell ${h.swellM ?? '?'} m ${h.periodS ?? '?'} s ${h.swellDir ?? ''} · wind ${h.windKt ?? '?'}/${h.gustKt ?? '?'} kt ${h.windDir ?? ''}`);
+    const spotId = secretSwellSpotOf(read);
+    if (spotId === null) { summary.push(`✗ ${file.name}: "${read.spot}" is geen Ouddorp of Maasvlakte — overgeslagen`); continue; }
+    if (spotId === undefined) { unknown.push({ file, read }); continue; }
+    if (!bySpot.has(spotId)) bySpot.set(spotId, []);
+    bySpot.get(spotId)!.push(read);
   }
-  if (!reads.length) throw new Error(summary.join(' | ') || 'Geen bruikbare schermafbeelding.');
-  const points = mergeAuditPoints(...sets);
-  if (!points.length) throw new Error('Geen bruikbare getallen gevonden op de schermafbeelding(en).');
-  await setDoc(ref, JSON.parse(JSON.stringify({
-    runAt: runAt.toISOString(), runDate, spotId: SPOT_ID,
-    source: 'secretswell', label: 'Secret Swell (schermafbeelding)', kind: 'site', points,
-    note: 'uit schermafbeeldingen gelezen door AI (dashboard en/of uurtabel)',
-    reads: [...(existing?.reads || []), ...reads],
-  })));
-  return { points: points.length, summary };
+  // Naam niet leesbaar (bv. doorgescrolde uurtabel): bij de spot van de rest van deze upload,
+  // als dat er precies één is; anders overslaan (niet gokken).
+  for (const u of unknown) {
+    if (bySpot.size === 1) bySpot.get([...bySpot.keys()][0])!.push(u.read);
+    else summary.push(`✗ ${u.file.name}: spotnaam niet leesbaar${bySpot.size > 1 ? ' en de upload bevat meerdere spots' : ''} — overgeslagen (zorg dat de spotnaam bovenaan in beeld is)`);
+  }
+  if (!bySpot.size) throw new Error(summary.join(' | ') || 'Geen bruikbare schermafbeelding.');
+
+  let total = 0;
+  for (const [spotId, reads] of bySpot) {
+    const sp = SECRETSWELL_SPOTS.find(x => x.spotId === spotId)!;
+    const ref = doc(db, 'auditForecasts', `${runDate}_secretswell${sp.suffix}`);
+    const existing = (await getDoc(ref)).data();
+    // Eerdere upload vandaag: die vooruitkijktijd houden (verwachting telt vanaf de eerste blik).
+    const runAt = existing?.runAt && Date.parse(existing.runAt) < first ? new Date(existing.runAt) : shotAt;
+    const sets: AuditPoint[][] = [existing?.points || []];
+    summary.push(`── ${sp.name} (${reads.length} schermafbeelding${reads.length === 1 ? '' : 'en'})`);
+    for (const read of reads) {
+      sets.push(secretSwellToPoints(read, runAt));
+      const c = read.current;
+      if (c) summary.push(`nu: ${c.verdict ?? '?'} · swell ${c.swellM ?? '?'} m @ ${c.periodS ?? '?'} s · golven ${c.wavesM ?? '?'} m · wind ${c.windKt ?? '?'} kt ${c.windAngle ?? ''}`);
+      for (const d of (read.days || []).filter(d => !d.locked)) summary.push(`${d.label}: ${d.verdict ?? ''} ${d.waveMin ?? '?'}–${d.waveMax ?? '?'} m${d.windMin !== undefined ? ` · ${d.windMin}–${d.windMax ?? '?'} kt` : ''}`);
+      for (const h of read.hours || []) summary.push(`${read.tableDate ?? ''} ${h.time}: golf ${h.waveM ?? '?'} m · swell ${h.swellM ?? '?'} m ${h.periodS ?? '?'} s ${h.swellDir ?? ''} · wind ${h.windKt ?? '?'}/${h.gustKt ?? '?'} kt ${h.windDir ?? ''}`);
+    }
+    const points = mergeAuditPoints(...sets);
+    if (!points.length) { summary.push(`✗ ${sp.name}: geen bruikbare getallen gevonden`); continue; }
+    await setDoc(ref, JSON.parse(JSON.stringify({
+      runAt: runAt.toISOString(), runDate, spotId,
+      source: 'secretswell', label: 'Secret Swell (schermafbeelding)', kind: 'site', points,
+      note: 'uit schermafbeeldingen gelezen door AI (dashboard en/of uurtabel)',
+      reads: [...(existing?.reads || []), ...reads],
+    })));
+    total += points.length;
+  }
+  if (!total) throw new Error(summary.join(' | ') || 'Geen bruikbare getallen gevonden op de schermafbeelding(en).');
+  return { points: total, summary };
 }
