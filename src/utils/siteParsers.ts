@@ -239,18 +239,31 @@ const mid = (a?: number, b?: number) =>
   typeof a === 'number' && typeof b === 'number' ? (a + b) / 2 : typeof a === 'number' ? a : b;
 const compass = (c?: string) => (c ? COMPASS_NL[c.trim().toUpperCase().replace(/E/g, 'O').replace(/S/g, 'Z')] : undefined);
 
-const OUDDORP_NAMES = ['ouddorp', 'goeree', 'westhoofd', 'kwade hoek'];
+// Spots waarvoor Secret Swell-schermafbeeldingen worden herkend (naam bovenaan, soms afgekapt: "MAAS...").
+export const SECRETSWELL_SPOTS: { spotId: string; name: string; names: string[]; suffix: string }[] = [
+  { spotId: 'ouddorp-p-noordweg', name: 'Ouddorp', names: ['ouddorp', 'goeree', 'westhoofd', 'kwade hoek'], suffix: '' },
+  { spotId: 'maasvlakte', name: 'Maasvlakte', names: ['maasvlakte', 'maasvlaktestrand', 'slufter'], suffix: '_maasvlakte' },
+];
 
 /**
- * Spotnaam op de schermafbeelding past bij Ouddorp (of is niet leesbaar).
- * Secret Swell kapt lange namen af ("OUDD...", "BERG..."): dan telt het begin.
+ * Bij welke spot hoort deze schermafbeelding? spotId, null = een andere spot,
+ * undefined = naam niet leesbaar.
  */
-export function secretSwellSpotOk(read: SecretSwellRead): boolean {
-  if (!read.spot) return true;
+export function secretSwellSpotOf(read: SecretSwellRead): string | null | undefined {
+  if (!read.spot || !read.spot.trim()) return undefined;
   const name = read.spot.trim().toLowerCase();
-  if (OUDDORP_NAMES.some(n => name.includes(n))) return true;
   const base = name.replace(/(\.{2,}|…)\s*$/, '').trim();
-  return base.length >= 3 && OUDDORP_NAMES.some(n => n.startsWith(base));
+  for (const sp of SECRETSWELL_SPOTS) {
+    if (sp.names.some(n => name.includes(n))) return sp.spotId;
+    if (base.length >= 3 && sp.names.some(n => n.startsWith(base))) return sp.spotId;
+  }
+  return null;
+}
+
+/** Spotnaam op de schermafbeelding past bij Ouddorp (of is niet leesbaar). */
+export function secretSwellSpotOk(read: SecretSwellRead): boolean {
+  const s = secretSwellSpotOf(read);
+  return s === undefined || s === 'ouddorp-p-noordweg';
 }
 
 /** Dagkaart-label → datum: VANDAAG, MORGEN, MA…ZO of "za, okt. 17". */

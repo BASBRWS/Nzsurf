@@ -265,9 +265,9 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
           }} />
         </label>
         <p className="text-[11px] text-slate-500">
-          Maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp: het dashboard en/of de spotpagina met de uurtabel
-          (doorscrollen mag, kies ze in één keer). De AI leest de getallen; controleer ze hieronder.
-          Schermafbeeldingen van een andere spot worden overgeslagen. Latere uploads op dezelfde dag vullen aan.
+          Maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvlakte: het dashboard en/of de spotpagina met de uurtabel
+          (doorscrollen mag; kies ze allemaal in één keer, beide spots door elkaar). De AI leest de spotnaam en de getallen en koppelt elke
+          schermafbeelding aan de juiste spot; controleer ze hieronder. Andere spots worden overgeslagen. Latere uploads op dezelfde dag vullen aan.
         </p>
         {swell.lines && <ul className="text-[11px] font-mono text-slate-700">{swell.lines.map(l => <li key={l}>{l}</li>)}</ul>}
       </div>
