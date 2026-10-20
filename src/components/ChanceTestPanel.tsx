@@ -93,7 +93,7 @@ export function ChanceTestPanel({ user, spots, audit }: { user: UserProfile; spo
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-slate-500 mt-1">* oudere meting: windkwaliteit uit windrichting/-kracht herberekend, getij neutraal. Hybride: zijn verschil met NzSurf in Ouddorp (13 km) op dat uur, toegepast op de cameraspot.</p>
+          <p className="text-[10px] text-slate-500 mt-1">* oudere meting: windkwaliteit uit windrichting/-kracht herberekend, getij neutraal. Hybride: zijn verschil met NzSurf op dat uur bij de gekozen auditspot, toegepast op de cameraspot — kies in de audit de Maasvlakte (±5 km van de camera) voor de zuiverste toets.</p>
         </details>
       )}
     </div>

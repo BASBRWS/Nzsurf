@@ -78,7 +78,8 @@ function pointAt(docs: AuditForecastDoc[], at: number): AuditPoint | undefined {
 }
 
 /**
- * Hybride-data voor de cameraspot: de hybride bestaat voor de auditspot (Ouddorp, 13 km).
+ * Hybride-data voor de cameraspot: de hybride bestaat voor de gekozen auditspot (Maasvlakte ±5 km,
+ * Ouddorp 13 km van de camera).
  * Zijn verschil met NzSurf op dat uur (hoogte als factor, periode en windrichting als
  * verschuiving) is een zee-effect en wordt op de NzSurf-data van de cameraspot gelegd.
  */
