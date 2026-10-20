@@ -10,6 +10,19 @@ const PAGE_H = 1123;
 const MARGIN = 36;
 const CONTENT_H = PAGE_H - 2 * MARGIN;
 
+/** Eerste volledig witte pixelrij op of boven `cut` (CSS-px), niet hoger dan `min`. */
+function whiteRowAbove(canvas: HTMLCanvasElement, cut: number, scale: number, min: number): number {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return cut;
+  for (let c = cut; c >= min; c--) {
+    const row = ctx.getImageData(0, Math.floor(c * scale), canvas.width, 1).data;
+    let white = true;
+    for (let i = 0; i < row.length; i += 4) if (row[i] < 245 || row[i + 1] < 245 || row[i + 2] < 245) { white = false; break; }
+    if (white) return c;
+  }
+  return cut;
+}
+
 /** Maakt een PDF van een volledige HTML-pagina; geeft base64 (zonder data:-voorvoegsel). */
 export async function htmlToPdfBase64(html: string, onStatus?: (s: string) => void): Promise<string> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
@@ -47,6 +60,13 @@ export async function htmlToPdfBase64(html: string, onStatus?: (s: string) => vo
       const b = Math.round(r.bottom - bodyTop);
       for (const c of [...cuts]) if (c > Math.round(r.top - bodyTop) && c <= b + 30) cuts.delete(c);
     });
+    // Een tabel die op één pagina past, blijft heel (geen knippunten tussen zijn rijen).
+    doc.body.querySelectorAll('table').forEach(el => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      if (r.height > CONTENT_H * 0.85) return;
+      const t = Math.round(r.top - bodyTop), b = Math.round(r.bottom - bodyTop);
+      for (const c of [...cuts]) if (c > t && c < b) cuts.delete(c);
+    });
     const sorted = [...cuts].filter(c => c > 0).sort((a, b) => a - b);
     const total = Math.ceil(doc.body.scrollHeight);
 
@@ -60,7 +80,10 @@ export async function htmlToPdfBase64(html: string, onStatus?: (s: string) => vo
     while (y < total - 2) {
       // Knip bij het laatste veilige punt binnen de pagina; anders hard op de paginahoogte.
       const limit = y + CONTENT_H;
-      const cut = sorted.filter(c => c > y + 40 && c <= limit).pop() ?? Math.min(limit, total);
+      let cut = sorted.filter(c => c > y + 40 && c <= limit).pop() ?? Math.min(limit, total);
+      // De opmaak in html2canvas kan een paar pixels verschuiven t.o.v. de meting: schuif het
+      // knippunt omhoog naar de dichtstbijzijnde volledig witte rij, zodat er geen tekst doormidden gaat.
+      if (cut < total) cut = whiteRowAbove(canvas, cut, scale, Math.max(y + 40, cut - 60));
       const h = Math.max(1, cut - y);
       const slice = document.createElement('canvas');
       slice.width = canvas.width; slice.height = Math.ceil(h * scale);
