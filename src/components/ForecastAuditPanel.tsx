@@ -172,25 +172,29 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
   const makeReport = async (kind: 'pdf' | 'html') => {
     setReportBusy('gegevens laden…');
     try {
-      const fcFrom = period ? new Date(Date.now() - (period + 7) * 86400e3).toISOString().slice(0, 10) : '0000';
-      const [snap, webcam] = await Promise.all([
-        getDocs(query(collection(db, 'auditForecasts'), where('runDate', '>=', fcFrom))),
+      // Het rapport gaat altijd over alle gemeten data, los van het periodefilter hierboven.
+      const [snap, obsSnap, webcam] = await Promise.all([
+        getDocs(collection(db, 'auditForecasts')),
+        getDocs(collection(db, 'auditObservations')),
         loadWebcamMeasurements().catch(() => [] as Awaited<ReturnType<typeof loadWebcamMeasurements>>),
       ]);
       const docs = snap.docs.map(d => d.data() as AuditForecastDoc);
+      const allObs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
+      const dates = allObs.map(o => o.date).sort();
+      const fmtD = (d?: string) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : '?');
+      const periodLabel = `alle gemeten data (${fmtD(dates[0])} t/m ${fmtD(dates[dates.length - 1])})`;
       setReportBusy('rekenen…');
       const spots = AUDIT_SPOTS.map(sp => {
         const fc = docs.filter(f => (f.spotId || 'ouddorp-p-noordweg') === sp.id);
         let extra: AuditForecastDoc[] = [];
         try {
-          const concept = buildConceptDocs(fc, observations);
-          extra = [...concept, ...buildHybridDocs(fc, observations, concept)];
+          const concept = buildConceptDocs(fc, allObs);
+          extra = [...concept, ...buildHybridDocs(fc, allObs, concept)];
         } catch (e) { console.warn('concept/hybride niet berekend', e); }
         return { id: sp.id, name: sp.name, forecasts: [...fc, ...extra], buoyNote: sp.buoy };
       });
       const webcamSites = docs.filter(f => f.spotId === 'maasvlakte');
-      const { html } = buildFullReport({ spots, observations, reports: reports || [], webcam, webcamSites,
-        periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
+      const { html } = buildFullReport({ spots, observations: allObs, reports: reports || [], webcam, webcamSites, periodLabel });
       if (kind === 'html') { download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8'); return; }
       const b64 = await htmlToPdfBase64(html, st => setReportBusy(st));
       setReportBusy('opslaan…');
@@ -443,6 +447,7 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
             <button onClick={() => download(`nzsurf-audit-ruw-${stamp}.json`, JSON.stringify({ forecasts, observations }, null, 1), 'application/json')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ruwe data (JSON)</button>
           </div>
+          <p className="text-[10px] text-slate-500">Het rapport (PDF/HTML) gaat altijd over alle gemeten data van Ouddorp en de Maasvlakte; de periode en filters hierboven gelden alleen voor dit scherm en de CSV-exports.</p>
           <p className="text-[10px] text-slate-500">CSV gebruikt puntkomma's en decimale komma's en opent direct in Excel. In de app opent een export het deelmenu: kies "Opslaan in Bestanden", Drive of mail.</p>
 
           <SpotReportAudit reports={reports} reportsError={reportsError} auditDocs={forecasts} auditSpotId={AUDIT_SPOT_ID} onDownload={download} />

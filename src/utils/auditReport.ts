@@ -321,7 +321,7 @@ export function buildFullReport(input: FullReportInput): { title: string; html: 
   const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><style>${STYLE}</style></head><body>
 <h1>Duiding NzSurf — ${esc(results.map(r => r.name).join(' & '))}</h1>
-<p class="meta">Gemaakt ${esc(now.toLocaleString('nl-NL'))} · periode ${esc(input.periodLabel)} · ${input.observations.length} meetdagen · alleen vakken met ≥ ${MIN_N} vergelijkingen tellen mee</p>
+<p class="meta">Gemaakt ${esc(now.toLocaleString('nl-NL'))} · ${esc(input.periodLabel)} · ${input.observations.length} meetdagen · alleen vakken met ≥ ${MIN_N} vergelijkingen tellen mee</p>
 
 <h2>In één oogopslag</h2>
 ${glance}
