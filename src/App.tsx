@@ -726,6 +726,7 @@ export default function App() {
                   onUpdate={handleUpdateProfile}
                   allSpots={allSpots}
                   currentForecast={currentForecastData || forecast[0]}
+                  forecastHours={forecast}
                   onShareSpot={(spot) => console.log('Share spot', spot)}
                   onOpenAddSpot={() => {
                     setNewSpotInitialCoords(null);

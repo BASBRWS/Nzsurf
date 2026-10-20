@@ -15,7 +15,8 @@ import { buildAuditReport } from '../utils/auditReport';
 import { FileText } from 'lucide-react';
 import { WebcamPanel } from './WebcamPanel';
 import { loadWebcamMeasurements } from '../services/webcamMeasure';
-import { SurfSpot } from '../types';
+import { SurfSpot, UserProfile } from '../types';
+import { ChanceTestPanel } from './ChanceTestPanel';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
@@ -52,7 +53,7 @@ const fmtNum = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
 // Website: download; app: deelmenu (opslaan in Bestanden/Drive, mailen).
 const download = saveFileOrAlert;
 
-export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) {
+export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; user?: UserProfile } = {}) {
   const [period, setPeriod] = useState(30);
   const [spotId, setSpotId] = useState<AuditSpotId>(() => {
     try { return (localStorage.getItem('nzs_audit_spot') as AuditSpotId) || 'ouddorp-p-noordweg'; } catch { return 'ouddorp-p-noordweg'; }
@@ -233,6 +234,9 @@ export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) 
 
       {/* Webcam Maasvlakte: golf aan het strand naast de boei Maasgeul 2. */}
       <WebcamPanel observations={observations} onDownload={download} enabled={canCollectInApp()} spots={spots} />
+
+      {/* Kans tegen werkelijkheid: NzSurf nu, test (persoonlijk) en hybride tegen het webcamoordeel. */}
+      {user && <ChanceTestPanel user={user} spots={spots} audit={forecasts || []} />}
 
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}
       {!forecasts && !error && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden…</div>}

@@ -1,4 +1,5 @@
 import { ForecastAuditPanel } from './ForecastAuditPanel';
+import { ProfileChancePanel } from './ProfileChancePanel';
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Board, Wetsuit, SkillLevel, SurfSpot, ForecastData, SpotReport as SpotReportType } from '../types';
 import { SpotReport } from './SpotReport';
@@ -18,6 +19,7 @@ interface ProfileSettingsProps {
   onUpdate: (user: UserProfile) => void;
   allSpots: SurfSpot[];
   currentForecast: ForecastData | null;
+  forecastHours?: ForecastData[]; // alle uren van de gekozen spot (Beta: persoonlijke kans)
   onShareSpot: (spot: SurfSpot) => void;
   onOpenAddSpot?: () => void;
   onDeleteSpot?: (id: string) => void;
@@ -193,7 +195,8 @@ export function ProfileSettings({
   onOpenAddSpot,
   onDeleteSpot,
   onSelectSpot,
-  selectedSpotId
+  selectedSpotId,
+  forecastHours
 }: ProfileSettingsProps) {
   const [activeSubTab, setActiveSubTab] = useState<'settings' | 'report' | 'activity' | 'admin' | 'beta'>('settings');
   const [userReports, setUserReports] = useState<SpotReportType[]>([]);
@@ -428,7 +431,13 @@ export function ProfileSettings({
 
       {activeSubTab === 'beta' && isAdmin && (
         <div className="mt-6">
-          <ForecastAuditPanel spots={allSpots} />
+          <ProfileChancePanel spot={allSpots.find(s => s.id === selectedSpotId) || allSpots[0]} hours={forecastHours || []} user={user} />
+        </div>
+      )}
+
+      {activeSubTab === 'beta' && isAdmin && (
+        <div className="mt-6">
+          <ForecastAuditPanel spots={allSpots} user={user} />
         </div>
       )}
 
