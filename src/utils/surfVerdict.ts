@@ -81,7 +81,7 @@ export const observedVerdict = (o: ObsPoint, rule: SurfRule) => ruleVerdict(obse
 // ── Onderdelen: wanneer telt een voorspelling als "goed"? ───────────────────
 
 export const COMPONENTS = [
-  { key: 'total', label: 'Te surfen?', rule: 'zelfde oordeel als de werkelijkheid' },
+  { key: 'total', label: 'Te surfen?', rule: 'gebalanceerd: gemiddelde van "surfbare momenten gevangen" en "terecht nee" (wie altijd nee zegt, komt op 50%)' },
   { key: 'hs', label: 'Golf', rule: '≤ 0,25 m of ≤ 25% verschil' },
   { key: 'tp', label: 'Periode', rule: '≤ 1,5 s (gemeten Tm02 × 1,25)' },
   { key: 'dir', label: 'Swellrichting', rule: '≤ 30°' },
@@ -181,7 +181,24 @@ export function outlook(docs: AuditForecastDoc[], sources: string[], days: Date[
 
 // ── Tabel 4: score per onderdeel, per vooruitkijkdag, en stabiliteit ────────
 
-export interface ScoreRow { source: string; n: Partial<Record<ComponentKey, number>>; hit: Partial<Record<ComponentKey, number>> }
+/** Verwarringstabel voor "te surfen?": ja/nee van de voorspeller tegen de werkelijkheid. */
+export interface Confusion { tp: number; fn: number; tn: number; fp: number }
+export interface ScoreRow { source: string; n: Partial<Record<ComponentKey, number>>; hit: Partial<Record<ComponentKey, number>>; cm?: Confusion }
+
+/**
+ * Gebalanceerde score voor "te surfen?" (0–1): het gemiddelde van het deel surfbare
+ * momenten dat de voorspeller ving en het deel niet-surfbare dat hij terecht afwees.
+ * "Raak" alleen beloont nee-zeggers als de meeste uren niet surfbaar zijn.
+ * Ontbreekt één van beide klassen in de werkelijkheid, dan valt hij terug op raak.
+ */
+export function balanced(cm: Confusion | undefined): number | undefined {
+  if (!cm) return undefined;
+  const pos = cm.tp + cm.fn, neg = cm.tn + cm.fp;
+  if (!pos || !neg) return pos + neg ? (cm.tp + cm.tn) / (pos + neg) : undefined;
+  return (cm.tp / pos + cm.tn / neg) / 2;
+}
+export const caught = (cm?: Confusion) => (cm && cm.tp + cm.fn ? cm.tp / (cm.tp + cm.fn) : undefined);
+export const rightNo = (cm?: Confusion) => (cm && cm.tn + cm.fp ? cm.tn / (cm.tn + cm.fp) : undefined);
 
 /** Alle verwachtingen (elke ophaaldag) tegen de metingen; optioneel alleen één vooruitkijkdag. */
 export function componentScores(docs: AuditForecastDoc[], obs: AuditObsDoc[], rule: SurfRule, truthFn: TruthFn, onlyLeadDay?: number): Map<string, ScoreRow> {
@@ -199,6 +216,11 @@ export function componentScores(docs: AuditForecastDoc[], obs: AuditObsDoc[], ru
       for (const [k, ok] of Object.entries(componentHits(d.source, p, o, rule, truth)) as [ComponentKey, boolean][]) {
         row.n[k] = (row.n[k] || 0) + 1;
         if (ok) row.hit[k] = (row.hit[k] || 0) + 1;
+      }
+      const fv = forecastVerdict(d.source, p, rule).ok;
+      if (fv !== undefined && truth !== undefined) {
+        const cm = row.cm || (row.cm = { tp: 0, fn: 0, tn: 0, fp: 0 });
+        if (truth) { if (fv) cm.tp++; else cm.fn++; } else { if (fv) cm.fp++; else cm.tn++; }
       }
       rows.set(d.source, row);
     }
@@ -346,13 +368,21 @@ export function reportsAt(reports: SpotReportLike[], spotId: string, tMs: number
 
 // ── Ranglijsten ─────────────────────────────────────────────────────────────
 
-export interface RankRow { source: string; pct: number; n: number }
+export interface RankRow { source: string; pct: number; n: number; caught?: number; rightNo?: number; saysYes?: number }
 
 /** Ranglijst voor één onderdeel: hoogste % goed eerst (bij gelijk: meeste vergelijkingen). */
 export function componentRanking(scores: Map<string, ScoreRow>, key: ComponentKey): RankRow[] {
   return [...scores.values()]
     .filter(r => (r.n[key] || 0) > 0)
-    .map(r => ({ source: r.source, pct: Math.round((r.hit[key] || 0) / r.n[key]! * 100), n: r.n[key]! }))
+    .map(r => {
+      if (key === 'total' && r.cm) {
+        const b = balanced(r.cm), c = caught(r.cm), rn = rightNo(r.cm), n = r.cm.tp + r.cm.fn + r.cm.tn + r.cm.fp;
+        return { source: r.source, pct: Math.round((b ?? 0) * 100), n: r.n[key]!,
+          caught: c === undefined ? undefined : Math.round(c * 100), rightNo: rn === undefined ? undefined : Math.round(rn * 100),
+          saysYes: n ? Math.round((r.cm.tp + r.cm.fp) / n * 100) : undefined };
+      }
+      return { source: r.source, pct: Math.round((r.hit[key] || 0) / r.n[key]! * 100), n: r.n[key]! };
+    })
     .sort((a, b) => b.pct - a.pct || b.n - a.n);
 }
 
@@ -368,7 +398,8 @@ export function weightedScore(r: ScoreRow, keys: ComponentKey[]): number | null 
     const cn = r.n[k] || 0;
     if (!cn) continue;
     const w = k === 'total' ? 2 : 1;
-    sum += w * (r.hit[k] || 0) / cn; weight += w;
+    const frac = k === 'total' ? balanced(r.cm) ?? (r.hit[k] || 0) / cn : (r.hit[k] || 0) / cn;
+    sum += w * frac; weight += w;
   }
   return weight ? Math.round(sum / weight * 100) : null;
 }

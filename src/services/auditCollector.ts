@@ -24,7 +24,7 @@ import { parseSurfline, parseSurfnerd } from '../utils/siteParsers';
 interface CollectSite { spotId: string; name: string; lat: number; lng: number; surflineQuery: string; nameRe: RegExp; surfnerdSlug: string; suffix: string }
 export const COLLECT_SITES: CollectSite[] = [
   { spotId: 'ouddorp-p-noordweg', name: 'Ouddorp', lat: 51.8253, lng: 3.8874, surflineQuery: 'ouddorp', nameRe: /ouddorp/i, surfnerdSlug: 'ouddorp', suffix: '' },
-  { spotId: 'maasvlakte', name: 'Maasvlakte', lat: 51.965, lng: 4.01, surflineQuery: 'maasvlakte', nameRe: /maasvlakte/i, surfnerdSlug: 'maasvlakte-p6', suffix: '_maasvlakte' },
+  { spotId: 'maasvlakte', name: 'Maasvlakte', lat: 51.973, lng: 3.968, surflineQuery: 'maasvlakte', nameRe: /maasvlakte/i, surfnerdSlug: 'maasvlakte-p6', suffix: '_maasvlakte' },
 ];
 const MAX_RAW_CHARS = 700_000; // Firestore-document max. 1 MiB
 const PAGE_TIMEOUT_MS = 60_000; // per pagina, incl. eventuele Cloudflare-controle
@@ -153,7 +153,22 @@ async function collectSurfline(session: Session, runAt: Date, site: CollectSite)
   if (!search) return `${tag}: zoeken mislukt (zie auditRaw)`;
   let spotId: string | null = null;
   try { spotId = findSurflineSpotId(JSON.parse(search), site); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
-  if (!spotId) return `${tag}: spot ${site.name} niet gevonden in zoekresultaat`;
+  // Terugval: geen spot met deze naam → dichtstbijzijnde Surfline-spot op de kaart (≤ 10 km).
+  let via = 'naam';
+  if (!spotId) {
+    const d = 0.1;
+    const map = await visitAndKeep(session, runAt, raw('mapview'),
+      `https://services.surfline.com/kbyg/mapview?south=${site.lat - d}&west=${site.lng - d * 1.6}&north=${site.lat + d}&east=${site.lng + d * 1.6}`, 'text');
+    try {
+      const spots: any[] = JSON.parse(map || '{}')?.data?.spots || [];
+      const best = spots
+        .filter(s => typeof s?._id === 'string' && typeof s.lat === 'number' && typeof s.lon === 'number')
+        .map(s => ({ id: s._id as string, name: String(s.name || ''), km: Math.hypot((s.lat - site.lat) * 111, (s.lon - site.lng) * 69) }))
+        .sort((a, b) => a.km - b.km)[0];
+      if (best && best.km <= 10) { spotId = best.id; via = `kaart: ${best.name}, ${best.km.toFixed(1)} km`; }
+    } catch { /* geen JSON */ }
+  }
+  if (!spotId) return `${tag}: geen Surfline-spot ${site.name} gevonden (naam en kaart)`;
   const api = (type: string) => `https://services.surfline.com/kbyg/spots/forecasts/${type}?spotId=${spotId}&days=5&intervalHours=1`;
   // Na elkaar in hetzelfde venster (één browser, dus niet parallel). De oude
   // 'wave'-API geeft 404; golven staan nu in 'swells' (deining) en 'surf' (brekers).
@@ -168,7 +183,7 @@ async function collectSurfline(session: Session, runAt: Date, site: CollectSite)
   const docData: AuditForecastDoc = {
     runAt: runAt.toISOString(), runDate, spotId: site.spotId,
     source: 'surfline', label: site.suffix ? `Surfline (${site.name})` : 'Surfline', kind: 'site', points,
-    note: `opgehaald via de app (Surfline-spot ${spotId})`,
+    note: `opgehaald via de app (Surfline-spot ${spotId}, gevonden via ${via})`,
   };
   await setDoc(doc(db, 'auditForecasts', `${runDate}_surfline${site.suffix}`), docData);
   return `${tag}: ${points.length} punten`;
