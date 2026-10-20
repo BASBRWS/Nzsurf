@@ -475,6 +475,12 @@ async function main() {
       console.log(`Verwachtingen van ${runDate} staan er al voor ${SOURCES.length - todo.length} bronnen; ${todo.length ? `nu alleen nog: ${todo.map(e => e[0]).join(', ')}` : 'deze run vult alleen de metingen aan'}.`);
     }
     const results = await Promise.allSettled(todo.map(([, fn]) => fn()));
+    const summary: string[] = [];
+    results.forEach((r, i) => summary.push(r.status === 'rejected'
+      ? `✗ ${todo[i][0]} (${String(r.reason?.message || r.reason).slice(0, 60)})`
+      : r.value ? `${r.value.points.length ? '✓' : '✗'} ${r.value.source} ${r.value.points.length}` : `– ${todo[i][0]} overgeslagen`));
+    // Samenvatting als melding bij de GitHub-run (zichtbaar in de Actions-weergave).
+    if (process.env.GITHUB_ACTIONS) console.log(`::notice title=${spot.name}::${summary.join(' · ') || 'alles stond er al'}`);
     for (const r of results) {
       if (r.status === 'rejected') { console.log(`✗ bron mislukt: ${r.reason?.message || r.reason}`); continue; }
       const res = r.value;
