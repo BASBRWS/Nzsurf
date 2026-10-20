@@ -11,7 +11,7 @@
 // Zonder boeiwaarde is alleen de totale factor bekend: dan is doortrekken een indicatie.
 
 import type { WebcamMeasurement, SpotForecastSnap } from '../services/webcamMeasure';
-import type { AuditObsDoc, ObsPoint } from './forecastAudit';
+import type { AuditForecastDoc, AuditObsDoc, ObsPoint } from './forecastAudit';
 import { powerKw } from './forecastAudit';
 
 export interface WebcamRow {
@@ -108,4 +108,26 @@ export function buoyAt(t: string, observations: AuditObsDoc[]): { p: ObsPoint; m
     }
   }
   return best ? { p: best.p, maasgeul: best.maasgeul } : null;
+}
+
+// ── Surfline en surfnerd op de Maasvlakte (strandhoogte) ────────────────────
+
+/** Strandhoogte volgens een site op tijdstip `at`: laatste run vóór `at`, dichtstbijzijnde uur (≤ 90 min). */
+export function siteHeightAt(docs: AuditForecastDoc[], source: string, at: number): number | undefined {
+  const run = docs.filter(d => d.source === source && Date.parse(d.runAt) <= at)
+    .sort((a, b) => Date.parse(b.runAt) - Date.parse(a.runAt))[0];
+  if (!run) return undefined;
+  let best: AuditForecastDoc['points'][number] | undefined, bd = Infinity;
+  for (const p of run.points || []) { const d = Math.abs(Date.parse(p.t) - at); if (d < bd) { bd = d; best = p; } }
+  if (!best || bd > 90 * 60e3) return undefined;
+  // Surfline: brekerhoogte (min–max) → midden; anders de golfhoogte die de site toont.
+  if (typeof best.surfMin === 'number' && typeof best.surfMax === 'number') return Math.round((best.surfMin + best.surfMax) / 2 * 100) / 100;
+  return typeof best.hs === 'number' ? best.hs : undefined;
+}
+
+/** Gemiddelde afwijking van een reeks voorspellingen t.o.v. de webcam (alleen waar beide er zijn). */
+export function maeVsWebcam(pairs: { fc?: number; cam?: number }[]): { n: number; mae?: number; bias?: number } {
+  const ok = pairs.filter(p => typeof p.fc === 'number' && typeof p.cam === 'number') as { fc: number; cam: number }[];
+  if (!ok.length) return { n: 0 };
+  return { n: ok.length, mae: ok.reduce((a, p) => a + Math.abs(p.fc - p.cam), 0) / ok.length, bias: ok.reduce((a, p) => a + p.fc - p.cam, 0) / ok.length };
 }
