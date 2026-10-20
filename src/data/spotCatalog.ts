@@ -86,7 +86,8 @@ export const SPOT_CATALOG: CatalogSpot[] = [
   }),
   beach({
     slug: 'maasvlakte', place: 'Maasvlakte', name: 'Maasvlakte (P6)', region: 'Zuid-Holland',
-    lat: 51.965, lng: 4.01, coastlineAngle: 300,
+    // Maasvlakte 2-strand bij P6 (surfnerd); 51,965/4,01 lag nog op de oude kust van Maasvlakte 1, op land.
+    lat: 51.973, lng: 3.968, coastlineAngle: 300,
     bestWind: ['ZO', 'O', 'Z'], bestSwell: ['NW', 'NNW', 'N'],
     description: 'De Maasvlakte steekt ver de Noordzee in en pakt veel meer swell dan de Zeeuwse stranden. Een uitwijkspot voor dagen dat het elders te klein is, maar met bijna altijd stevige stroming.',
     tideText: 'Werkt op alle getijden; het getij bepaalt vooral hoe hard de stroming staat.',

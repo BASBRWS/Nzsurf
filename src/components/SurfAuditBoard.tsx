@@ -8,7 +8,7 @@ import { knotsToBft } from '../utils/surfMoments';
 import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../utils/forecastAudit';
 import {
   COMPONENTS, ComponentKey, DEFAULT_RULE, FULL_PARTS, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
-  combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
+  balanced, combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
   componentScores, daySlots, forecastVerdict, obsIndex, observedVerdict, outlook, pointFor, stability, windAngle,
 } from '../utils/surfVerdict';
 
@@ -351,7 +351,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
             {overall.length ? (
               <ol className="space-y-1">
                 {overall.map((r, i) => (
-                  <li key={r.source} className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-slate-50', r.n < MIN_N && 'opacity-60')}>
+                  <li key={r.source} className={cn('flex flex-wrap items-center gap-x-2 gap-y-0 rounded-lg px-2 py-1.5 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-slate-50', r.n < MIN_N && 'opacity-60')}>
                     <span className="w-6 text-right font-black">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
                     <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
                     <span className="tabular-nums font-black">{r.score}%</span>
@@ -413,6 +413,9 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                     <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${r.pct}%` }} /></div>
                     <span className="tabular-nums font-bold w-10 text-right">{r.pct}%</span>
                     <span className="tabular-nums text-[10px] text-slate-500 w-10 text-right">n {r.n}</span>
+                    {rankKey === 'total' && r.caught !== undefined && (
+                      <span className="basis-full pl-8 text-[10px] font-normal text-slate-500">gevangen {r.caught}% · terecht nee {r.rightNo ?? '–'}% · zegt ja {r.saysYes ?? '–'}%</span>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -423,6 +426,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                 <li>Kies een onderdeel. De balk en het % tonen hoe vaak de voorspelling binnen de marge bleef ("goed als …" hierboven).</li>
                 <li><b>n</b> = aantal vergelijkingen. Vaag = minder dan {MIN_N}.</li>
                 <li>Anders dan bij de MAE-tabellen telt hier niet hóéveel iemand ernaast zat, alleen of het binnen de marge viel.</li>
+                <li><b>Te surfen?</b> is gebalanceerd: het gemiddelde van <i>gevangen</i> (welk deel van de surfbare momenten de voorspeller als surfbaar gaf) en <i>terecht nee</i>. Gewoon "% raak" beloont wie altijd nee zegt, omdat de meeste uren niet surfbaar zijn; zo iemand komt hier op 50%. <i>Zegt ja</i> = hoe vaak hij surfbaar gaf.</li>
               </ul>
             </TableHelp></div>
           </div>
@@ -441,7 +445,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                     <td className={stickyTd(isNz(s.source))}>{s.label}{!OWN_VERDICT_SOURCES.has(s.source) && <sup className="text-slate-400"> r</sup>}</td>
                     {COMPONENTS.map(c => (
                       <td key={c.key} className={cn('text-right px-1.5', (r!.n[c.key] || 0) < MIN_N && 'text-slate-400', c.key === 'total' && 'font-bold')}>
-                        {pct(r!.hit[c.key], r!.n[c.key])}
+                        {c.key === 'total' && r!.cm && balanced(r!.cm) !== undefined ? `${Math.round(balanced(r!.cm)! * 100)}%` : pct(r!.hit[c.key], r!.n[c.key])}
                       </td>
                     ))}
                     <td className="text-right px-1.5 text-slate-500">{r!.n.total || r!.n.hs || r!.n.wind || 0}</td>
