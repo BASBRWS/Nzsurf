@@ -120,7 +120,7 @@ const roleOf = (source: string, bestOther?: string): BarRow['role'] =>
   source === NZ ? 'nz' : source === HYBRID_SOURCE ? 'hybrid' : source === bestOther ? 'best' : 'other';
 const list = (xs: string[]) => xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} en ${xs[xs.length - 1]}`;
 
-interface SpotResult { html: string; vs: ParamVerdict[]; days: number; pairs: number; name: string }
+interface SpotResult { html: string; vs: ParamVerdict[]; days: number; pairs: number; name: string; appendix: string }
 
 /** Hoofdstuk voor één spot: oordeel, grafieken en tabellen. */
 function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: SpotReportLike[] | undefined, withReports: boolean): SpotResult {
@@ -134,7 +134,7 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
   const latestHybrid = forecasts.filter(f => f.source === HYBRID_SOURCE).sort((a, b) => b.runAt.localeCompare(a.runAt))[0];
   const labelOf = new Map(forecasts.map(f => [f.source, f.label]));
   if (!pairs.length) {
-    return { html: `<section class="spot"><h2 class="spot-h">${esc(spot.name)}</h2><p class="warn">Nog geen verwachtingen met een meting op hetzelfde uur. ${days ? `${days} ophaaldag(en) vastgelegd; ` : ''}de eerste vergelijkingen verschijnen zodra de boei de voorspelde uren heeft gemeten.</p></section>`, vs, days, pairs: 0, name: spot.name };
+    return { appendix: '', html: `<section class="spot"><h2 class="spot-h">${esc(spot.name)}</h2><p class="warn">Nog geen verwachtingen met een meting op hetzelfde uur. ${days ? `${days} ophaaldag(en) vastgelegd; ` : ''}de eerste vergelijkingen verschijnen zodra de boei de voorspelde uren heeft gemeten.</p></section>`, vs, days, pairs: 0, name: spot.name };
   }
 
   // Kernoordeel.
@@ -211,7 +211,7 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
   const surfChart = pctChart('Te surfen?: gebalanceerde score', surfRank.map(r => ({
     label: labelOf.get(r.source) || r.source, pct: r.pct, role: roleOf(r.source, bestSurfOther),
     sub: r.caught !== undefined ? `gevangen ${r.caught}% · terecht nee ${r.rightNo ?? '–'}% · zegt ja ${r.saysYes ?? '–'}%` : undefined,
-  })), 'Gemiddelde van "surfbare momenten gevangen" en "terecht nee"; wie altijd nee zegt, komt op 50% (stippellijn). Werkelijkheid: spotrapporten, anders de regel op de boei (golf ≥ 0,6 m, periode ≥ 5 s, wind ≤ 16 kn aanlandig / 20 kn anders).');
+  })), 'Gemiddelde van "surfbare momenten gevangen" en "terecht nee"; wie altijd nee zegt, komt op 50% (stippellijn). Werkelijkheid: spotrapporten, anders de regel op de boei (golf ≥ 0,6 m, periode ≥ 5 s, wind ≤ 16 kn aanlandig / 20 kn anders). Let op: de boei beschrijft de zee, niet het strand. Bronnen die de zee of de hele kust beoordelen (zoals Wompy) passen daar vanzelf beter bij dan een bron die naar de spot vertaalt (NzSurf dempt voor de Voordelta). De eerlijke toets voor het strand is de webcam en je spotrapporten (Beta: kans tegen werkelijkheid).');
 
   const verdictRows = vs.map(v => {
     const d = decimals(v.param);
@@ -262,7 +262,23 @@ ${latestConcept ? `<h3>Waar het concept op leunt</h3><p class="meta">${esc(lates
 ${energy.replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>')}
 ${reportSection}
 </section>`;
-  return { html, vs, days, pairs: pairs.length, name: spot.name };
+  // Bijlage: alle ranglijsten van deze spot.
+  const appendixTables = PARAMS.map(prm => {
+    const sc = scorePairs(pairs.filter(p => p.param === prm.key));
+    if (!sc.length) return '';
+    const d = decimals(prm.key);
+    const ok = sc.filter(x => x.n >= MIN_N), few = sc.filter(x => x.n < MIN_N);
+    const row = (x: Score, i: number | null) => `<tr class="${OURS.includes(x.source) ? 'ours' : ''}${i === null ? ' few' : ''}"><td>${i === null ? '–' : i + 1}</td><td>${esc(x.label)}</td><td>${nl(x.mae, d)}</td><td>${signed(x.bias, d)}</td><td>${nl(x.rmse, d)}</td><td>${x.n}</td></tr>`;
+    return `<h3>${esc(prm.label)} (${esc(prm.unit)})</h3>
+<table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Gem. afwijking</th><th>Bias</th><th>RMSE</th><th>n</th></tr></thead><tbody>${ok.map((x, i) => row(x, i)).join('')}${few.map(x => row(x, null)).join('')}</tbody></table>`;
+  }).join('');
+  const surfTable = surfRank.length ? `<h3>Te surfen? (gebalanceerd)</h3>
+<table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Score</th><th>Gevangen</th><th>Terecht nee</th><th>Zegt ja</th><th>n</th></tr></thead><tbody>${surfRank.map((r, i) =>
+    `<tr class="${OURS.includes(r.source) ? 'ours' : ''}"><td>${i + 1}</td><td>${esc(labelOf.get(r.source) || r.source)}</td><td><b>${r.pct}%</b></td><td>${r.caught ?? '–'}%</td><td>${r.rightNo ?? '–'}%</td><td>${r.saysYes ?? '–'}%</td><td>${r.n}</td></tr>`).join('')}</tbody></table>` : '';
+  const appendix = appendixTables || surfTable ? `<section class="spot"><h2 class="spot-h">Bijlage — ${esc(spot.name)}: alle ranglijsten</h2>
+<p class="meta">Alle bronnen per onderdeel, gesorteerd op gemiddelde afwijking (lager = beter). Bias: + = te hoog, − = te laag. RMSE weegt grote missers zwaarder. Bronnen met minder dan ${MIN_N} vergelijkingen staan grijs onderaan zonder rang. Vet = NzSurf, hybride en concept.</p>
+${surfTable}${appendixTables}</section>` : '';
+  return { html, vs, days, pairs: pairs.length, name: spot.name, appendix };
 }
 
 const STYLE = `
@@ -277,7 +293,8 @@ tr.note td{color:#475569;font-size:11.5px;border-bottom:2px solid #cbd5e1}small{
 figure.chart{margin:10px 0}figure.chart figcaption{font-size:12.5px;font-weight:700;margin-bottom:2px}figure.chart figcaption span{font-weight:400;color:#64748b}
 .pair{display:flex;flex-wrap:wrap;gap:8px}.pair figure.small{flex:1 1 300px;margin:4px 0}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#52514e;margin:8px 0 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-.glance td,.glance th{text-align:center}.glance td:first-child,.glance th:first-child{text-align:left}
+.glance td,.glance th{text-align:center}
+table.rank td:nth-child(n+3),table.rank th:nth-child(n+3){text-align:right}table.rank tr.ours td{font-weight:700;background:#f0f9ff}table.rank tr.few td{color:#94a3b8}.glance td:first-child,.glance th:first-child{text-align:left}
 @media print{body{padding:0}h2,h3{break-after:avoid}table,figure{break-inside:avoid}section.spot{break-before:page}}
 `;
 
@@ -321,6 +338,8 @@ ${webcam ? `<section class="spot">${webcam}</section>` : ''}
 <li><b>Golfkracht</b> is berekend (0,49 × Hs² × 1,2 × T), niet gemeten.</li>
 <li><b>Dubbelingen:</b> Open-Meteo best match is golf van Météo-France en wind van KNMI; telt niet als aparte stem.</li>
 </ul>
+
+${results.map(r => r.appendix).join('\n')}
 </body></html>`;
   return { title, html };
 }
