@@ -4,7 +4,10 @@ import { AuditObsDoc, ObsPoint, toCsv } from '../utils/forecastAudit';
 import {
   WebcamMeasurement, getVideoId, setVideoId, loadWebcamMeasurements, runWebcamMeasurement, webcamSpots, NEARBY_KM,
 } from '../services/webcamMeasure';
-import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt } from '../utils/webcamVerify';
+import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt, siteHeightAt, maeVsWebcam } from '../utils/webcamVerify';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import type { AuditForecastDoc } from '../utils/forecastAudit';
 import { SurfSpot } from '../types';
 import { getClaudeKey, setClaudeKey, getClaudeModel, setClaudeModel, maskKey, CLAUDE_DEFAULT_MODEL } from '../services/aiServer';
 
@@ -31,12 +34,27 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
   const [claudeKey, setKeyState] = useState(getClaudeKey());
   const [keyDraft, setKeyDraft] = useState('');
 
+  // Surfline en surfnerd voor de Maasvlakte (door de app opgehaald), voor de strandhoogte.
+  const [siteDocs, setSiteDocs] = useState<AuditForecastDoc[]>([]);
+  useEffect(() => {
+    getDocs(query(collection(db, 'auditForecasts'), where('spotId', '==', 'maasvlakte')))
+      .then(snap => setSiteDocs(snap.docs.map(d => d.data() as AuditForecastDoc))).catch(() => {});
+  }, []);
   useEffect(() => {
     loadWebcamMeasurements().then(setItems).catch(e => setLoadError(e?.message || String(e)));
   }, []);
 
   const rows = useMemo(() => (items || []).map(m => webcamRow(m, buoyAt(m.runAt, observations))), [items, observations]);
   const sum = useMemo(() => summarizeWebcam(rows), [rows]);
+  const site = useMemo(() => rows.map(r => {
+    const at = Date.parse(r.m.runAt);
+    return { surfline: siteHeightAt(siteDocs, 'surfline', at), surfnerd: siteHeightAt(siteDocs, 'surfnerd', at) };
+  }), [rows, siteDocs]);
+  const beachScores = useMemo(() => [
+    { name: 'NzSurf', ...maeVsWebcam(rows.map(r => ({ fc: r.nzSpot, cam: r.beach }))) },
+    { name: 'Surfline', ...maeVsWebcam(rows.map((r, i) => ({ fc: site[i].surfline, cam: r.beach }))) },
+    { name: 'surfnerd', ...maeVsWebcam(rows.map((r, i) => ({ fc: site[i].surfnerd, cam: r.beach }))) },
+  ].filter(x => x.n > 0).sort((a, b) => (a.mae ?? 9) - (b.mae ?? 9)), [rows, site]);
   const latest = rows.find(r => r.m.nearby?.length || r.m.forecast);
   // Factoren pas doortrekken met genoeg metingen; anders die van de laatste meting (indicatie).
   const seaF = sum.nSea >= 3 ? sum.sea : latest?.sea;
@@ -123,7 +141,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead><tr className="text-left text-slate-500">
-                <th className="pr-2">Tijd</th><th className="pr-2 text-right">Webcam</th><th className="pr-2 text-right">NzSurf</th><th className="pr-2">Kwaliteit</th>
+                <th className="pr-2">Tijd</th><th className="pr-2 text-right">Webcam</th><th className="pr-2 text-right">NzSurf</th><th className="pr-2 text-right">Surfline</th><th className="pr-2 text-right">surfnerd</th><th className="pr-2">Kwaliteit</th>
                 <th className="pr-2 text-right">Model zee</th><th className="pr-2 text-right">Boei Hs</th><th className="pr-2 text-right">Tm02</th><th className="pr-2 text-right">Kracht NzSurf</th><th className="pr-2 text-right">Kracht boei</th><th className="pr-2 text-right">Wind</th><th className="pr-2 text-right">÷ NzSurf</th>
               </tr></thead>
               <tbody>
@@ -132,6 +150,8 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
                     <td className="pr-2 font-mono whitespace-nowrap">{new Date(r.m.runAt).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                     <td className="pr-2 text-right">{fmt(r.beach)}{r.m.result.heightClass ? <span className="text-slate-400"> {r.m.result.heightClass}</span> : null}</td>
                     <td className="pr-2 text-right">{fmt(r.nzSpot)}</td>
+                    <td className="pr-2 text-right">{fmt(site[rows.indexOf(r)]?.surfline)}</td>
+                    <td className="pr-2 text-right">{fmt(site[rows.indexOf(r)]?.surfnerd)}</td>
                     <td className="pr-2">{r.m.result.quality ?? '—'}</td>
                     <td className="pr-2 text-right">{fmt(r.m.forecast?.modelHs, 2)}</td>
                     <td className="pr-2 text-right">{r.buoy ? `${fmt(r.buoy.hs, 2)}${r.buoyMaasgeul ? '' : '*'}` : 'volgt'}</td>
@@ -145,7 +165,12 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-slate-500">Webcam = geschatte hoogte van de brekende golfwand; NzSurf = verwachte hoogte op de spot; model zee = Open-Meteo bij de spot; boei = Maasgeul 2 (gemeten); kracht = 0,49 × Hs² × 1,2 × periode (kW per meter kust). Het verschil in definitie (golfwand vs. significante hoogte) zit in de factoren; vergelijk dus vooral de trend.</p>
+          {beachScores.length > 0 && (
+            <p className="text-xs text-slate-700">
+              Strandhoogte tegen de webcam (gem. afwijking): {beachScores.map((b, i) => <span key={b.name}>{i ? ' · ' : ''}<b>{b.name}</b> {fmt(b.mae, 2)} m <span className="text-slate-500">(n={b.n}, {b.bias! >= 0 ? '+' : ''}{fmt(b.bias, 2)})</span></span>)}
+            </p>
+          )}
+          <p className="text-[10px] text-slate-500">Webcam = geschatte hoogte van de brekende golfwand; NzSurf = verwachte hoogte op de spot; model zee = Open-Meteo bij de spot; Surfline = brekerhoogte (midden min–max), surfnerd = golf op de spot, beide voor Maasvlakte P6; boei = Maasgeul 2 (gemeten); kracht = 0,49 × Hs² × 1,2 × periode (kW per meter kust). Het verschil in definitie (golfwand vs. significante hoogte) zit in de factoren; vergelijk dus vooral de trend.</p>
 
           {estimates.length > 0 && (
             <div className="space-y-1">
@@ -177,7 +202,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
           {rows[0]?.m.result.verdict && <p className="text-[11px] text-slate-700">Oordeel uit beeld — longboard: <b>{rows[0].m.result.verdict.longboard ?? '–'}</b> · mid: <b>{rows[0].m.result.verdict.mid ?? '–'}</b> · shortboard: <b>{rows[0].m.result.verdict.shortboard ?? '–'}</b>{typeof rows[0].m.result.surfers === 'number' ? ` · ${rows[0].m.result.surfers} surfer(s)` : ''}</p>}
           {rows[0]?.m.forecastError && <p className="text-[11px] text-amber-700">NzSurf-verwachting ontbrak bij de laatste meting: {rows[0].m.forecastError}</p>}
           {rows[0]?.m.thumb && <img src={rows[0].m.thumb} alt="Beeld laatste webcammeting" className="rounded-lg max-w-full w-72 border border-slate-200" />}
-          <button onClick={() => onDownload(`nzsurf-webcam-maasvlakte-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows.map(r => ({
+          <button onClick={() => onDownload(`nzsurf-webcam-maasvlakte-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows.map((r, i) => ({
               tijd_utc: r.m.runAt, beelden: r.m.frames, bruikbaar: r.m.result.framesUsable, webcam_m: r.beach ?? '',
               webcam_min: r.m.result.rangeM?.[0] ?? '', webcam_max: r.m.result.rangeM?.[1] ?? '', klasse: r.m.result.heightClass ?? '',
               kwaliteit: r.m.result.quality ?? '', lijnen: r.m.result.breakingLines ?? '', water: r.m.result.waterSurface ?? '', surfers: r.m.result.surfers ?? '',
@@ -186,6 +211,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
               boei_hs_m: r.buoy?.hs ?? '', boei_tm02_s: r.buoy?.tm02 ?? '', boei_richting: r.buoy?.dir ?? '',
               wind_kn: r.buoy?.windKn ?? '', windrichting: r.buoy?.windDir ?? '', boei_maasgeul: r.buoy ? (r.buoyMaasgeul ? 'ja' : 'nee') : '',
               webcam_gedeeld_door_nzsurf: r.total ?? '', boei_gedeeld_door_model: r.sea ?? '', strandfactor: r.beachFactor ?? '',
+              surfline_strand_m: site[i]?.surfline ?? '', surfnerd_m: site[i]?.surfnerd ?? '',
               opmerking: r.m.result.note ?? '',
               ...Object.fromEntries((r.m.nearby || []).map(n => [`nzsurf_${n.spotId}_m`, n.spotHs ?? ''])),
             }))), 'text/csv;charset=utf-8')}

@@ -41,7 +41,12 @@ const WAVE_FILTERS = [
 ];
 
 // De audit draait voor Ouddorp (zie scripts/forecast-audit.ts).
-const AUDIT_SPOT_ID = 'ouddorp-p-noordweg';
+// Auditspots (zie scripts/forecast-audit.ts). Metingen gedeeld (boei Maasgeul 2, wind Europlatform).
+const AUDIT_SPOTS = [
+  { id: 'ouddorp-p-noordweg', name: 'Ouddorp', buoy: 'boei Maasgeul 2, 20 km van Ouddorp — oudere dagen Schouwenbank, 41 km' },
+  { id: 'maasvlakte', name: 'Maasvlakte', buoy: 'boei Maasgeul 2, vlak voor de Maasvlakte (±5 km) — oudere dagen Schouwenbank' },
+] as const;
+type AuditSpotId = typeof AUDIT_SPOTS[number]['id'];
 
 const fmtNum = (v: number, d = 2) => v.toFixed(d).replace('.', ',');
 
@@ -50,6 +55,12 @@ const download = saveFileOrAlert;
 
 export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; user?: UserProfile } = {}) {
   const [period, setPeriod] = useState(30);
+  const [spotId, setSpotId] = useState<AuditSpotId>(() => {
+    try { return (localStorage.getItem('nzs_audit_spot') as AuditSpotId) || 'ouddorp-p-noordweg'; } catch { return 'ouddorp-p-noordweg'; }
+  });
+  const AUDIT_SPOT_ID = spotId;
+  const auditSpot = AUDIT_SPOTS.find(s => s.id === spotId) ?? AUDIT_SPOTS[0];
+  const chooseSpot = (id: AuditSpotId) => { setSpotId(id); try { localStorage.setItem('nzs_audit_spot', id); } catch { /* geen opslag */ } };
   const [param, setParam] = useState<AuditParam>('hs');
   const [bucket, setBucket] = useState<LeadBucket | 'all'>('all');
   const [minWind, setMinWind] = useState(0);
@@ -84,7 +95,9 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
           getDocs(query(collection(db, 'auditObservations'), where('date', '>=', from))),
         ]);
         if (cancelled) return;
-        const fc = fcSnap.docs.map(d => d.data() as AuditForecastDoc);
+        // Alleen de gekozen spot (oude documenten zonder spotId horen bij Ouddorp).
+        const fc = fcSnap.docs.map(d => d.data() as AuditForecastDoc)
+          .filter(f => (f.spotId || 'ouddorp-p-noordweg') === spotId);
         const obs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
         // NzSurf concept: blend van de eigen modelbronnen, per ophaaldag berekend
         // met alleen de kennis van vóór die dag (zie utils/forecastBlend.ts).
@@ -100,7 +113,7 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
       }
     })();
     return () => { cancelled = true; };
-  }, [period]);
+  }, [period, spotId]);
 
   const allPairs = useMemo(() => (forecasts ? buildPairs(forecasts, observations) : []), [forecasts, observations]);
   const sources = useMemo(() => {
@@ -156,9 +169,17 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
   return (
     <div className="bg-white/90 border border-slate-200 rounded-3xl p-4 sm:p-6 space-y-5">
       <div>
-        <h3 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-500" /> Voorspellingsaudit — Ouddorp</h3>
+        <h3 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-500" /> Voorspellingsaudit — {auditSpot.name}</h3>
+        <div className="flex gap-1 mt-2">
+          {AUDIT_SPOTS.map(sp => (
+            <button key={sp.id} onClick={() => chooseSpot(sp.id)}
+              className={cn('text-xs font-bold px-3 py-1.5 rounded-lg border cursor-pointer', sp.id === spotId ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300')}>
+              {sp.name}
+            </button>
+          ))}
+        </div>
         <p className="text-xs text-slate-600 mt-1">
-          Elke dag legt een workflow de verwachtingen van alle bronnen vast (de eerste ophaalronde van de dag); 4× per dag vult hij de metingen van Rijkswaterstaat aan (golven: boei Maasgeul 2, 20 km van Ouddorp — oudere dagen Schouwenbank, 41 km; wind: Europlatform).
+          Elke dag legt een workflow de verwachtingen van alle bronnen vast (de eerste ophaalronde van de dag); 4× per dag vult hij de metingen van Rijkswaterstaat aan (golven: {auditSpot.buoy}; wind: Europlatform). De Maasvlakte wordt sinds 20 okt 2026 vastgelegd.
           Fout = verwachting − meting. MAE = gemiddelde afwijking, bias = structureel te hoog (+) of te laag (−).
           Onder {MIN_N} metingen is een score nog niet betrouwbaar.
         </p>
@@ -178,7 +199,7 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
           >
             {appCollect.busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Surfline &amp; surfnerd nu ophalen
           </button>
-          <p className="text-[11px] text-slate-500">Opent ±20–60 s een browservenster. Verschijnt er een Cloudflare-vinkje ("Ik ben een mens"), tik dat dan aan. De app vraagt hier ook 1x per dag om bij openen.</p>
+          <p className="text-[11px] text-slate-500">Opent ±40–120 s een browservenster (Ouddorp én Maasvlakte). Verschijnt er een Cloudflare-vinkje ("Ik ben een mens"), tik dat dan aan. De app vraagt hier ook 1x per dag om bij openen.</p>
           {appCollect.results && <ul className="text-[11px] font-mono text-slate-700">{appCollect.results.map(r => <li key={r}>{r}</li>)}</ul>}
         </div>
       ) : (
@@ -371,7 +392,9 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
           <div className="flex flex-wrap gap-2">
             <button onClick={async () => {
                 const webcam = await loadWebcamMeasurements().catch(() => []);
-                const { html } = buildAuditReport({ forecasts, observations, reports, webcam, auditSpotId: AUDIT_SPOT_ID, spotName: 'Ouddorp',
+                const webcamSites = await getDocs(query(collection(db, 'auditForecasts'), where('spotId', '==', 'maasvlakte')))
+                  .then(s => s.docs.map(d => d.data() as AuditForecastDoc)).catch(() => [] as AuditForecastDoc[]);
+                const { html } = buildAuditReport({ forecasts, observations, reports, webcam, webcamSites, auditSpotId: AUDIT_SPOT_ID, spotName: auditSpot.name,
                   periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
                 download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8');
               }}

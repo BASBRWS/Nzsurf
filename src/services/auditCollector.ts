@@ -18,8 +18,14 @@ import { parseSurfline, parseSurfnerd } from '../utils/siteParsers';
  * Surfline wordt uitgelezen via de bekende API-opbouw; surfnerd voorlopig alleen ruw.
  */
 
-const SPOT_ID = 'ouddorp-p-noordweg';
-const SPOT = { lat: 51.8253, lng: 3.8874 };
+// Spots waarvoor de app Surfline en surfnerd ophaalt. Ouddorp = de audit (tegen de boei);
+// Maasvlakte = naast de webcam (strandhoogte). Bron blijft 'surfline'/'surfnerd' (Firestore-regels),
+// de spot staat in spotId en in de documentnaam.
+interface CollectSite { spotId: string; name: string; lat: number; lng: number; surflineQuery: string; nameRe: RegExp; surfnerdSlug: string; suffix: string }
+export const COLLECT_SITES: CollectSite[] = [
+  { spotId: 'ouddorp-p-noordweg', name: 'Ouddorp', lat: 51.8253, lng: 3.8874, surflineQuery: 'ouddorp', nameRe: /ouddorp/i, surfnerdSlug: 'ouddorp', suffix: '' },
+  { spotId: 'maasvlakte', name: 'Maasvlakte', lat: 51.965, lng: 4.01, surflineQuery: 'maasvlakte', nameRe: /maasvlakte/i, surfnerdSlug: 'maasvlakte-p6', suffix: '_maasvlakte' },
+];
 const MAX_RAW_CHARS = 700_000; // Firestore-document max. 1 MiB
 const PAGE_TIMEOUT_MS = 60_000; // per pagina, incl. eventuele Cloudflare-controle
 const LAST_RUN_KEY = 'nzs_audit_app_collect';
@@ -121,17 +127,17 @@ async function visitAndKeep(session: Session, runAt: Date, name: string, url: st
 // ── Surfline (services.surfline.com/kbyg) ───────────────────────────────────
 
 /** Zoekt in het zoekresultaat (willekeurig genest) naar de Ouddorp-spot die het dichtst bij ligt. */
-function findSurflineSpotId(search: unknown): string | null {
+function findSurflineSpotId(search: unknown, site: CollectSite): string | null {
   const found: { id: string; dist: number }[] = [];
   const walk = (o: any) => {
     if (!o || typeof o !== 'object') return;
     if (Array.isArray(o)) { o.forEach(walk); return; }
     const name = o._source?.name;
-    if (typeof o._id === 'string' && typeof name === 'string' && /ouddorp/i.test(name)) {
+    if (typeof o._id === 'string' && typeof name === 'string' && site.nameRe.test(name)) {
       const loc = o._source?.location;
       const lat = loc?.lat ?? loc?.coordinates?.[1];
       const lon = loc?.lon ?? loc?.coordinates?.[0];
-      const dist = typeof lat === 'number' && typeof lon === 'number' ? Math.hypot(lat - SPOT.lat, lon - SPOT.lng) : 99;
+      const dist = typeof lat === 'number' && typeof lon === 'number' ? Math.hypot(lat - site.lat, lon - site.lng) : 99;
       found.push({ id: o._id, dist });
     }
     Object.values(o).forEach(walk);
@@ -140,49 +146,52 @@ function findSurflineSpotId(search: unknown): string | null {
   return found.sort((a, b) => a.dist - b.dist)[0]?.id ?? null;
 }
 
-async function collectSurfline(session: Session, runAt: Date): Promise<string> {
-  const search = await visitAndKeep(session, runAt, 'surfline-search', 'https://services.surfline.com/search/site?q=ouddorp&querySize=10&suggestionSize=10', 'text');
-  if (!search) return 'surfline: zoeken mislukt (zie auditRaw)';
+async function collectSurfline(session: Session, runAt: Date, site: CollectSite): Promise<string> {
+  const tag = `surfline${site.suffix ? ` ${site.name}` : ''}`;
+  const raw = (n: string) => `surfline-${n}${site.suffix}`;
+  const search = await visitAndKeep(session, runAt, raw('search'), `https://services.surfline.com/search/site?q=${site.surflineQuery}&querySize=10&suggestionSize=10`, 'text');
+  if (!search) return `${tag}: zoeken mislukt (zie auditRaw)`;
   let spotId: string | null = null;
-  try { spotId = findSurflineSpotId(JSON.parse(search)); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
-  if (!spotId) return 'surfline: spot Ouddorp niet gevonden in zoekresultaat';
+  try { spotId = findSurflineSpotId(JSON.parse(search), site); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
+  if (!spotId) return `${tag}: spot ${site.name} niet gevonden in zoekresultaat`;
   const api = (type: string) => `https://services.surfline.com/kbyg/spots/forecasts/${type}?spotId=${spotId}&days=5&intervalHours=1`;
   // Na elkaar in hetzelfde venster (één browser, dus niet parallel). De oude
   // 'wave'-API geeft 404; golven staan nu in 'swells' (deining) en 'surf' (brekers).
-  const swells = await visitAndKeep(session, runAt, 'surfline-swells', api('swells'), 'text');
-  const surf = await visitAndKeep(session, runAt, 'surfline-surf', api('surf'), 'text');
-  const wind = await visitAndKeep(session, runAt, 'surfline-wind', api('wind'), 'text');
-  const rating = await visitAndKeep(session, runAt, 'surfline-rating', api('rating'), 'text');
+  const swells = await visitAndKeep(session, runAt, raw('swells'), api('swells'), 'text');
+  const surf = await visitAndKeep(session, runAt, raw('surf'), api('surf'), 'text');
+  const wind = await visitAndKeep(session, runAt, raw('wind'), api('wind'), 'text');
+  const rating = await visitAndKeep(session, runAt, raw('rating'), api('rating'), 'text');
   const parse = (s: string | null) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
   const points = parseSurfline({ swells: parse(swells), surf: parse(surf), wind: parse(wind), rating: parse(rating) }, runAt);
-  if (!points.length) return `surfline: spot ${spotId} gevonden, maar 0 punten uitgelezen`;
+  if (!points.length) return `${tag}: spot ${spotId} gevonden, maar 0 punten uitgelezen`;
   const runDate = runAt.toISOString().slice(0, 10);
   const docData: AuditForecastDoc = {
-    runAt: runAt.toISOString(), runDate, spotId: SPOT_ID,
-    source: 'surfline', label: 'Surfline', kind: 'site', points,
+    runAt: runAt.toISOString(), runDate, spotId: site.spotId,
+    source: 'surfline', label: site.suffix ? `Surfline (${site.name})` : 'Surfline', kind: 'site', points,
     note: `opgehaald via de app (Surfline-spot ${spotId})`,
   };
-  await setDoc(doc(db, 'auditForecasts', `${runDate}_surfline`), docData);
-  return `surfline: ${points.length} punten`;
+  await setDoc(doc(db, 'auditForecasts', `${runDate}_surfline${site.suffix}`), docData);
+  return `${tag}: ${points.length} punten`;
 }
 
 // ── surfnerd (ronde 1: alleen ruw opslaan) ──────────────────────────────────
 
-async function collectSurfnerd(session: Session, runAt: Date): Promise<string> {
-  const html = await visitAndKeep(session, runAt, 'surfnerd', 'https://www.surfnerd.com/surf-forecast/ouddorp', 'html');
-  if (!html) return 'surfnerd: ophalen mislukt (zie auditRaw)';
-  if (/<title>Just a moment/i.test(html)) return 'surfnerd: Cloudflare-controle (geblokkeerd)';
+async function collectSurfnerd(session: Session, runAt: Date, site: CollectSite): Promise<string> {
+  const tag = `surfnerd${site.suffix ? ` ${site.name}` : ''}`;
+  const html = await visitAndKeep(session, runAt, `surfnerd${site.suffix}`, `https://www.surfnerd.com/surf-forecast/${site.surfnerdSlug}`, 'html');
+  if (!html) return `${tag}: ophalen mislukt (zie auditRaw)`;
+  if (/<title>Just a moment/i.test(html)) return `${tag}: Cloudflare-controle (geblokkeerd)`;
   const points = parseSurfnerd(html, runAt);
-  if (!points.length) return `surfnerd: pagina opgeslagen (${Math.round(html.length / 1024)} kB), maar 0 punten uitgelezen`;
+  if (!points.length) return `${tag}: pagina opgeslagen (${Math.round(html.length / 1024)} kB), maar 0 punten uitgelezen`;
   const runDate = runAt.toISOString().slice(0, 10);
   const docData: AuditForecastDoc = {
-    runAt: runAt.toISOString(), runDate, spotId: SPOT_ID,
-    source: 'surfnerd', label: 'surfnerd (SN Unity)', kind: 'site', points,
+    runAt: runAt.toISOString(), runDate, spotId: site.spotId,
+    source: 'surfnerd', label: site.suffix ? `surfnerd (${site.name})` : 'surfnerd (SN Unity)', kind: 'site', points,
     // De pagina voor niet-ingelogde bezoekers kan een gecachete versie zijn; leg vast van wanneer.
     note: `opgehaald via de app; golf = dominante golf op de spot; pagina gemaakt ${html.match(/"dateModified"\s*:\s*"([^"]+)"/)?.[1] || 'onbekend'}`,
   };
-  await setDoc(doc(db, 'auditForecasts', `${runDate}_surfnerd`), docData);
-  return `surfnerd: ${points.length} punten`;
+  await setDoc(doc(db, 'auditForecasts', `${runDate}_surfnerd${site.suffix}`), docData);
+  return `${tag}: ${points.length} punten`;
 }
 
 // ── Aansturing ──────────────────────────────────────────────────────────────
@@ -211,8 +220,11 @@ export async function runAppAuditCollect(): Promise<string[] | null> {
   const session = await openBrowserSession('NzSurf-audit: ophalen…');
   const results: string[] = [];
   try {
-    results.push(await collectSurfnerd(session, runAt).catch((e: any) => `surfnerd: fout ${e?.message || e}`));
-    results.push(await collectSurfline(session, runAt).catch((e: any) => `surfline: fout ${e?.message || e}`));
+    for (const site of COLLECT_SITES) {
+      const tag = site.suffix ? ` ${site.name}` : '';
+      results.push(await collectSurfnerd(session, runAt, site).catch((e: any) => `surfnerd${tag}: fout ${e?.message || e}`));
+      results.push(await collectSurfline(session, runAt, site).catch((e: any) => `surfline${tag}: fout ${e?.message || e}`));
+    }
   } finally {
     await session.close();
   }
