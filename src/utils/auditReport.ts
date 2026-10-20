@@ -251,7 +251,7 @@ function webcamHtml(items: WebcamMeasurement[], observations: AuditObsDoc[], sit
     { name: 'Surfline', ...maeVsWebcam(rows.map(r => ({ fc: siteHeightAt(sites, 'surfline', Date.parse(r.m.runAt)), cam: r.beach }))) },
     { name: 'surfnerd', ...maeVsWebcam(rows.map(r => ({ fc: siteHeightAt(sites, 'surfnerd', Date.parse(r.m.runAt)), cam: r.beach }))) },
   ].filter(x => x.n > 0).sort((a, b) => (a.mae ?? 9) - (b.mae ?? 9));
-  if (beach.length > 1) lines.push(`<li>Strandhoogte tegen de webcam (gem. afwijking): ${beach.map(b => `${b.name} ${nl(b.mae!)} m (n=${b.n}, bias ${signed(b.bias!)})`).join(' · ')}. Surfline = brekerhoogte, surfnerd = golf op de spot, beide Maasvlakte P6.</li>`);
+  if (beach.length > 1) lines.push(`<li>Strandhoogte tegen de webcam (gem. afwijking): ${beach.map(b => `${b.name} ${nl(b.mae!)} m (n=${b.n}, bias ${signed(b.bias!)})`).join(' · ')}. Surfline = brekerhoogte, surfnerd = golf op de spot, surfnerd P5 en Surfline "Slufter", bij de reddingspost.</li>`);
   const latest = rows.find(r => r.m.nearby?.length);
   const est = nearbyEstimates(latest?.m.nearby, sum.nSea >= 3 ? sum.sea : latest?.sea, sum.n >= 3 ? sum.total : latest?.total);
   const table = est.length ? `<h3>Spots binnen 20 km — laatste meting, doorgerekend</h3>

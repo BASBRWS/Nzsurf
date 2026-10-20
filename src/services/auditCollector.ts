@@ -21,10 +21,17 @@ import { parseSurfline, parseSurfnerd } from '../utils/siteParsers';
 // Spots waarvoor de app Surfline en surfnerd ophaalt. Ouddorp = de audit (tegen de boei);
 // Maasvlakte = naast de webcam (strandhoogte). Bron blijft 'surfline'/'surfnerd' (Firestore-regels),
 // de spot staat in spotId en in de documentnaam.
-interface CollectSite { spotId: string; name: string; lat: number; lng: number; surflineQuery: string; nameRe: RegExp; surfnerdSlug: string; suffix: string }
+interface CollectSite {
+  spotId: string; name: string; lat: number; lng: number;
+  surflineSpotId?: string;              // vast Surfline-spot-ID (dan niet zoeken)
+  surflineQuery: string; nameRe: RegExp; surfnerdSlug: string; suffix: string;
+}
 export const COLLECT_SITES: CollectSite[] = [
   { spotId: 'ouddorp-p-noordweg', name: 'Ouddorp', lat: 51.8253, lng: 3.8874, surflineQuery: 'ouddorp', nameRe: /ouddorp/i, surfnerdSlug: 'ouddorp', suffix: '' },
-  { spotId: 'maasvlakte', name: 'Maasvlakte', lat: 51.973, lng: 3.968, surflineQuery: 'maasvlakte', nameRe: /maasvlakte/i, surfnerdSlug: 'maasvlakte-p6', suffix: '_maasvlakte' },
+  // Maasvlakte: bij de reddingspost met de webcam. surfnerd P5 (In Betweens) en Surfline "Slufter"
+  // liggen daar het dichtst bij (gekozen door de admin, die het strand kent).
+  { spotId: 'maasvlakte', name: 'Maasvlakte', lat: 51.9292, lng: 3.9766, surflineSpotId: '640b967ade81d57ea20cadbd',
+    surflineQuery: 'slufter', nameRe: /slufter|maasvlakte/i, surfnerdSlug: 'maasvlakte-p5', suffix: '_maasvlakte' },
 ];
 const MAX_RAW_CHARS = 700_000; // Firestore-document max. 1 MiB
 const PAGE_TIMEOUT_MS = 60_000; // per pagina, incl. eventuele Cloudflare-controle
@@ -149,12 +156,14 @@ function findSurflineSpotId(search: unknown, site: CollectSite): string | null {
 async function collectSurfline(session: Session, runAt: Date, site: CollectSite): Promise<string> {
   const tag = `surfline${site.suffix ? ` ${site.name}` : ''}`;
   const raw = (n: string) => `surfline-${n}${site.suffix}`;
-  const search = await visitAndKeep(session, runAt, raw('search'), `https://services.surfline.com/search/site?q=${site.surflineQuery}&querySize=10&suggestionSize=10`, 'text');
-  if (!search) return `${tag}: zoeken mislukt (zie auditRaw)`;
-  let spotId: string | null = null;
-  try { spotId = findSurflineSpotId(JSON.parse(search), site); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
+  let spotId: string | null = site.surflineSpotId ?? null;
+  if (!spotId) {
+    const search = await visitAndKeep(session, runAt, raw('search'), `https://services.surfline.com/search/site?q=${site.surflineQuery}&querySize=10&suggestionSize=10`, 'text');
+    if (!search) return `${tag}: zoeken mislukt (zie auditRaw)`;
+    try { spotId = findSurflineSpotId(JSON.parse(search), site); } catch { /* geen JSON: vermoedelijk geblokkeerd */ }
+  }
   // Terugval: geen spot met deze naam → dichtstbijzijnde Surfline-spot op de kaart (≤ 10 km).
-  let via = 'naam';
+  let via = site.surflineSpotId ? 'vast ID' : 'naam';
   if (!spotId) {
     const d = 0.1;
     const map = await visitAndKeep(session, runAt, raw('mapview'),

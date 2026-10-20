@@ -33,7 +33,8 @@ interface AuditSpotCfg {
 const AUDIT_SPOTS: AuditSpotCfg[] = [
   { spot: withAreaDefaults(DEFAULT_SPOTS.find(s => s.id === 'ouddorp-p-noordweg')!), suffix: '',
     windfinder: 'ouddorp', breakfinder: 'ouddorp', seaforecast: 'netherlands/ouddorp', wompy: 'ouddorp', stormglass: true },
-  { spot: withAreaDefaults(toSurfSpot(SPOT_CATALOG.find(s => s.id === 'maasvlakte')!)), suffix: '_maasvlakte',
+  // Maasvlakte: rekenpunt bij de reddingspost met de webcam (surfnerd P5 / Surfline Slufter), niet bij P6.
+  { spot: withAreaDefaults({ ...toSurfSpot(SPOT_CATALOG.find(s => s.id === 'maasvlakte')!), name: 'Maasvlakte (reddingspost)', lat: 51.9292, lng: 3.9766 }), suffix: '_maasvlakte',
     windfinder: 'maasvlakte', breakfinder: 'maasvlakte', wompy: 'maasvlakte', stormglass: false },
 ];
 const SPOT = AUDIT_SPOTS[0].spot; // metingen en log

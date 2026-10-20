@@ -170,7 +170,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
               Strandhoogte tegen de webcam (gem. afwijking): {beachScores.map((b, i) => <span key={b.name}>{i ? ' · ' : ''}<b>{b.name}</b> {fmt(b.mae, 2)} m <span className="text-slate-500">(n={b.n}, {b.bias! >= 0 ? '+' : ''}{fmt(b.bias, 2)})</span></span>)}
             </p>
           )}
-          <p className="text-[10px] text-slate-500">Webcam = geschatte hoogte van de brekende golfwand; NzSurf = verwachte hoogte op de spot; model zee = Open-Meteo bij de spot; Surfline = brekerhoogte (midden min–max), surfnerd = golf op de spot, beide voor Maasvlakte P6; boei = Maasgeul 2 (gemeten); kracht = 0,49 × Hs² × 1,2 × periode (kW per meter kust). Het verschil in definitie (golfwand vs. significante hoogte) zit in de factoren; vergelijk dus vooral de trend.</p>
+          <p className="text-[10px] text-slate-500">Webcam = geschatte hoogte van de brekende golfwand; NzSurf = verwachte hoogte op de spot; model zee = Open-Meteo bij de spot; Surfline = brekerhoogte (midden min–max), surfnerd = golf op de spot, surfnerd P5 en Surfline "Slufter", bij de reddingspost; boei = Maasgeul 2 (gemeten); kracht = 0,49 × Hs² × 1,2 × periode (kW per meter kust). Het verschil in definitie (golfwand vs. significante hoogte) zit in de factoren; vergelijk dus vooral de trend.</p>
 
           {estimates.length > 0 && (
             <div className="space-y-1">
