@@ -1,6 +1,6 @@
 // NzSurf voorspellingsaudit — verzamelaar (draait dagelijks op GitHub Actions).
 //
-// Slaat voor Ouddorp per bron de verwachting voor de komende 7 dagen op (per 3 uur),
+// Slaat voor Ouddorp en de Maasvlakte per bron de verwachting voor de komende 7 dagen op (per 3 uur),
 // plus de werkelijke metingen van Rijkswaterstaat (Lichteiland Goeree). Later worden
 // die tegen elkaar gelegd: wie voorspelt welk onderdeel het best, per vooruitkijktijd.
 //
@@ -15,13 +15,28 @@ import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 import { DEFAULT_SPOTS } from '../src/constants';
+import { SPOT_CATALOG, toSurfSpot } from '../src/data/spotCatalog';
+import type { SurfSpot } from '../src/types';
 import { fetchForecast } from '../src/services/weatherService';
 import { withAreaDefaults } from '../src/utils/spotKnowledge';
 import { plausibleObs } from '../src/utils/forecastAudit';
 import { parseWompy } from '../src/utils/siteParsers';
 
 // ── Instellingen ────────────────────────────────────────────────────────────
-const SPOT = withAreaDefaults(DEFAULT_SPOTS.find(s => s.id === 'ouddorp-p-noordweg')!);
+// Auditspots. De metingen (boei Maasgeul 2, wind Europlatform) zijn voor beide gelijk;
+// de verwachtingen per spot. Documenten: <datum>_<bron><suffix>, spotId = spot.id.
+interface AuditSpotCfg {
+  spot: SurfSpot; suffix: string;
+  windfinder: string; breakfinder?: string; seaforecast?: string; wompy?: string;
+  stormglass: boolean; // gratis tegoed is klein: alleen voor Ouddorp
+}
+const AUDIT_SPOTS: AuditSpotCfg[] = [
+  { spot: withAreaDefaults(DEFAULT_SPOTS.find(s => s.id === 'ouddorp-p-noordweg')!), suffix: '',
+    windfinder: 'ouddorp', breakfinder: 'ouddorp', seaforecast: 'netherlands/ouddorp', wompy: 'ouddorp', stormglass: true },
+  { spot: withAreaDefaults(toSurfSpot(SPOT_CATALOG.find(s => s.id === 'maasvlakte')!)), suffix: '_maasvlakte',
+    windfinder: 'maasvlakte', breakfinder: 'maasvlakte', wompy: 'maasvlakte', stormglass: false },
+];
+const SPOT = AUDIT_SPOTS[0].spot; // metingen en log
 const HORIZON_HOURS = 7 * 24;
 const STEP_HOURS = 3;
 const DRY_RUN = process.env.AUDIT_DRY_RUN === '1';
@@ -81,8 +96,8 @@ async function getJson(url: string, init?: RequestInit): Promise<any> {
 }
 
 // ── Bron: NzSurf (eigen algoritme) ──────────────────────────────────────────
-async function collectNzSurf(): Promise<SourceResult> {
-  const fc = await fetchForecast(SPOT);
+async function collectNzSurf(spot: SurfSpot): Promise<SourceResult> {
+  const fc = await fetchForecast(spot);
   const points = fc
     .map(f => clean<AuditPoint>({
       t: new Date(f.timestamp).toISOString(),
@@ -114,8 +129,8 @@ const MODEL_FAMILIES: { source: string; label: string; wave?: string; wind?: str
   { source: 'openmeteo', label: 'Open-Meteo best match', wave: 'best_match', wind: 'best_match' },
 ];
 
-async function collectModel(fam: typeof MODEL_FAMILIES[number]): Promise<SourceResult> {
-  const { lat, lng } = SPOT;
+async function collectModel(fam: typeof MODEL_FAMILIES[number], spot: SurfSpot): Promise<SourceResult> {
+  const { lat, lng } = spot;
   const notes: string[] = [];
   const byTime = new Map<string, AuditPoint>();
   const at = (iso: string) => {
@@ -162,12 +177,12 @@ async function collectModel(fam: typeof MODEL_FAMILIES[number]): Promise<SourceR
 }
 
 // ── Bron: Stormglass (optioneel, API-sleutel) ───────────────────────────────
-async function collectStormglass(): Promise<SourceResult | null> {
+async function collectStormglass(spot: SurfSpot): Promise<SourceResult | null> {
   const key = process.env.STORMGLASS_API_KEY;
   if (!key) return null;
   const start = Math.floor(runAt.getTime() / 1000);
   const end = start + HORIZON_HOURS * 3600;
-  const d = await getJson(`https://api.stormglass.io/v2/weather/point?lat=${SPOT.lat}&lng=${SPOT.lng}` +
+  const d = await getJson(`https://api.stormglass.io/v2/weather/point?lat=${spot.lat}&lng=${spot.lng}` +
     `&params=waveHeight,wavePeriod,waveDirection,windSpeed,windDirection,gust&source=sg&start=${start}&end=${end}`,
     { headers: { Authorization: key } });
   const points = (d.hours || []).map((h: any) => clean<AuditPoint>({
@@ -217,8 +232,8 @@ async function collectWindfinder(url: string, source: string, label: string): Pr
 }
 
 // breakfinder.surf (data-spot-dial-payload-value: days[{date, hours[24 lokale uren]}])
-async function collectBreakfinder(): Promise<SourceResult> {
-  const html = await getHtml('https://breakfinder.surf/en/surf_spots/ouddorp');
+async function collectBreakfinder(slug: string): Promise<SourceResult> {
+  const html = await getHtml(`https://breakfinder.surf/en/surf_spots/${slug}`);
   const m = html.match(/data-spot-dial-payload-value="([^"]+)"/);
   if (!m) throw new Error('payload niet gevonden');
   const payload = JSON.parse(unescapeHtml(m[1]));
@@ -244,8 +259,8 @@ async function collectBreakfinder(): Promise<SourceResult> {
 }
 
 // sea-forecast.com (weekgrafiek: { x: moment("2026-10-11 06:00:00"), y: 0.7 }, lokale tijd, golfhoogte m)
-async function collectSeaForecast(): Promise<SourceResult> {
-  const html = await getHtml('https://sea-forecast.com/netherlands/ouddorp');
+async function collectSeaForecast(path: string): Promise<SourceResult> {
+  const html = await getHtml(`https://sea-forecast.com/${path}`);
   const points: AuditPoint[] = [];
   for (const m of html.matchAll(/moment\(\\?"(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):\d{2}\\?"\),\s*y:\s*([\d.]+)/g)) {
     const t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).toISOString();
@@ -256,8 +271,8 @@ async function collectSeaForecast(): Promise<SourceResult> {
 }
 
 // ── Bron: Wompy (dagoordeel + golf/wind per dag) ──────────────────────────────
-async function collectWompy(): Promise<SourceResult> {
-  const html = await getHtml('https://www.wompy.nl/spot/ouddorp');
+async function collectWompy(slug: string): Promise<SourceResult> {
+  const html = await getHtml(`https://www.wompy.nl/spot/${slug}`);
   const points = parseWompy(html, runAt);
   return {
     source: 'wompy', label: 'Wompy (dagoordeel)', kind: 'site', points,
@@ -427,47 +442,53 @@ function initDb(): Firestore | null {
 }
 
 async function main() {
-  console.log(`Voorspellingsaudit ${runAt.toISOString()} — spot ${SPOT.name}${DRY_RUN ? ' (DRY RUN)' : ''}`);
+  console.log(`Voorspellingsaudit ${runAt.toISOString()} — spots ${AUDIT_SPOTS.map(c => c.spot.name).join(', ')}${DRY_RUN ? ' (DRY RUN)' : ''}`);
   const db = initDb();
 
   // De workflow draait meerdere keren per dag (GitHub start geplande runs soms uren
   // te laat of slaat ze over). De eerste run van de dag legt de verwachtingen vast;
   // latere runs halen alleen bronnen op die vandaag nog ontbreken (nieuwe bron, of
   // eerder mislukt) en vullen de metingen aan, zodat de vooruitkijktijd klopt.
-  const SOURCES: [string, () => Promise<SourceResult | null>][] = [
-    ['nzsurf', collectNzSurf],
-    ...MODEL_FAMILIES.map(f => [f.source, () => collectModel(f)] as [string, () => Promise<SourceResult>]),
-    ['stormglass', collectStormglass],
-    ['windfinder', () => collectWindfinder('https://www.windfinder.com/forecast/ouddorp', 'windfinder', 'Windfinder')],
-    ['windfinder-super', () => collectWindfinder('https://www.windfinder.com/weatherforecast/ouddorp', 'windfinder-super', 'Windfinder Superforecast')],
-    ['breakfinder', collectBreakfinder],
-    ['seaforecast', collectSeaForecast],
-    ['wompy', collectWompy],
-  ];
   const force = !!process.env.AUDIT_FORCE_FORECASTS;
-  const todo: typeof SOURCES = [];
-  for (const entry of SOURCES) {
-    const have = !!db && !force && (await db.collection('auditForecasts').doc(`${runDate}_${entry[0]}`).get()).exists;
-    if (!have) todo.push(entry);
-  }
-  if (todo.length < SOURCES.length) {
-    console.log(`Verwachtingen van ${runDate} staan er al voor ${SOURCES.length - todo.length} bronnen; ${todo.length ? `nu alleen nog: ${todo.map(e => e[0]).join(', ')}` : 'deze run vult alleen de metingen aan'}.`);
-  }
-  const results = await Promise.allSettled(todo.map(([, fn]) => fn()));
+  // Optioneel één spot: AUDIT_SPOT=maasvlakte (of ouddorp-p-noordweg).
+  const only = process.env.AUDIT_SPOT;
   let ok = 0;
-  for (const r of results) {
-    if (r.status === 'rejected') { console.log(`✗ bron mislukt: ${r.reason?.message || r.reason}`); continue; }
-    const res = r.value;
-    if (!res) continue;
-    const sample = res.points.find(p => p.lead >= 24) || res.points[0];
-    console.log(`${res.points.length ? '✓' : '✗'} ${res.source.padEnd(12)} ${String(res.points.length).padStart(3)} punten${res.note ? ` — ${res.note}` : ''}`);
-    if (sample) console.log(`    voorbeeld +${sample.lead}u: ${JSON.stringify(sample)}`);
-    if (!res.points.length) continue;
-    ok++;
-    if (db) {
-      await db.collection('auditForecasts').doc(`${runDate}_${res.source}`).set({
-        runAt: runAt.toISOString(), runDate, spotId: SPOT.id, ...clean(res),
-      });
+  for (const cfg of AUDIT_SPOTS.filter(c => !only || c.spot.id === only)) {
+    const spot = cfg.spot;
+    console.log(`\n── ${spot.name} (${spot.id}) ──`);
+    const SOURCES: [string, () => Promise<SourceResult | null>][] = [
+      ['nzsurf', () => collectNzSurf(spot)],
+      ...MODEL_FAMILIES.map(f => [f.source, () => collectModel(f, spot)] as [string, () => Promise<SourceResult>]),
+      ...(cfg.stormglass ? [['stormglass', () => collectStormglass(spot)] as [string, () => Promise<SourceResult | null>]] : []),
+      ['windfinder', () => collectWindfinder(`https://www.windfinder.com/forecast/${cfg.windfinder}`, 'windfinder', 'Windfinder')],
+      ['windfinder-super', () => collectWindfinder(`https://www.windfinder.com/weatherforecast/${cfg.windfinder}`, 'windfinder-super', 'Windfinder Superforecast')],
+      ...(cfg.breakfinder ? [['breakfinder', () => collectBreakfinder(cfg.breakfinder!)] as [string, () => Promise<SourceResult>]] : []),
+      ...(cfg.seaforecast ? [['seaforecast', () => collectSeaForecast(cfg.seaforecast!)] as [string, () => Promise<SourceResult>]] : []),
+      ...(cfg.wompy ? [['wompy', () => collectWompy(cfg.wompy!)] as [string, () => Promise<SourceResult>]] : []),
+    ];
+    const todo: typeof SOURCES = [];
+    for (const entry of SOURCES) {
+      const have = !!db && !force && (await db.collection('auditForecasts').doc(`${runDate}_${entry[0]}${cfg.suffix}`).get()).exists;
+      if (!have) todo.push(entry);
+    }
+    if (todo.length < SOURCES.length) {
+      console.log(`Verwachtingen van ${runDate} staan er al voor ${SOURCES.length - todo.length} bronnen; ${todo.length ? `nu alleen nog: ${todo.map(e => e[0]).join(', ')}` : 'deze run vult alleen de metingen aan'}.`);
+    }
+    const results = await Promise.allSettled(todo.map(([, fn]) => fn()));
+    for (const r of results) {
+      if (r.status === 'rejected') { console.log(`✗ bron mislukt: ${r.reason?.message || r.reason}`); continue; }
+      const res = r.value;
+      if (!res) continue;
+      const sample = res.points.find(p => p.lead >= 24) || res.points[0];
+      console.log(`${res.points.length ? '✓' : '✗'} ${res.source.padEnd(12)} ${String(res.points.length).padStart(3)} punten${res.note ? ` — ${res.note}` : ''}`);
+      if (sample) console.log(`    voorbeeld +${sample.lead}u: ${JSON.stringify(sample)}`);
+      if (!res.points.length) continue;
+      ok++;
+      if (db) {
+        await db.collection('auditForecasts').doc(`${runDate}_${res.source}${cfg.suffix}`).set({
+          runAt: runAt.toISOString(), runDate, spotId: spot.id, ...clean(res),
+        });
+      }
     }
   }
 
