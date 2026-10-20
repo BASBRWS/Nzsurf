@@ -83,7 +83,8 @@ export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) 
           getDocs(query(collection(db, 'auditObservations'), where('date', '>=', from))),
         ]);
         if (cancelled) return;
-        const fc = fcSnap.docs.map(d => d.data() as AuditForecastDoc);
+        // Alleen Ouddorp: andere spots (bv. Surfline/surfnerd Maasvlakte voor de webcam) staan ook in deze collectie.
+        const fc = fcSnap.docs.map(d => d.data() as AuditForecastDoc).filter(f => !f.spotId || f.spotId === AUDIT_SPOT_ID);
         const obs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
         // NzSurf concept: blend van de eigen modelbronnen, per ophaaldag berekend
         // met alleen de kennis van vóór die dag (zie utils/forecastBlend.ts).
@@ -177,7 +178,7 @@ export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) 
           >
             {appCollect.busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Surfline &amp; surfnerd nu ophalen
           </button>
-          <p className="text-[11px] text-slate-500">Opent ±20–60 s een browservenster. Verschijnt er een Cloudflare-vinkje ("Ik ben een mens"), tik dat dan aan. De app vraagt hier ook 1x per dag om bij openen.</p>
+          <p className="text-[11px] text-slate-500">Opent ±40–120 s een browservenster (Ouddorp én Maasvlakte). Verschijnt er een Cloudflare-vinkje ("Ik ben een mens"), tik dat dan aan. De app vraagt hier ook 1x per dag om bij openen.</p>
           {appCollect.results && <ul className="text-[11px] font-mono text-slate-700">{appCollect.results.map(r => <li key={r}>{r}</li>)}</ul>}
         </div>
       ) : (
@@ -367,7 +368,9 @@ export function ForecastAuditPanel({ spots = [] }: { spots?: SurfSpot[] } = {}) 
           <div className="flex flex-wrap gap-2">
             <button onClick={async () => {
                 const webcam = await loadWebcamMeasurements().catch(() => []);
-                const { html } = buildAuditReport({ forecasts, observations, reports, webcam, auditSpotId: AUDIT_SPOT_ID, spotName: 'Ouddorp',
+                const webcamSites = await getDocs(query(collection(db, 'auditForecasts'), where('spotId', '==', 'maasvlakte')))
+                  .then(s => s.docs.map(d => d.data() as AuditForecastDoc)).catch(() => [] as AuditForecastDoc[]);
+                const { html } = buildAuditReport({ forecasts, observations, reports, webcam, webcamSites, auditSpotId: AUDIT_SPOT_ID, spotName: 'Ouddorp',
                   periodLabel: PERIODS.find(p => p.key === period)?.label ?? 'Alles' });
                 download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8');
               }}

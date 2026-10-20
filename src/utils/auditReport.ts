@@ -10,7 +10,7 @@ import {
 import { CONCEPT_SOURCE } from './forecastBlend';
 import { HYBRID_SOURCE, HYBRID_RULES } from './forecastHybrid';
 import type { WebcamMeasurement } from '../services/webcamMeasure';
-import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt } from './webcamVerify';
+import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt, siteHeightAt, maeVsWebcam } from './webcamVerify';
 
 export interface AuditReportInput {
   forecasts: AuditForecastDoc[];
@@ -20,6 +20,7 @@ export interface AuditReportInput {
   spotName?: string;
   auditSpotId?: string;
   webcam?: WebcamMeasurement[];
+  webcamSites?: AuditForecastDoc[]; // Surfline/surfnerd Maasvlakte
   now?: Date;
 }
 
@@ -174,7 +175,7 @@ export function buildAuditReport(input: AuditReportInput): { title: string; html
   }
 
   const conditions = conditionRows(pairs);
-  const webcamSection = webcamHtml(input.webcam || [], input.observations);
+  const webcamSection = webcamHtml(input.webcam || [], input.observations, input.webcamSites || []);
   const energySection = energyHtml(input.forecasts, input.observations);
   const title = `Duiding NzSurf — ${now.toISOString().slice(0, 10)}`;
   const html = `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -231,7 +232,7 @@ ${webcamSection}
 }
 
 /** Sectie webcam Maasvlakte: NzSurf getoetst aan wat er aan het strand aankomt (AI-schatting). */
-function webcamHtml(items: WebcamMeasurement[], observations: AuditObsDoc[]): string {
+function webcamHtml(items: WebcamMeasurement[], observations: AuditObsDoc[], sites: AuditForecastDoc[]): string {
   if (!items.length) return '';
   const rows = items.map(m => webcamRow(m, buoyAt(m.runAt, observations)));
   const sum = summarizeWebcam(rows);
@@ -245,6 +246,12 @@ function webcamHtml(items: WebcamMeasurement[], observations: AuditObsDoc[]): st
   if (sum.nSea && typeof sum.sea === 'number') {
     lines.push(`<li>Opgesplitst: golfmodel op zee ${pct(sum.sea)} t.o.v. de boei${typeof sum.beachFactor === 'number' ? `; NzSurf-vertaling zee → strand bij deze spot ${pct(sum.beachFactor)}` : ''}${typeof sum.beachOverBuoy === 'number' ? `; aan het strand komt ~${Math.round(sum.beachOverBuoy * 100)}% van de boeihoogte` : ''}.</li>`);
   }
+  const beach = [
+    { name: 'NzSurf', ...maeVsWebcam(rows.map(r => ({ fc: r.nzSpot, cam: r.beach }))) },
+    { name: 'Surfline', ...maeVsWebcam(rows.map(r => ({ fc: siteHeightAt(sites, 'surfline', Date.parse(r.m.runAt)), cam: r.beach }))) },
+    { name: 'surfnerd', ...maeVsWebcam(rows.map(r => ({ fc: siteHeightAt(sites, 'surfnerd', Date.parse(r.m.runAt)), cam: r.beach }))) },
+  ].filter(x => x.n > 0).sort((a, b) => (a.mae ?? 9) - (b.mae ?? 9));
+  if (beach.length > 1) lines.push(`<li>Strandhoogte tegen de webcam (gem. afwijking): ${beach.map(b => `${b.name} ${nl(b.mae!)} m (n=${b.n}, bias ${signed(b.bias!)})`).join(' · ')}. Surfline = brekerhoogte, surfnerd = golf op de spot, beide Maasvlakte P6.</li>`);
   const latest = rows.find(r => r.m.nearby?.length);
   const est = nearbyEstimates(latest?.m.nearby, sum.nSea >= 3 ? sum.sea : latest?.sea, sum.n >= 3 ? sum.total : latest?.total);
   const table = est.length ? `<h3>Spots binnen 20 km — laatste meting, doorgerekend</h3>
