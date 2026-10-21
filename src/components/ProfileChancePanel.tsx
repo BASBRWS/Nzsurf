@@ -44,7 +44,7 @@ export function ProfileChancePanel({ spot, hours, user }: { spot?: SurfSpot; hou
       <div>
         <h3 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><UserRound className="w-5 h-5 text-cyan-600" /> Persoonlijke kans — {spot.name}</h3>
         <p className="text-xs text-slate-600 mt-1">
-          Profiel: {user.weight || 75} kg, {SKILL[user.skillLevel] || 'gemiddeld'}, {user.boards?.length || 0} board(s). Per uur rekent NzSurf met elk board uit je quiver en neemt het beste.
+          Profiel: {user.weight || 75} kg, {SKILL[user.skillLevel] || 'gemiddeld'}, {user.boards?.length || 0} board(s){user.surfPreferences ? ', met je eigen voorkeuren (golf, periode, wind)' : ', nog zonder eigen voorkeuren (Instellingen → Mijn voorkeuren)'}. Per uur rekent NzSurf met elk board uit je quiver en neemt het beste.
           Alleen ter vergelijking in de Beta; de app gebruikt nog de algemene kans.
         </p>
       </div>

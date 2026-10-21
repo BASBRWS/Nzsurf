@@ -1,5 +1,6 @@
 import { ForecastAuditPanel } from './ForecastAuditPanel';
 import { ProfileChancePanel } from './ProfileChancePanel';
+import { SurfPreferencesCard } from './SurfPreferencesCard';
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Board, Wetsuit, SkillLevel, SurfSpot, ForecastData, SpotReport as SpotReportType } from '../types';
 import { SpotReport } from './SpotReport';
@@ -486,6 +487,8 @@ export function ProfileSettings({
               </div>
             </div>
           </section>
+
+          <SurfPreferencesCard user={user} onUpdate={onUpdate} />
 
           {/* Meldingen: agenda-afspraak bij topdagen */}
           <section className="space-y-6">

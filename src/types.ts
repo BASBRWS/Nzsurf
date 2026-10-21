@@ -18,6 +18,13 @@ export interface Wetsuit {
   hasGloves: boolean;
 }
 
+/** Eigen voorkeuren (zoals in Secret Swell): ideaal bereik voor golf, periode en wind. */
+export interface SurfPreferences {
+  waveMin: number; waveMax: number;     // m, NzSurf-hoogte op de spot
+  periodMin: number; periodMax: number; // s
+  windMin: number; windMax: number;     // kn
+}
+
 export interface UserProfile {
   uid?: string;
   email?: string;
@@ -35,6 +42,7 @@ export interface UserProfile {
   lastActiveAt?: string; // ISO string
   lastPlatform?: string; // 'web' | 'android' | 'ios' — waarmee iemand het laatst actief was
   role?: 'user' | 'admin'; // toegekend door de eigenaar (Admin → Gebruikers)
+  surfPreferences?: SurfPreferences; // eigen ideale condities; telt mee in de persoonlijke kans
 }
 
 export interface SurfSpot {
