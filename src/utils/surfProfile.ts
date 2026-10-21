@@ -6,10 +6,14 @@
 // Per uur rekenen we met elk board uit de quiver en nemen het beste: je kiest zelf
 // het board dat bij de dag past.
 //
+// Eigen voorkeuren (surfPreferences: golf-, periode- en windbereik) gaan vóór de afleiding:
+// de golfvoorkeur wordt het ideale bereik, de periodevoorkeur de ondergrens/bovengrens en
+// boven je windgrens zakt de kans. Het board bepaalt nog steeds vanaf welke hoogte het werkt.
+//
 // Hoogtes zijn de NzSurf-hoogte op de spot (spotWaveHeight), dezelfde schaal als de
 // algemene kans, zodat de twee direct te vergelijken zijn.
 
-import type { Board, ForecastData, SkillLevel, SurfSpot, UserProfile } from '../types';
+import type { Board, ForecastData, SkillLevel, SurfPreferences, SurfSpot, UserProfile } from '../types';
 import { assessTide, computeSurfChance, spotWaveHeight, swellExposure } from './spotKnowledge';
 
 export interface SurfWindow {
@@ -22,6 +26,7 @@ export interface SurfWindow {
   maxH: number;        // boven deze hoogte wordt het te veel voor dit niveau
   minPeriod: number;   // onder deze periode te weinig kracht voor dit board
   onshoreTolerance: number; // 0–1: hoeveel van de kans blijft over bij slechte wind
+  prefs?: SurfPreferences;  // eigen voorkeuren (indien ingesteld)
   why: string[];
 }
 
@@ -51,12 +56,34 @@ export function surfWindow(user: UserProfile, board: Board): SurfWindow {
   // Niveau bepaalt de bovenkant.
   const maxH = Math.min(SKILL_MAX[skill], floaty ? Math.max(1.6, SKILL_MAX[skill] * 0.8) : SKILL_MAX[skill]);
   const idealMax = Math.min(base.idealMax, maxH * 0.8);
+  const nl1 = (x: number) => x.toFixed(1).replace('.', ',');
+  const prefs = validPrefs(user.surfPreferences);
+  if (prefs) {
+    // Jouw voorkeur is het ideaal; het board bepaalt alleen nog vanaf welke hoogte het werkt.
+    const minH = Math.min(base.minH, prefs.waveMin * 0.8);
+    const why = [
+      `${board.name || board.type}: ${vol} L bij ${weight} kg = ${lpk.toFixed(2).replace('.', ',')} L/kg → ${floatClass} drijfvermogen, werkt vanaf ${minH.toFixed(2).replace('.', ',')} m`,
+      `jouw voorkeur: golf ${nl1(prefs.waveMin)}–${nl1(prefs.waveMax)} m · periode ${prefs.periodMin}–${prefs.periodMax} s · wind ${prefs.windMin}–${prefs.windMax} kn`,
+      `${SKILL_LABEL[skill]}: aanlandige wind ${SKILL_ONSHORE[skill] >= 0.55 ? 'minder erg' : SKILL_ONSHORE[skill] >= 0.45 ? 'telt mee' : 'telt zwaar'}`,
+    ];
+    return { board, floatClass, litersPerKg: lpk, minH, idealMin: prefs.waveMin, idealMax: prefs.waveMax,
+      maxH: Math.max(maxH, prefs.waveMax * 1.25), minPeriod: prefs.periodMin, onshoreTolerance: SKILL_ONSHORE[skill], prefs, why };
+  }
   const why = [
     `${board.name || board.type}: ${vol} L bij ${weight} kg = ${lpk.toFixed(2).replace('.', ',')} L/kg → ${floatClass} drijfvermogen`,
-    `ideaal ${base.idealMin.toFixed(1).replace('.', ',')}–${idealMax.toFixed(1).replace('.', ',')} m, werkt vanaf ${base.minH.toFixed(2).replace('.', ',')} m, periode vanaf ${base.minPeriod} s`,
-    `${SKILL_LABEL[skill]}: tot ~${maxH.toFixed(1).replace('.', ',')} m; aanlandige wind ${SKILL_ONSHORE[skill] >= 0.55 ? 'minder erg' : SKILL_ONSHORE[skill] >= 0.45 ? 'telt mee' : 'telt zwaar'}`,
+    `ideaal ${nl1(base.idealMin)}–${nl1(idealMax)} m, werkt vanaf ${base.minH.toFixed(2).replace('.', ',')} m, periode vanaf ${base.minPeriod} s`,
+    `${SKILL_LABEL[skill]}: tot ~${nl1(maxH)} m; aanlandige wind ${SKILL_ONSHORE[skill] >= 0.55 ? 'minder erg' : SKILL_ONSHORE[skill] >= 0.45 ? 'telt mee' : 'telt zwaar'}`,
   ];
   return { board, floatClass, litersPerKg: lpk, ...base, idealMax: Math.max(idealMax, base.idealMin + 0.1), maxH, onshoreTolerance: SKILL_ONSHORE[skill], why };
+}
+
+/** Voorkeuren alleen gebruiken als ze compleet en zinnig zijn. */
+export function validPrefs(p?: SurfPreferences): SurfPreferences | undefined {
+  if (!p) return undefined;
+  const n = (x: unknown) => typeof x === 'number' && Number.isFinite(x);
+  if (![p.waveMin, p.waveMax, p.periodMin, p.periodMax, p.windMin, p.windMax].every(n)) return undefined;
+  if (p.waveMax <= p.waveMin || p.periodMax < p.periodMin || p.windMax < p.windMin) return undefined;
+  return p;
 }
 
 function sizeFit(h: number, w: SurfWindow): number {
@@ -68,10 +95,23 @@ function sizeFit(h: number, w: SurfWindow): number {
   return Math.max(0.05, lerp(0.5, 0.05, (h - w.maxH) / 0.6)); // te groot voor dit niveau
 }
 function periodFit(p: number, w: SurfWindow): number {
+  if (w.prefs) {
+    if (p > w.prefs.periodMax) return 0.95;   // langer dan je voorkeur: zelden slechter
+    if (p >= w.prefs.periodMin) return 1;
+    return lerp(0.6, 1, 1 - (w.prefs.periodMin - p) / 3);
+  }
   if (p >= w.minPeriod + 2) return 1;
   if (p >= w.minPeriod) return 0.9;
   if (p >= w.minPeriod - 1.5) return 0.75;
   return 0.6;
+}
+
+/** Windsnelheid t.o.v. je voorkeur (de windrichting zit al in de windkwaliteit). */
+function windSpeedFit(kn: number, w: SurfWindow): number {
+  if (!w.prefs || !Number.isFinite(kn)) return 1;
+  if (kn > w.prefs.windMax) return Math.max(0.4, 1 - 0.06 * (kn - w.prefs.windMax));
+  if (kn < w.prefs.windMin) return 0.9;
+  return 1;
 }
 
 export interface PersonalHour {
@@ -97,11 +137,12 @@ export function personalHours(spot: SurfSpot, hours: ForecastData[], user: UserP
     for (const w of windows) {
       const s = sizeFit(h, w), p = periodFit(f.swellPeriod, w);
       const wind = w.onshoreTolerance + (1 - w.onshoreTolerance) * windQ / 100;
-      const c = Math.round(Math.min(100, Math.max(0, 100 * s * p * wind * tide)));
+      const ws = windSpeedFit(f.windSpeed, w);
+      const c = Math.round(Math.min(100, Math.max(0, 100 * s * p * wind * ws * tide)));
       if (c > best.c) {
-        const parts: [string, number][] = [['hoogte', s], ['periode', p], ['wind', wind], ['getij', tide]];
+        const parts: [string, number][] = [['hoogte', s], ['periode', p], ['wind', wind], ['windkracht', ws], ['getij', tide]];
         const worst = parts.reduce((a, b) => (b[1] < a[1] ? b : a));
-        const limit = worst[1] >= 0.9 ? '' : worst[0] === 'hoogte' ? (h < w.idealMin ? 'te klein' : 'te groot') : worst[0];
+        const limit = worst[1] >= 0.9 ? '' : worst[0] === 'hoogte' ? (h < w.idealMin ? 'te klein' : 'te groot') : worst[0] === 'windkracht' ? 'te veel wind' : worst[0];
         best = { c, board: w.board.name || w.board.type, limit };
       }
     }

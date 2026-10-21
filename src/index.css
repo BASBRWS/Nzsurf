@@ -2708,3 +2708,11 @@ body.theme-developer {
 }
 
 
+
+/* Dubbele schuifregelaar (Mijn voorkeuren): twee range-inputs over elkaar, alleen de bolletjes pakken. */
+.dual-range { position: relative; height: 28px; }
+.dual-range input[type=range] { position: absolute; inset: 0; width: 100%; margin: 0; background: transparent; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.dual-range input[type=range]::-webkit-slider-runnable-track { background: transparent; height: 28px; }
+.dual-range input[type=range]::-moz-range-track { background: transparent; }
+.dual-range input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; margin-top: 2px; border-radius: 9999px; background: #fff; border: 2px solid #0891b2; box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer; }
+.dual-range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 20px; height: 20px; border-radius: 9999px; background: #fff; border: 2px solid #0891b2; box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer; }

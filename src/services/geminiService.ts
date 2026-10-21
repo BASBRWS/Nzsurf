@@ -520,6 +520,7 @@ export async function getSurfAdvice(
     SURFER PROFIEL & GEAR IN BEZIT:
     - Gewicht: ${user.weight || 75}kg
     - Niveau: ${user.skillLevel || 'intermediate'}
+    - Eigen voorkeuren: ${user.surfPreferences ? `golf ${user.surfPreferences.waveMin}–${user.surfPreferences.waveMax} m, periode ${user.surfPreferences.periodMin}–${user.surfPreferences.periodMax} s, wind ${user.surfPreferences.windMin}–${user.surfPreferences.windMax} kn (weeg deze mee in de score)` : 'niet ingesteld'}
     - Surfboards in Setup:
     ${quiverBoardsStr}
     - Wetsuits in Kast:
