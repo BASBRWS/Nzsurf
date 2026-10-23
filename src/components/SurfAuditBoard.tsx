@@ -9,7 +9,7 @@ import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../
 import {
   COMPONENTS, ComponentKey, DEFAULT_RULE, FULL_PARTS, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
   balanced, combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
-  componentScores, daySlots, forecastVerdict, obsIndex, observedVerdict, outlook, pointFor, stability, windAngle,
+  componentScores, dayRanking, dayScores, DAY_MIN_SLOTS, daySlots, forecastVerdict, obsIndex, observedVerdict, outlook, pointFor, stability, windAngle,
 } from '../utils/surfVerdict';
 
 /**
@@ -111,6 +111,9 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
   const nzId = sources.find(s => s.kind === 'nzsurf')?.source || 'nzsurf';
   const partial = useMemo(() => partialComparison(scores, nzId), [scores, nzId]);
   const perComponent = useMemo(() => componentRanking(scores, rankKey), [scores, rankKey]);
+  const perDay = useMemo(() => { const r = dayRanking(dayScores(forecasts, rule, truthFn, now, leadFilter || undefined)); return [...r.filter(x => x.n >= 8), ...r.filter(x => x.n < 8)]; },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [forecasts, rule, truthFn, leadFilter]);
 
   const DayNav = (
     <div className="flex items-center justify-between gap-2">
@@ -429,6 +432,43 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                 <li><b>Te surfen?</b> is gebalanceerd: het gemiddelde van <i>gevangen</i> (welk deel van de surfbare momenten de voorspeller als surfbaar gaf) en <i>terecht nee</i>. Gewoon "% raak" beloont wie altijd nee zegt, omdat de meeste uren niet surfbaar zijn; zo iemand komt hier op 50%. <i>Zegt ja</i> = hoe vaak hij surfbaar gaf.</li>
               </ul>
             </TableHelp></div>
+          </div>
+
+          {/* Te surfen? per dag: iedereen op dagniveau (Wompy geeft één oordeel per dag) */}
+          <div>
+            <div className="text-xs font-black uppercase text-slate-900 mb-1">Te surfen? per dag</div>
+            <p className="text-[11px] text-slate-600 mb-1">
+              "Kan ik vandaag surfen?" Een dag is te surfen bij minstens {DAY_MIN_SLOTS} surfbare daglichtmomenten (om de 3 uur), voor voorspelling én werkelijkheid.
+              Alleen verwachtingen van een eerdere dag. Zo doet Wompy (één oordeel per dag) op gelijke voet mee.
+            </p>
+            {perDay.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
+                  <thead><tr className="text-slate-500 border-b border-slate-200">
+                    <th className="text-left py-1 pr-2">#</th><th className="text-left pr-2">Voorspeller</th>
+                    <th className={thCls}>Score</th><th className={thCls}>Gevangen</th><th className={thCls}>Terecht nee</th>
+                    <th className={thCls}>1 d</th><th className={thCls}>2 d</th><th className={thCls}>3 d</th><th className={thCls}>dagen</th>
+                  </tr></thead>
+                  <tbody>
+                    {perDay.map((r, i) => {
+                      const lc = (d: number) => { const x = r.byLead.find(b => b.day === d); return x?.pct !== undefined ? `${x.pct}%` : '—'; };
+                      return (
+                        <tr key={r.source} className={cn('border-b border-slate-100', isNz(r.source) && 'bg-cyan-50 font-bold', r.n < 8 && 'text-slate-400')}>
+                          <td className="py-1 pr-2">{r.n < 8 ? '–' : i + 1}</td>
+                          <td className="pr-2">{labelOf(r.source)}</td>
+                          <td className="text-right px-1.5 font-bold">{r.pct}%</td>
+                          <td className="text-right px-1.5">{r.caught ?? '–'}%</td>
+                          <td className="text-right px-1.5">{r.rightNo ?? '–'}%</td>
+                          <td className="text-right px-1.5">{lc(1)}</td><td className="text-right px-1.5">{lc(2)}</td><td className="text-right px-1.5">{lc(3)}</td>
+                          <td className="text-right px-1.5">{r.n}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="text-xs text-slate-500">Nog geen afgelopen dagen met verwachting én werkelijkheid.</p>}
+            <p className="text-[10px] text-slate-500 mt-1">Grijs = minder dan 8 dagen. Score = gebalanceerd (gevangen en terecht nee gemiddeld). Werkelijkheid: zoals bovenaan gekozen.</p>
           </div>
 
           <div className="text-xs font-black uppercase text-slate-900">Alle onderdelen in één tabel</div>

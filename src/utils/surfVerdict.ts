@@ -436,3 +436,76 @@ export function partialComparison(scores: Map<string, ScoreRow>, ref: string, mi
     .filter(r => r.parts < FULL_PARTS && r.source !== ref)
     .map(r => ({ ...r, refScore: refRow ? weightedScore(refRow, r.keys) : null }));
 }
+
+// ── Te surfen? per dag ──────────────────────────────────────────────────────
+//
+// Wompy geeft één oordeel per dag, de rest per uur. Per tijdslot vergelijken is dan appels
+// met peren. Hier toetsen we iedereen op de vraag die een surfer 's ochtends stelt:
+// "kan ik vandaag surfen?". Een dag telt als te surfen als minstens DAY_MIN_SLOTS
+// daglichttijdsloten (van de ±5, om de 3 uur) te surfen zijn — voor de voorspelling én de
+// werkelijkheid. Alleen verwachtingen van een eerdere dag tellen (vooruitkijkdag 1 =
+// gemaakt op de dag ervoor); per bron, doeldag en vooruitkijkdag de laatste verwachting.
+
+export const DAY_MIN_SLOTS = 2;
+const DAY_MIN_KNOWN = 3; // minstens zoveel tijdsloten met een oordeel, anders telt de dag niet
+const DAY_MAX_LEAD = 7;
+
+const startOfLocalDay = (ms: number) => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+const calendarDays = (fromMs: number, toMs: number) => Math.round((startOfLocalDay(toMs) - startOfLocalDay(fromMs)) / 86400e3);
+
+export interface DayScoreRow { source: string; cm: Confusion; byLead: Map<number, Confusion> }
+
+function nearestPoint(doc: AuditForecastDoc, tMs: number): AuditPoint | undefined {
+  let best: AuditPoint | undefined, bestDt = 90 * 60e3 + 1;
+  for (const p of doc.points || []) { const dt = Math.abs(Date.parse(p.t) - tMs); if (dt < bestDt) { best = p; bestDt = dt; } }
+  return best;
+}
+
+export function dayScores(docs: AuditForecastDoc[], rule: SurfRule, truthFn: TruthFn, nowMs: number, onlyLeadDay?: number): Map<string, DayScoreRow> {
+  // Laatste verwachting per (bron, doeldag, vooruitkijkdag).
+  const latest = new Map<string, { doc: AuditForecastDoc; day: number; lead: number }>();
+  for (const d of docs) {
+    const run = Date.parse(d.runAt);
+    const days = new Set((d.points || []).map(p => startOfLocalDay(Date.parse(p.t))));
+    for (const day of days) {
+      if (day + 86400e3 > nowMs) continue; // dag nog niet voorbij
+      const lead = calendarDays(run, day);
+      if (lead < 1 || lead > DAY_MAX_LEAD || (onlyLeadDay && lead !== onlyLeadDay)) continue;
+      const key = `${d.source}|${day}|${lead}`;
+      const prev = latest.get(key);
+      if (!prev || run > Date.parse(prev.doc.runAt)) latest.set(key, { doc: d, day, lead });
+    }
+  }
+  const rows = new Map<string, DayScoreRow>();
+  for (const { doc, day, lead } of latest.values()) {
+    const slots = daySlots(new Date(day + 12 * 3600e3));
+    const truths = slots.map(t => truthFn(t, doc.source)).filter((v): v is boolean => v !== undefined);
+    if (truths.length < DAY_MIN_KNOWN) continue;
+    const fcs = slots.map(t => { const p = nearestPoint(doc, t); return p ? forecastVerdict(doc.source, p, rule).ok : undefined; })
+      .filter((v): v is boolean => v !== undefined);
+    if (fcs.length < DAY_MIN_KNOWN) continue;
+    const truth = truths.filter(Boolean).length >= DAY_MIN_SLOTS;
+    const fc = fcs.filter(Boolean).length >= DAY_MIN_SLOTS;
+    const row = rows.get(doc.source) || { source: doc.source, cm: { tp: 0, fn: 0, tn: 0, fp: 0 }, byLead: new Map() };
+    const lc = row.byLead.get(lead) || { tp: 0, fn: 0, tn: 0, fp: 0 };
+    for (const cm of [row.cm, lc]) { if (truth) { if (fc) cm.tp++; else cm.fn++; } else { if (fc) cm.fp++; else cm.tn++; } }
+    row.byLead.set(lead, lc);
+    rows.set(doc.source, row);
+  }
+  return rows;
+}
+
+export interface DayRankRow extends RankRow { byLead: { day: number; pct?: number; n: number }[] }
+
+/** Ranglijst per dag: gebalanceerde score, met de uitsplitsing per vooruitkijkdag. */
+export function dayRanking(rows: Map<string, DayScoreRow>): DayRankRow[] {
+  const pctOf = (x?: number) => (x === undefined ? undefined : Math.round(x * 100));
+  return [...rows.values()].map(r => {
+    const n = r.cm.tp + r.cm.fn + r.cm.tn + r.cm.fp;
+    return {
+      source: r.source, n, pct: pctOf(balanced(r.cm)) ?? 0,
+      caught: pctOf(caught(r.cm)), rightNo: pctOf(rightNo(r.cm)), saysYes: n ? Math.round((r.cm.tp + r.cm.fp) / n * 100) : undefined,
+      byLead: [...r.byLead.entries()].sort((a, b) => a[0] - b[0]).map(([day, cm]) => ({ day, pct: pctOf(balanced(cm)), n: cm.tp + cm.fn + cm.tn + cm.fp })),
+    };
+  }).filter(r => r.n > 0).sort((a, b) => b.pct - a.pct || b.n - a.n);
+}

@@ -12,7 +12,7 @@ import { HYBRID_SOURCE, HYBRID_RULES } from './forecastHybrid';
 import type { WebcamMeasurement } from '../services/webcamMeasure';
 import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt, siteHeightAt, maeVsWebcam } from './webcamVerify';
 import { barChart, lineChart, timeChart, pctChart, C, BarRow } from './reportCharts';
-import { DEFAULT_RULE, componentScores, componentRanking, combinedTruth, obsTruth, reportTruth } from './surfVerdict';
+import { DAY_MIN_SLOTS, DEFAULT_RULE, componentScores, componentRanking, combinedTruth, dayRanking, dayScores, obsTruth, reportTruth } from './surfVerdict';
 
 /** Eén spot in het rapport. */
 export interface ReportSpot { id: string; name: string; forecasts: AuditForecastDoc[]; buoyNote: string }
@@ -213,6 +213,16 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
     sub: r.caught !== undefined ? `gevangen ${r.caught}% · terecht nee ${r.rightNo ?? '–'}% · zegt ja ${r.saysYes ?? '–'}%` : undefined,
   })), 'Gemiddelde van "surfbare momenten gevangen" en "terecht nee"; wie altijd nee zegt, komt op 50% (stippellijn). Werkelijkheid: spotrapporten, anders de regel op de boei (golf ≥ 0,6 m, periode ≥ 5 s, wind ≤ 16 kn aanlandig / 20 kn anders). Let op: de boei beschrijft de zee, niet het strand. Bronnen die de zee of de hele kust beoordelen (zoals Wompy) passen daar vanzelf beter bij dan een bron die naar de spot vertaalt (NzSurf dempt voor de Voordelta). De eerlijke toets voor het strand is de webcam en je spotrapporten (Beta: kans tegen werkelijkheid).');
 
+  // Te surfen? per dag: iedereen op dagniveau, zodat Wompy (één oordeel per dag) eerlijk meedoet.
+  const dayRank = dayRanking(dayScores(forecasts, DEFAULT_RULE, truth, Date.now()));
+  const MIN_DAYS = 8;
+  const leadCell = (r: typeof dayRank[number], d: number) => { const x = r.byLead.find(b => b.day === d); return x && x.pct !== undefined ? `${x.pct}%<small> (${x.n})</small>` : '–'; };
+  const dayRow = (r: typeof dayRank[number], i: number | null) => `<tr class="${OURS.includes(r.source) ? 'ours' : ''}${i === null ? ' few' : ''}"><td>${i === null ? '–' : i + 1}</td><td>${esc(labelOf.get(r.source) || r.source)}</td><td><b>${r.pct}%</b></td><td>${r.caught ?? '–'}%</td><td>${r.rightNo ?? '–'}%</td><td>${leadCell(r, 1)}</td><td>${leadCell(r, 2)}</td><td>${leadCell(r, 3)}</td><td>${r.n}</td></tr>`;
+  const dayOk = dayRank.filter(r => r.n >= MIN_DAYS), dayFew = dayRank.filter(r => r.n < MIN_DAYS);
+  const dayTable = dayRank.length ? `<h3>Te surfen? per dag</h3>
+<p class="meta">De vraag van 's ochtends: "kan ik vandaag surfen?". Een dag telt als te surfen bij minstens ${DAY_MIN_SLOTS} surfbare daglichtmomenten (om de 3 uur), voor voorspelling én werkelijkheid. Alleen verwachtingen van een eerdere dag; per vooruitkijkdag de laatste. Zo doen bronnen met één oordeel per dag (Wompy) op gelijke voet mee; in de uurvergelijking hierboven en in de bijlage staan zij op achterstand, omdat één daggetal tegen elk uur wordt gelegd. Werkelijkheid en score als bij "Te surfen?". Minder dan ${MIN_DAYS} dagen: grijs, zonder rang.</p>
+<table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Score</th><th>Gevangen</th><th>Terecht nee</th><th>1 dag vooruit</th><th>2 dagen</th><th>3 dagen</th><th>dagen</th></tr></thead><tbody>${dayOk.map((r, i) => dayRow(r, i)).join('')}${dayFew.map(r => dayRow(r, null)).join('')}</tbody></table>` : '';
+
   const verdictRows = vs.map(v => {
     const d = decimals(v.param);
     const cell = (x?: Score & { rank: number }) => x ? `<b>#${x.rank}</b>/${v.total}<br><small>${nl(x.mae, d)} ${esc(v.unit)} · bias ${signed(x.bias, d)}</small>` : '–';
@@ -253,6 +263,7 @@ ${time}
 
 <h3>Te surfen?</h3>
 ${surfChart}
+${dayTable}
 
 ${conditions ? `<h3>Als het ertoe doet</h3>
 <table><thead><tr><th>Omstandigheid</th><th>NzSurf</th><th>Concept</th><th>Hybride</th><th>Beste</th><th>Bronnen</th></tr></thead><tbody>${conditions}</tbody></table>` : ''}
@@ -276,7 +287,7 @@ ${reportSection}
 <table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Score</th><th>Gevangen</th><th>Terecht nee</th><th>Zegt ja</th><th>n</th></tr></thead><tbody>${surfRank.map((r, i) =>
     `<tr class="${OURS.includes(r.source) ? 'ours' : ''}"><td>${i + 1}</td><td>${esc(labelOf.get(r.source) || r.source)}</td><td><b>${r.pct}%</b></td><td>${r.caught ?? '–'}%</td><td>${r.rightNo ?? '–'}%</td><td>${r.saysYes ?? '–'}%</td><td>${r.n}</td></tr>`).join('')}</tbody></table>` : '';
   const appendix = appendixTables || surfTable ? `<section class="spot"><h2 class="spot-h">Bijlage — ${esc(spot.name)}: alle ranglijsten</h2>
-<p class="meta">Alle bronnen per onderdeel, gesorteerd op gemiddelde afwijking (lager = beter). Bias: + = te hoog, − = te laag. RMSE weegt grote missers zwaarder. Bronnen met minder dan ${MIN_N} vergelijkingen staan grijs onderaan zonder rang. Vet = NzSurf, hybride en concept.</p>
+<p class="meta">Alle bronnen per onderdeel, gesorteerd op gemiddelde afwijking (lager = beter). Bias: + = te hoog, − = te laag. RMSE weegt grote missers zwaarder. Bronnen met minder dan ${MIN_N} vergelijkingen staan grijs onderaan zonder rang. Vet = NzSurf, hybride en concept. Wompy geeft één waarde per dag; per uur vergeleken staat hij daardoor op achterstand (zie "Te surfen? per dag").</p>
 ${surfTable}${appendixTables}</section>` : '';
   return { html, vs, days, pairs: pairs.length, name: spot.name, appendix };
 }
