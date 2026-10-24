@@ -44,6 +44,23 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
     const best = sc.find(x => !OURS.includes(x.source));
     lines.push(`${prm.label}: ${ours.join(' · ')} | beste ander: ${best ? `${best.label} ${f(best.mae, prm.key === 'hs' ? 2 : 1)}` : '–'} (${sc.length} bronnen)`);
   }
+  // Positie van v2 zoals in het rapport: alleen NzSurf, v2 en de externe bronnen.
+  const field = pairs.filter(p => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(p.source));
+  const pos: string[] = [];
+  for (const prm of PARAMS) {
+    const sc = scorePairs(field.filter(p => p.param === prm.key)).filter(s => s.n >= 20);
+    const i = sc.findIndex(x => x.source === V2_SOURCE), j = sc.findIndex(x => x.source === 'nzsurf');
+    if (i >= 0) pos.push(`${prm.label} v2 #${i + 1}/${sc.length} (NzSurf #${j + 1}) top3: ${sc.slice(0, 3).map(x => `${x.label.split(' (')[0]} ${f(x.mae, prm.key === 'hs' ? 2 : 1)}`).join(', ')}`);
+  }
+  const fieldDocs = docs.filter(d => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(d.source));
+  const tr = obsTruth(obs, DEFAULT_RULE);
+  const hr = componentRanking(componentScores(fieldDocs, obs, DEFAULT_RULE, tr), 'total').filter(r => r.n >= 20);
+  const dr = dayRanking(dayScores(fieldDocs, DEFAULT_RULE, tr, Date.now())).filter(r => r.n >= 8);
+  const at = (rk: { source: string; pct: number }[], s: string) => { const i = rk.findIndex(r => r.source === s); return i < 0 ? '–' : `#${i + 1}/${rk.length} ${rk[i].pct}%`; };
+  pos.push(`Te surfen per uur: v2 ${at(hr, V2_SOURCE)} · NzSurf ${at(hr, 'nzsurf')} · top: ${hr.slice(0, 3).map(r => `${r.source} ${r.pct}%`).join(', ')}`);
+  pos.push(`Te surfen per dag: v2 ${at(dr, V2_SOURCE)} · NzSurf ${at(dr, 'nzsurf')} · top: ${dr.slice(0, 3).map(r => `${r.source} ${r.pct}%`).join(', ')}`);
+  notice(`Positie v2 ${spotId}`, pos);
+
   const truth = obsTruth(obs, DEFAULT_RULE);
   const hourRank = componentRanking(componentScores(docs, obs, DEFAULT_RULE, truth), 'total');
   const dayRank = dayRanking(dayScores(docs, DEFAULT_RULE, truth, Date.now()));
