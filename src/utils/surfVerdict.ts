@@ -69,6 +69,9 @@ export function forecastVerdict(source: string, p: AuditPoint, rule: SurfRule): 
     const i = SURFLINE_ORDER.indexOf(p.rating);
     if (i >= 0) return { ok: i >= SURFLINE_ORDER.indexOf('POOR_TO_FAIR'), own: true };
   }
+  // NzSurf v2 kalibreert zijn periode op de gemeten gemiddelde periode (Tm02); voor de regel
+  // (piekperiode) dezelfde omrekening als bij de meting, anders zegt v2 te vaak "te kort".
+  if (source === 'nzsurf-v2') return { ok: ruleVerdict({ ...p, tp: typeof p.tp === 'number' ? p.tp * TM02_TO_TP : undefined }, rule), own: false };
   return { ok: ruleVerdict(p, rule), own: false };
 }
 
