@@ -14,7 +14,7 @@ export interface AuditForecastDoc {
   points: AuditPoint[]; note?: string;
 }
 export interface ObsPoint { t: string; hs?: number; tm02?: number; dir?: number; windKn?: number; windDir?: number; level?: number }
-export interface AuditObsDoc { date: string; points: ObsPoint[]; stations?: string[]; source?: string }
+export interface AuditObsDoc { date: string; points: ObsPoint[]; stations?: string[]; source?: string; windAt10m?: boolean }
 
 export type AuditParam = 'hs' | 'tp' | 'dir' | 'windKn' | 'windDir' | 'power';
 
@@ -35,8 +35,36 @@ export function plausibleObs<T extends Partial<ObsPoint>>(p: T): T {
   return out;
 }
 /** Metingen zonder onmogelijke waarden (oude opgeslagen data wordt zo ook gefilterd). */
+/**
+ * Wind gemeten op een hoog meetpunt op zee (Lichteiland Goeree, Europlatform: ±30 m)
+ * waait harder dan op 10 m, de hoogte waarop alle modellen hun wind geven. Omrekenen
+ * met het windprofiel boven zee (machtswet, exponent 0,11): (10/30)^0,11 ≈ 0,89.
+ */
+export const WIND_10M_FACTOR = 0.89;
+const HIGH_WIND_STATION = /^WINDSHD@.*(lichteiland|europlatform)/i;
+
 export function cleanObservations(docs: AuditObsDoc[]): AuditObsDoc[] {
-  return docs.map(d => ({ ...d, points: (d.points || []).map(plausibleObs) }));
+  return docs.map(d => {
+    const points = (d.points || []).map(plausibleObs);
+    // Eén keer omrekenen (de functie wordt soms twee keer op dezelfde data gebruikt).
+    if (d.windAt10m || !(d.stations || []).some(s => HIGH_WIND_STATION.test(s))) return { ...d, points };
+    return {
+      ...d, windAt10m: true,
+      points: points.map(p => (typeof p.windKn === 'number' ? { ...p, windKn: Math.round(p.windKn * WIND_10M_FACTOR * 100) / 100 } : p)),
+    };
+  });
+}
+
+/**
+ * Spots waar de golfrichting niet eerlijk te toetsen is: het rekenpunt ligt dicht onder de
+ * kust (Maasvlakte, bij de reddingspost), waar de modellen de golven naar het strand laten
+ * draaien, terwijl de boei op open zee meet. Alle modellen zitten daar ±45° naast.
+ */
+export const DIR_UNRELIABLE_SPOTS = new Set(['maasvlakte']);
+/** Verwachtingen zoals de audit ze toetst: zonder golfrichting waar die niet te vergelijken is. */
+export function auditView(docs: AuditForecastDoc[], spotId: string): AuditForecastDoc[] {
+  if (!DIR_UNRELIABLE_SPOTS.has(spotId)) return docs;
+  return docs.map(d => ({ ...d, points: (d.points || []).map(p => { const { dir: _d, ...rest } = p; return rest as AuditPoint; }) }));
 }
 
 export const PARAMS: { key: AuditParam; label: string; unit: string; obsKey: keyof ObsPoint; circular?: boolean; note?: string }[] = [

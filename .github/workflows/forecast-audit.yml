@@ -18,6 +18,10 @@ on:
         description: "Alleen testen (niets opslaan)"
         type: boolean
         default: false
+      backtest:
+        description: "Alleen terugtoets NzSurf v2 (leest, slaat niets op)"
+        type: boolean
+        default: false
       obs_hours:
         description: "Metingen van de laatste N uur ophalen (standaard 48; max 336 om gaten aan te vullen)"
         required: false
@@ -44,7 +48,16 @@ jobs:
         # downloadserver gaf een 500, waardoor de hele run mislukte.
         run: bun install --ignore-scripts
 
+      - name: Terugtoets NzSurf v2
+        if: ${{ inputs.backtest }}
+        run: bun run scripts/audit-backtest.ts
+        env:
+          TZ: Europe/Amsterdam
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+
       - name: Verzamel verwachtingen en metingen
+        if: ${{ !inputs.backtest }}
         run: bun run scripts/forecast-audit.ts
         env:
           # NzSurf-tijden komen als lokale tijd binnen; zo worden ze correct naar UTC omgezet.

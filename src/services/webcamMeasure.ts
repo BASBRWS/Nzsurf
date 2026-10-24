@@ -100,7 +100,14 @@ export function webcamSpots(userSpots: SurfSpot[] = []) {
     id: 'webcam-maasvlakte', name: 'Maasvlakte (webcam)', lat: WEBCAM.lat, lng: WEBCAM.lng,
     type: 'beachbreak', bestWind: [], bestSwell: [], coastlineAngle: 300,
   };
-  const nearby = withDist.filter(x => x.s.id !== camera.id && x.d <= NEARBY_KM).map(x => ({ spot: x.s, distKm: x.d }));
+  // Dezelfde plek onder twee namen (eigen spot + catalogus, < 300 m uit elkaar) maar één keer.
+  const kept: typeof withDist = [];
+  for (const x of withDist) {
+    if (x.s.id === camera.id || x.d > NEARBY_KM) continue;
+    if (kept.some(k => distanceKm(k.s, x.s) < 0.3)) continue;
+    kept.push(x);
+  }
+  const nearby = kept.map(x => ({ spot: x.s, distKm: x.d }));
   return { camera, cameraDistKm: own?.d ?? 0, nearby };
 }
 

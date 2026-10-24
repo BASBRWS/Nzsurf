@@ -9,8 +9,7 @@ import { importSecretSwellScreenshots } from '../services/secretSwellImport';
 import { cn } from '../lib/utils';
 import { saveFileOrAlert, saveBinaryFile } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
-import { buildConceptDocs } from '../utils/forecastBlend';
-import { buildHybridDocs } from '../utils/forecastHybrid';
+import { buildV2Docs, V2_SOURCE } from '../utils/forecastV2';
 import { buildFullReport } from '../utils/auditReport';
 import { htmlToPdfBase64 } from '../utils/reportPdf';
 import { FileText } from 'lucide-react';
@@ -19,7 +18,7 @@ import { loadWebcamMeasurements } from '../services/webcamMeasure';
 import { SurfSpot, UserProfile } from '../types';
 import { ChanceTestPanel } from './ChanceTestPanel';
 import {
-  AuditForecastDoc, AuditObsDoc, AuditParam, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
+  AuditForecastDoc, AuditObsDoc, AuditParam, auditView, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
 } from '../utils/forecastAudit';
 
@@ -97,17 +96,14 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
         ]);
         if (cancelled) return;
         // Alleen de gekozen spot (oude documenten zonder spotId horen bij Ouddorp).
-        const fc = fcSnap.docs.map(d => d.data() as AuditForecastDoc)
-          .filter(f => (f.spotId || 'ouddorp-p-noordweg') === spotId);
+        const fc = auditView(fcSnap.docs.map(d => d.data() as AuditForecastDoc)
+          .filter(f => (f.spotId || 'ouddorp-p-noordweg') === spotId), spotId);
         const obs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
-        // NzSurf concept: blend van de eigen modelbronnen, per ophaaldag berekend
-        // met alleen de kennis van vóór die dag (zie utils/forecastBlend.ts).
-        let concept: AuditForecastDoc[] = [];
-        try { concept = buildConceptDocs(fc, obs); } catch (e) { console.warn('NzSurf concept niet berekend', e); }
-        // NzSurf hybride: vaste regels (zie utils/forecastHybrid.ts), alleen in de Beta.
-        let hybrid: AuditForecastDoc[] = [];
-        try { hybrid = buildHybridDocs(fc, obs, concept); } catch (e) { console.warn('NzSurf hybride niet berekend', e); }
-        setForecasts([...fc, ...concept, ...hybrid]);
+        // NzSurf v2: open modellen afgesteld op metingen, per ophaaldag berekend met alleen
+        // de kennis van vóór dat moment (zie utils/forecastV2.ts). Vervangt hybride en concept.
+        let v2: AuditForecastDoc[] = [];
+        try { v2 = buildV2Docs(fc, obs); } catch (e) { console.warn('NzSurf v2 niet berekend', e); }
+        setForecasts([...fc, ...v2]);
         setObservations(obs);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
@@ -185,15 +181,12 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
       const periodLabel = `alle gemeten data (${fmtD(dates[0])} t/m ${fmtD(dates[dates.length - 1])})`;
       setReportBusy('rekenen…');
       const spots = AUDIT_SPOTS.map(sp => {
-        const fc = docs.filter(f => (f.spotId || 'ouddorp-p-noordweg') === sp.id);
+        const fc = auditView(docs.filter(f => (f.spotId || 'ouddorp-p-noordweg') === sp.id), sp.id);
         let extra: AuditForecastDoc[] = [];
-        try {
-          const concept = buildConceptDocs(fc, allObs);
-          extra = [...concept, ...buildHybridDocs(fc, allObs, concept)];
-        } catch (e) { console.warn('concept/hybride niet berekend', e); }
+        try { extra = buildV2Docs(fc, allObs); } catch (e) { console.warn('NzSurf v2 niet berekend', e); }
         return { id: sp.id, name: sp.name, forecasts: [...fc, ...extra], buoyNote: sp.buoy };
       });
-      const webcamSites = docs.filter(f => f.spotId === 'maasvlakte');
+      const webcamSites = [...docs.filter(f => f.spotId === 'maasvlakte'), ...(spots.find(x => x.id === 'maasvlakte')?.forecasts.filter(f => f.source === V2_SOURCE) || [])];
       const { html } = buildFullReport({ spots, observations: allObs, reports: reports || [], webcam, webcamSites, periodLabel });
       if (kind === 'html') { download(`nzsurf-rapport-${stamp}.html`, html, 'text/html;charset=utf-8'); return; }
       const b64 = await htmlToPdfBase64(html, st => setReportBusy(st));
@@ -275,7 +268,7 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
       {/* Webcam Maasvlakte: golf aan het strand naast de boei Maasgeul 2. */}
       <WebcamPanel observations={observations} onDownload={download} enabled={canCollectInApp()} spots={spots} />
 
-      {/* Kans tegen werkelijkheid: NzSurf nu, test (persoonlijk) en hybride tegen het webcamoordeel. */}
+      {/* Kans tegen werkelijkheid: NzSurf nu, test (persoonlijk) en NzSurf v2 tegen het webcamoordeel. */}
       {user && <ChanceTestPanel user={user} spots={spots} audit={forecasts || []} />}
 
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}
