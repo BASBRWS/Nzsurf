@@ -14,8 +14,8 @@ const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa) throw new Error('Ontbrekende env-var: FIREBASE_SERVICE_ACCOUNT');
 const db = getFirestore(initializeApp({ credential: cert(JSON.parse(sa)) }), process.env.FIRESTORE_DATABASE_ID || 'ai-studio-remixremixnoordz-046b6585-a0c1-4903-b816-9b6f82aa9b10');
 
-const OURS = ['nzsurf', CONCEPT_SOURCE, HYBRID_SOURCE, V2_SOURCE];
-const SHORT: Record<string, string> = { nzsurf: 'NZ', [CONCEPT_SOURCE]: 'concept', [HYBRID_SOURCE]: 'hybride', [V2_SOURCE]: 'V2' };
+const OURS = ['nzsurf', CONCEPT_SOURCE, HYBRID_SOURCE, V2_SOURCE, 'v2-zonder'];
+const SHORT: Record<string, string> = { nzsurf: 'NZ', [CONCEPT_SOURCE]: 'concept', [HYBRID_SOURCE]: 'hybride', [V2_SOURCE]: 'V2', 'v2-zonder': 'V2-0' };
 const f = (x: number, d = 2) => x.toFixed(d);
 const notice = (title: string, lines: string[]) => console.log(`::notice title=${title}::${lines.join('%0A')}`);
 
@@ -30,7 +30,9 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
   const concept = buildConceptDocs(fc, obs);
   const hybrid = buildHybridDocs(fc, obs, concept);
   const v2 = buildV2Docs(fc, obs);
-  const docs = [...fc, ...concept, ...hybrid, ...v2];
+  // Zelfde v2 zonder laag 2 (bijsturen met de laatste meting), om die laag apart te toetsen.
+  const v2raw = buildV2Docs(fc, obs, { nowcast: false }).map(d => ({ ...d, source: 'v2-zonder', label: 'v2 zonder bijsturing' }));
+  const docs = [...fc, ...concept, ...hybrid, ...v2, ...v2raw];
   const pairs = buildPairs(docs, obs);
   console.log(`${spotId}: ${v2.length} v2-runs in ${Date.now() - t0} ms; laatste: ${v2[v2.length - 1]?.note}`);
 

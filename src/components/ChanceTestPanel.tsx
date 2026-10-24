@@ -14,7 +14,7 @@ import { cn } from '../lib/utils';
 const NAMES: Record<CandidateScore['key'], { name: string; what: string }> = {
   nzsurf: { name: 'NzSurf nu', what: 'algemene kans zoals de app hem gaf' },
   personal: { name: 'Test: persoonlijk', what: 'surfvenster uit je profiel, zelfde NzSurf-data' },
-  hybrid: { name: 'NzSurf hybride', what: 'algemene kans op de data van de sterkste bronnen' },
+  v2: { name: 'NzSurf v2', what: 'algemene kans op de data van NzSurf v2 (open modellen, afgesteld op metingen)' },
 };
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const n2 = (x: number) => x.toFixed(2).replace('.', ',');
@@ -79,7 +79,7 @@ export function ChanceTestPanel({ user, spots, audit }: { user: UserProfile; spo
           <summary className="text-[11px] font-bold text-slate-700 cursor-pointer">Per meting ({rows.length})</summary>
           <div className="overflow-x-auto mt-1">
             <table className="w-full text-[10px]">
-              <thead><tr className="text-left text-slate-500"><th className="pr-2">Tijd</th><th className="pr-2">Werkelijkheid</th><th className="pr-2 text-right">NzSurf nu</th><th className="pr-2 text-right">Test</th><th className="pr-2 text-right">Hybride</th></tr></thead>
+              <thead><tr className="text-left text-slate-500"><th className="pr-2">Tijd</th><th className="pr-2">Werkelijkheid</th><th className="pr-2 text-right">NzSurf nu</th><th className="pr-2 text-right">Test</th><th className="pr-2 text-right">v2</th></tr></thead>
               <tbody>
                 {rows.map(r => (
                   <tr key={r.m.runAt} className="border-t border-slate-100">
@@ -87,13 +87,13 @@ export function ChanceTestPanel({ user, spots, audit }: { user: UserProfile; spo
                     <td className="pr-2">{r.truth ? <><b>{r.truth.y === 1 ? 'surfbaar' : r.truth.y === 0 ? 'niet' : 'matig'}</b> <span className="text-slate-500">({r.truth.source === 'oordeel' ? `oordeel: ${r.truth.label}` : `achteraf: ${r.truth.label}`})</span></> : <span className="text-slate-400">geen oordeel</span>}</td>
                     <td className="pr-2 text-right font-mono">{cell(r.nzsurf)}</td>
                     <td className="pr-2 text-right font-mono">{cell(r.personal)}</td>
-                    <td className="pr-2 text-right font-mono">{cell(r.hybrid)}</td>
+                    <td className="pr-2 text-right font-mono">{cell(r.v2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-slate-500 mt-1">* oudere meting: windkwaliteit uit windrichting/-kracht herberekend, getij neutraal. Hybride: zijn verschil met NzSurf op dat uur bij de gekozen auditspot, toegepast op de cameraspot — kies in de audit de Maasvlakte (±5 km van de camera) voor de zuiverste toets.</p>
+          <p className="text-[10px] text-slate-500 mt-1">* oudere meting: windkwaliteit uit windrichting/-kracht herberekend, getij neutraal. v2: zijn verschil met NzSurf op dat uur bij de gekozen auditspot, toegepast op de cameraspot — kies in de audit de Maasvlakte (±5 km van de camera) voor de zuiverste toets.</p>
         </details>
       )}
     </div>

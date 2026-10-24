@@ -2,7 +2,7 @@
 //
 //   1. NzSurf nu        — de algemene kans zoals de app hem op dat moment gaf
 //   2. Test (persoonlijk) — surfvenster uit het profiel (utils/surfProfile), op dezelfde NzSurf-data
-//   3. NzSurf hybride   — de algemene kans, maar op de data van de hybride (sterkste bronnen)
+//   3. NzSurf v2        — de algemene kans, maar op de data van NzSurf v2 (open modellen, afgesteld op metingen)
 //
 // Waarheid: het webcamoordeel voor de boards van de gebruiker (beste board telt),
 // los van elke voorspelling. Oudere metingen zonder oordeel: benadering uit wat de
@@ -16,13 +16,13 @@ import type { AuditForecastDoc, AuditPoint } from './forecastAudit';
 import { computeSurfChance } from './spotKnowledge';
 import { personalHours, surfWindow } from './surfProfile';
 import { windQualityFor } from './windQuality';
-import { HYBRID_SOURCE } from './forecastHybrid';
+import { V2_SOURCE } from './forecastV2';
 
 export type Truth = { y: number; label: string; source: 'oordeel' | 'achteraf' };
 export interface TestRow {
   m: WebcamMeasurement;
   exact: boolean;           // volledig verwachtingsuur opgeslagen (anders wind/getij benaderd)
-  nzsurf?: number; personal?: number; hybrid?: number;   // kansen 0–100
+  nzsurf?: number; personal?: number; v2?: number;   // kansen 0–100
   truth?: Truth;
 }
 
@@ -78,23 +78,25 @@ function pointAt(docs: AuditForecastDoc[], at: number): AuditPoint | undefined {
 }
 
 /**
- * Hybride-data voor de cameraspot: de hybride bestaat voor de gekozen auditspot (Maasvlakte ±5 km,
- * Ouddorp 13 km van de camera).
- * Zijn verschil met NzSurf op dat uur (hoogte als factor, periode en windrichting als
- * verschuiving) is een zee-effect en wordt op de NzSurf-data van de cameraspot gelegd.
+ * v2-data voor de cameraspot: v2 bestaat voor de gekozen auditspot (Maasvlakte ±5 km,
+ * Ouddorp 13 km van de camera). Zijn verschil met NzSurf op dat uur (hoogte als factor,
+ * periode, wind en windrichting als verschuiving) wordt op de NzSurf-data van de
+ * cameraspot gelegd; NzSurf's strandvertaling blijft (laag 3).
  */
-function hybridHour(f: ForecastData, spot: SurfSpot, audit: AuditForecastDoc[], at: number): ForecastData | undefined {
+function v2Hour(f: ForecastData, spot: SurfSpot, audit: AuditForecastDoc[], at: number): ForecastData | undefined {
   const nz = pointAt(audit.filter(d => d.kind === 'nzsurf'), at);
-  const hy = pointAt(audit.filter(d => d.source === HYBRID_SOURCE), at);
-  if (!nz || !hy || typeof nz.hs !== 'number' || typeof hy.hs !== 'number' || nz.hs < 0.05) return undefined;
-  const k = hy.hs / nz.hs;
-  const dTp = typeof hy.tp === 'number' && typeof nz.tp === 'number' ? hy.tp - nz.tp : 0;
-  const dDir = typeof hy.windDir === 'number' && typeof nz.windDir === 'number' ? angDiff(hy.windDir, nz.windDir) : 0;
+  const v2 = pointAt(audit.filter(d => d.source === V2_SOURCE), at);
+  if (!nz || !v2 || typeof nz.hs !== 'number' || typeof v2.hs !== 'number' || nz.hs < 0.05) return undefined;
+  const k = Math.min(2, Math.max(0.5, v2.hs / nz.hs));
+  const dTp = typeof v2.tp === 'number' && typeof nz.tp === 'number' ? v2.tp - nz.tp : 0;
+  const dDir = typeof v2.windDir === 'number' && typeof nz.windDir === 'number' ? angDiff(v2.windDir, nz.windDir) : 0;
+  const dWind = typeof v2.windKn === 'number' && typeof nz.windKn === 'number' ? v2.windKn - nz.windKn : 0;
   const windDirection = ((f.windDirection + dDir) % 360 + 360) % 360;
-  const wq = windQualityFor(spot.coastlineAngle ?? 300, windDirection, f.windSpeed);
+  const windSpeed = Math.max(0, f.windSpeed + dWind);
+  const wq = windQualityFor(spot.coastlineAngle ?? 300, windDirection, windSpeed);
   return {
     ...f, waveHeight: f.waveHeight * k, spotWaveHeight: typeof f.spotWaveHeight === 'number' ? f.spotWaveHeight * k : undefined,
-    swellPeriod: Math.max(1, f.swellPeriod + dTp), windDirection, windQuality: wq.windQuality, windType: wq.windType, surfChance: undefined,
+    swellPeriod: Math.max(1, f.swellPeriod + dTp), windDirection, windSpeed, windQuality: wq.windQuality, windType: wq.windType, surfChance: undefined,
   };
 }
 
@@ -108,19 +110,19 @@ export function buildTestRows(measurements: WebcamMeasurement[], user: UserProfi
     // gelijk aan wat de app gaf; bij oudere met dezelfde benadering (getij neutraal) als de andere twee.
     const nzsurf = computeSurfChance(spot, h.f).chance;
     const personal = personalHours(spot, [h.f], user).hours[0]?.personal;
-    const fh = hybridHour(h.f, spot, audit, at);
-    const hybrid = fh ? computeSurfChance(spot, fh).chance : undefined;
-    return { m, exact: h.exact, nzsurf, personal, hybrid, truth };
+    const fv = v2Hour(h.f, spot, audit, at);
+    const v2 = fv ? computeSurfChance(spot, fv).chance : undefined;
+    return { m, exact: h.exact, nzsurf, personal, v2, truth };
   });
 }
 
-export interface CandidateScore { key: 'nzsurf' | 'personal' | 'hybrid'; n: number; hit: number; brier: number; bias: number }
+export interface CandidateScore { key: 'nzsurf' | 'personal' | 'v2'; n: number; hit: number; brier: number; bias: number }
 
 /** Alleen rijen waar alle drie een kans hebben én er een waarheid is: dezelfde momenten voor iedereen. */
 export function scoreCandidates(rows: TestRow[], onlyJudged = false): { n: number; scores: CandidateScore[] } {
   const usable = rows.filter(r => r.truth && (!onlyJudged || r.truth.source === 'oordeel')
-    && typeof r.nzsurf === 'number' && typeof r.personal === 'number' && typeof r.hybrid === 'number');
-  const scores = (['nzsurf', 'personal', 'hybrid'] as const).map(key => {
+    && typeof r.nzsurf === 'number' && typeof r.personal === 'number' && typeof r.v2 === 'number');
+  const scores = (['nzsurf', 'personal', 'v2'] as const).map(key => {
     const ps = usable.map(r => ({ p: (r[key] as number) / 100, y: r.truth!.y }));
     const n = ps.length || 1;
     return {

@@ -128,6 +128,16 @@ export function siteHeightAt(docs: AuditForecastDoc[], source: string, at: numbe
   return typeof best.hs === 'number' ? best.hs : undefined;
 }
 
+/** Verwachte hoogte op de spot (spotHs) volgens een bron op tijdstip `at`: laatste run vóór `at`, dichtstbijzijnde uur (≤ 90 min). */
+export function spotHeightAt(docs: AuditForecastDoc[], source: string, at: number): number | undefined {
+  const run = docs.filter(d => d.source === source && Date.parse(d.runAt) <= at)
+    .sort((a, b) => Date.parse(b.runAt) - Date.parse(a.runAt))[0];
+  if (!run) return undefined;
+  let best: AuditForecastDoc['points'][number] | undefined, bd = Infinity;
+  for (const p of run.points || []) { const d = Math.abs(Date.parse(p.t) - at); if (d < bd) { bd = d; best = p; } }
+  return best && bd <= 90 * 60e3 && typeof best.spotHs === 'number' ? best.spotHs : undefined;
+}
+
 /** Gemiddelde afwijking van een reeks voorspellingen t.o.v. de webcam (alleen waar beide er zijn). */
 export function maeVsWebcam(pairs: { fc?: number; cam?: number }[]): { n: number; mae?: number; bias?: number } {
   const ok = pairs.filter(p => typeof p.fc === 'number' && typeof p.cam === 'number') as { fc: number; cam: number }[];

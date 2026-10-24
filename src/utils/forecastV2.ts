@@ -12,7 +12,7 @@
 //     swellrichting= DWD (anders NzSurf), niet gekalibreerd
 //     windsnelheid = per vooruitkijkklasse de ene bron met de kleinste fout na kalibratie
 //                    (standaard GFS); niet mengen, want een slechte bron trekt het gemiddelde mee
-//     windrichting = gewogen Météo-France, KNMI en GFS
+//     windrichting = gewogen Météo-France, KNMI, GFS en NzSurf
 // Laag 2 — bijsturen met de laatste meting: de fout van laag 1 op het laatst gemeten uur
 //   (minstens een uur vóór het ophaalmoment, zoals die er op dat moment echt was) wordt
 //   meegenomen en dooft uit (halfwaardetijd golf/periode 9 u, wind 4 u, windrichting 3 u).
@@ -26,12 +26,12 @@ import { BlendVar, blendForecast, learnSkill, BLEND_DEFAULTS } from './forecastB
 
 export const V2_SOURCE = 'nzsurf-v2';
 export const V2_LABEL = 'NzSurf v2';
-export const V2_RULES = 'zee: golfhoogte = DWD, Météo-France en NzSurf gewogen (elk gekalibreerd op de boei) · periode = Météo-France en NzSurf · swellrichting = DWD · windsnelheid = de bron met de kleinste fout na kalibratie (standaard GFS) · windrichting = Météo-France, KNMI en GFS · eerste uren bijgestuurd met de laatste meting (uitdovend) · strand = NzSurf-strandvertaling op de v2-zeehoogte';
+export const V2_RULES = 'zee: golfhoogte = DWD, Météo-France en NzSurf gewogen (elk gekalibreerd op de boei) · periode = Météo-France en NzSurf · swellrichting = DWD · windsnelheid = de bron met de kleinste fout na kalibratie (standaard GFS) · windrichting = Météo-France, KNMI, GFS en NzSurf gewogen · eerste uren bijgestuurd met de laatste meting (uitdovend) · strand = NzSurf-strandvertaling op de v2-zeehoogte';
 
 const NZ = 'nzsurf';
 const HS_SOURCES = ['dwd', 'meteofrance', NZ];
 const TP_SOURCES = ['meteofrance', NZ];
-const WDIR_SOURCES = ['meteofrance', 'knmi', 'gfs'];
+const WDIR_SOURCES = ['meteofrance', 'knmi', 'gfs', NZ];
 const WIND_CANDIDATES = ['gfs', NZ, 'knmi', 'dwd', 'meteofrance', 'ecmwf'];
 const WIND_DEFAULT = 'gfs';
 const WIND_MIN_PAIRS = 40;        // pas wisselen van windbron met genoeg bewijs
@@ -68,7 +68,7 @@ function pointNear(doc: AuditForecastDoc | undefined, t: number, maxMs = 90 * 60
 interface Layer1 { hs?: number; tp?: number; dir?: number; windKn?: number; windDir?: number; windSrc?: string }
 
 /** Eén v2-verwachting op ophaalmoment `runAt` (alleen kennis van vóór dat moment). */
-export function buildV2Doc(forecasts: AuditForecastDoc[], observations: AuditObsDoc[], runAt: string, runDate: string, spotId: string): AuditForecastDoc | null {
+export function buildV2Doc(forecasts: AuditForecastDoc[], observations: AuditObsDoc[], runAt: string, runDate: string, spotId: string, opts: { nowcast?: boolean } = {}): AuditForecastDoc | null {
   const run = Date.parse(runAt);
   const asOf = run + 60_000;
   const fromMs = run - OBS_MAX_AGE_MS - 3_600_000; // ook de uren rond de laatste meting (voor laag 2)
@@ -144,7 +144,7 @@ export function buildV2Doc(forecasts: AuditForecastDoc[], observations: AuditObs
   }
   const apply = (k: keyof typeof corr, v: number | undefined, t: number) => {
     const c = corr[k];
-    if (typeof v !== 'number' || !c || t < c.t) return v;
+    if (typeof v !== 'number' || !c || t < c.t || opts.nowcast === false) return v;
     return c.f(v, 0.5 ** ((t - c.t) / 3_600_000 / HALF_LIFE_H[k]));
   };
 
@@ -185,7 +185,7 @@ export function buildV2Doc(forecasts: AuditForecastDoc[], observations: AuditObs
 }
 
 /** Per ophaaldag een v2-verwachting, op het laatste ophaalmoment van die dag. */
-export function buildV2Docs(forecasts: AuditForecastDoc[], observations: AuditObsDoc[]): AuditForecastDoc[] {
+export function buildV2Docs(forecasts: AuditForecastDoc[], observations: AuditObsDoc[], opts: { nowcast?: boolean } = {}): AuditForecastDoc[] {
   const inputs = new Set([...HS_SOURCES, ...TP_SOURCES, ...WDIR_SOURCES, ...WIND_CANDIDATES]);
   const runByDay = new Map<string, { runAt: string; spotId: string }>();
   for (const f of forecasts) {
@@ -195,7 +195,7 @@ export function buildV2Docs(forecasts: AuditForecastDoc[], observations: AuditOb
   }
   const out: AuditForecastDoc[] = [];
   for (const [runDate, { runAt, spotId }] of [...runByDay.entries()].sort()) {
-    const d = buildV2Doc(forecasts, observations, runAt, runDate, spotId);
+    const d = buildV2Doc(forecasts, observations, runAt, runDate, spotId, opts);
     if (d) out.push(d);
   }
   return out;
