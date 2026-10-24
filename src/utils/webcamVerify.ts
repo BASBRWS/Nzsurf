@@ -86,7 +86,10 @@ export interface NearbyEstimate {
  * alleen die; anders de totale factor, gemarkeerd als indicatie.
  */
 export function nearbyEstimates(nearby: SpotForecastSnap[] = [], seaFactor?: number, totalFactor?: number): NearbyEstimate[] {
-  return nearby.map(snap => {
+  // Oudere metingen kunnen dezelfde plek twee keer bevatten (eigen spot + catalogus).
+  const seen: SpotForecastSnap[] = [];
+  for (const s of nearby) if (!seen.some(x => Math.abs(x.distKm - s.distKm) < 0.3 && x.name.replace(/[()]/g, '').replace(/\s+/g, ' ').trim().toLowerCase() === s.name.replace(/[()]/g, '').replace(/\s+/g, ' ').trim().toLowerCase())) seen.push(s);
+  return seen.map(snap => {
     const nz = snap.spotHs;
     if (!ok(nz)) return { snap, basis: 'geen' as const };
     if (ok(seaFactor)) return { snap, nz, corrected: Math.round(nz * seaFactor * 100) / 100, basis: 'zee' as const };

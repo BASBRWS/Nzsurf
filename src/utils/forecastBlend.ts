@@ -34,6 +34,8 @@ export interface BlendOptions {
   /** Onder dit aantal paren telt de start-fout zwaar mee. */
   minPairs: number;
   priorRmse: Record<BlendVar, number>;
+  /** Uren vanaf dit tijdstip meenemen (standaard: een uur vóór asOf). */
+  fromMs?: number;
   /** Windrichting pas meetellen boven deze gemeten windsnelheid (kn). */
   minWindForDir: number;
   /** Bron/onderdeel-paren die niet meedoen. ECMWF-golf: roosterpunt voor Ouddorp ligt te beschut (Hs gehalveerd, periode 2–3 s). */
@@ -179,7 +181,7 @@ export function blendForecast(
   for (const [src, f] of Object.entries(latest)) {
     const run = Date.parse(f.runAt);
     for (const p of f.points) {
-      const t = Date.parse(p.t); if (t < asOf - 3_600_000) continue;
+      const t = Date.parse(p.t); if (t < (opt.fromMs ?? asOf - 3_600_000)) continue;
       const b = bucketOf(Math.max((t - run) / 3_600_000, 0), opt.leadBuckets);
       const h = hours[hourKey(t)] ??= {};
       for (const v of opt.vars) {
