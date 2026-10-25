@@ -6,7 +6,7 @@ import { CompactDailyForecast } from './CompactDailyForecast';
 import { ForecastGrid } from './ForecastGrid';
 import { planDays, useChances } from './home/AnswerCard';
 import { DayLine } from './tide/DayLine';
-import { OK, TIDE, chanceColor, dayProfile, dayTips, hourOf, useWidth } from './tide/tide';
+import { OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide/tide';
 import { computeSurfChance } from '../utils/spotKnowledge';
 
 /**
@@ -38,6 +38,8 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
   const [ref, width] = useWidth<HTMLDivElement>();
   const lineW = Math.max(160, width - 56 - 64);
 
+  // Eén hoogteschaal voor de hele week, zodat de dagen te vergelijken zijn.
+  const weekScale = useMemo(() => heightScale(Math.max(0.5, ...forecasts.filter(f => f.isDaylight !== false).slice(0, 7 * 8).map(f => computeSurfChance(spot, f).spotWave))), [forecasts, spot]);
   const best = plans.filter(p => p.peak).reduce<typeof plans[number] | null>((a, b) => (!a || b.peakChance > a.peakChance ? b : a), null);
   const now = new Date();
 
@@ -88,13 +90,13 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
               </button>
               {(() => { const prof = dayProfile(items, chance); return prof.hours.length > 1; })()
                 ? (() => {
-                    const prof = dayProfile(items, chance);
+                    const prof = dayProfile(items, chance, x => computeSurfChance(spot, x).spotWave);
                     // Hoogte aan het strand om 9, 13 en 17 uur, als duiding onder de lijn.
                     const heights = [9, 13, 17].map(hr => {
                       const f = items.reduce<ForecastData | undefined>((a, b) => (!a || Math.abs(hourOf(b) - hr) < Math.abs(hourOf(a) - hr) ? b : a), undefined);
                       return f && Math.abs(hourOf(f) - hr) <= 2 ? { h: hr, v: computeSurfChance(spot, f).spotWave } : null;
                     }).filter((x): x is { h: number; v: number } => !!x);
-                    return <DayLine hours={prof.hours} chances={prof.chances} width={lineW} height={86} uncertain={i >= 3} heights={heights} tips={dayTips(spot, items, chance)} />;
+                    return <DayLine hours={prof.hours} chances={prof.chances} values={prof.values} scaleMax={weekScale} width={lineW} height={86} uncertain={i >= 3} heights={heights} tips={dayTips(spot, items, chance)} />;
                   })()
                 : <span className="h-[86px] border-b border-[color:var(--tide-line)]" />}
               <button onClick={() => p.peak && openDay(p.day)} disabled={!p.peak} tabIndex={-1} aria-hidden="true"
@@ -113,8 +115,8 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
       </div>
 
       <p className="mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)]">
-        <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />te surfen (≥ {OK}%).
-        Onder elke lijn de golfhoogte aan het strand om 9, 13 en 17 uur. Veeg of wijs over een lijn voor de tijd en de cijfers; tik de dag voor de details.
+        <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />oranje = te surfen (kans ≥ {OK}%).
+        De lijn is de golfhoogte aan het strand (zelfde schaal voor alle dagen, tot {String(weekScale).replace('.', ',')} m); de getallen eronder om 9, 13 en 17 uur. Veeg of wijs over een lijn voor de tijd en de cijfers; tik de dag voor de details.
         Vanaf dag 4 gestippeld: een richting, geen belofte.
       </p>
 
