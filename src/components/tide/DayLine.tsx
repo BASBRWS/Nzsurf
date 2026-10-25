@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { TIDE, GOOD, smoothPath, windowsAbove } from './tide';
 
 /**
@@ -16,12 +16,16 @@ interface Props {
   axis?: boolean;
   label?: string;           // schermlezer
   heights?: { h: number; v: number }[]; // golfhoogte aan het strand op een paar uren, onder de lijn
+  tips?: { h: number; text: string }[];  // aanwijzen/vegen: tijd en cijfers van het dichtstbijzijnde blok
 }
 
 const H0 = 6, H1 = 21;
 
-export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, now, uncertain, axis, label, heights }) => {
+export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, now, uncertain, axis, label, heights, tips }) => {
   const clip = useId().replace(/:/g, '');
+  const [hover, setHover] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const hideTimer = useRef<number | undefined>(undefined);
   const tideBand = tide ? 34 : 0, axisBand = axis ? 20 : 0, hBand = heights?.length ? 16 : 0;
   const base = height - tideBand - axisBand - hBand - 1, top = 8;
   const x = (h: number) => 2 + ((h - H0) / (H1 - H0)) * (width - 4);
@@ -35,8 +39,30 @@ export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, 
   const tidePts = tide ? hours.map((h, i) => [x(h), tide[i]] as const).filter(([px, v]) => typeof v === 'number' && px >= 0 && px <= width)
     .map(([px, v]) => [px, base + 12 + (1 - (v as number)) * (tideBand - 16)] as [number, number]) : [];
 
+  // Aanwijzen (muis) of vegen/tikken (vinger): het dichtstbijzijnde verwachtingsblok.
+  const pick = (clientX: number) => {
+    if (!tips?.length || !svgRef.current) return;
+    const r = svgRef.current.getBoundingClientRect();
+    const h = H0 + ((clientX - r.left - 2) / (width - 4)) * (H1 - H0);
+    let best = 0;
+    tips.forEach((t, i) => { if (Math.abs(t.h - h) < Math.abs(tips[best].h - h)) best = i; });
+    window.clearTimeout(hideTimer.current);
+    setHover(best);
+  };
+  const tip = hover !== null && tips ? tips[hover] : null;
+  const tipY = tip ? (() => {
+    let bi = 0; hours.forEach((hh, i) => { if (Math.abs(hh - tip.h) < Math.abs(hours[bi] - tip.h)) bi = i; });
+    return y(chances[bi]);
+  })() : 0;
+  const tipW = tip ? Math.min(width, tip.text.length * 6.6 + 18) : 0;
+  const tipX = tip ? Math.max(0, Math.min(width - tipW, x(tip.h) - tipW / 2)) : 0;
+
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} style={{ display: 'block', overflow: 'visible' }}>
+    <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}
+      style={{ display: 'block', overflow: 'visible', touchAction: tips ? 'pan-y' : undefined, cursor: tips ? 'crosshair' : undefined }}
+      onPointerDown={e => pick(e.clientX)} onPointerMove={e => pick(e.clientX)}
+      onPointerLeave={e => { if (e.pointerType === 'mouse') setHover(null); }}
+      onPointerUp={e => { if (e.pointerType !== 'mouse') hideTimer.current = window.setTimeout(() => setHover(null), 2500); }}>
       <defs>
         <clipPath id={clip}>{wins.map(([a, b], i) => <rect key={i} x={x(a)} y={0} width={Math.max(1, x(b) - x(a))} height={base} />)}</clipPath>
       </defs>
@@ -61,6 +87,14 @@ export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, 
           {v.toFixed(1).replace('.', ',')} m
         </text>
       ))}
+      {tip && (
+        <g pointerEvents="none">
+          <line x1={x(tip.h)} x2={x(tip.h)} y1={0} y2={base} stroke={TIDE.ink} strokeWidth={1} />
+          <circle cx={x(tip.h)} cy={tipY} r={4.5} fill={TIDE.sand} stroke={TIDE.ink} strokeWidth={1.5} />
+          <rect x={tipX} y={-30} width={tipW} height={24} rx={12} fill={TIDE.ink} />
+          <text x={tipX + tipW / 2} y={-14} textAnchor="middle" fontFamily="Instrument Sans" fontSize={12} fontWeight={600} fill={TIDE.sand}>{tip.text}</text>
+        </g>
+      )}
       {axis && [6, 9, 12, 15, 18, 21].map(h => (
         <text key={h} x={x(h)} y={height - 4} textAnchor={h === 6 ? 'start' : h === 21 ? 'end' : 'middle'} fontFamily="DM Mono" fontSize={10} letterSpacing={1} fill={TIDE.sea}>{String(h).padStart(2, '0')}</text>
       ))}

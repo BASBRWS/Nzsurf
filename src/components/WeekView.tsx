@@ -6,7 +6,7 @@ import { CompactDailyForecast } from './CompactDailyForecast';
 import { ForecastGrid } from './ForecastGrid';
 import { planDays, useChances } from './home/AnswerCard';
 import { DayLine } from './tide/DayLine';
-import { OK, TIDE, chanceColor, dayProfile, hourOf, useWidth } from './tide/tide';
+import { OK, TIDE, chanceColor, dayProfile, dayTips, hourOf, useWidth } from './tide/tide';
 import { computeSurfChance } from '../utils/spotKnowledge';
 
 /**
@@ -80,14 +80,12 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
           const pct = p.peak ? p.peakChance : null;
           const desc = pct === null ? 'geen gegevens' : pct >= OK ? `${pct}%, beste ${format(p.start!, 'HH')} tot ${format(p.end!, 'HH')} uur` : `${pct}%, werkt niet goed`;
           return (
-            <button key={i} onClick={() => p.peak && openDay(p.day)} disabled={!p.peak}
-              className="w-full grid items-end gap-0 text-left cursor-pointer disabled:cursor-default"
-              style={{ gridTemplateColumns: `56px ${lineW}px 1fr`, height: 94 }}
-              aria-label={`${i === 0 ? 'Vandaag' : format(p.day, 'EEEE d MMMM', { locale: nl })}: ${desc}${i >= 3 ? ', nog onzeker' : ''}`}>
-              <span className="pb-5 leading-tight">
+            <div key={i} className="w-full grid items-end gap-0 text-left" style={{ gridTemplateColumns: `56px ${lineW}px 1fr`, height: 98 }}>
+              <button onClick={() => p.peak && openDay(p.day)} disabled={!p.peak} className="pb-5 leading-tight text-left min-h-[44px] cursor-pointer disabled:cursor-default"
+                aria-label={`${i === 0 ? 'Vandaag' : format(p.day, 'EEEE d MMMM', { locale: nl })}: ${desc}${i >= 3 ? ', nog onzeker' : ''}. Toon de details`}>
                 <Mono className="block text-[color:var(--tide-ink)]">{label}</Mono>
                 <Mono className="block text-[color:var(--tide-mist)]">{format(p.day, 'd')}</Mono>
-              </span>
+              </button>
               {(() => { const prof = dayProfile(items, chance); return prof.hours.length > 1; })()
                 ? (() => {
                     const prof = dayProfile(items, chance);
@@ -96,11 +94,12 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
                       const f = items.reduce<ForecastData | undefined>((a, b) => (!a || Math.abs(hourOf(b) - hr) < Math.abs(hourOf(a) - hr) ? b : a), undefined);
                       return f && Math.abs(hourOf(f) - hr) <= 2 ? { h: hr, v: computeSurfChance(spot, f).spotWave } : null;
                     }).filter((x): x is { h: number; v: number } => !!x);
-                    return <DayLine hours={prof.hours} chances={prof.chances} width={lineW} height={86} uncertain={i >= 3} heights={heights} />;
+                    return <DayLine hours={prof.hours} chances={prof.chances} width={lineW} height={86} uncertain={i >= 3} heights={heights} tips={dayTips(spot, items, chance)} />;
                   })()
                 : <span className="h-[86px] border-b border-[color:var(--tide-line)]" />}
-              <span className="tide-serif text-right text-[28px] leading-none pb-[18px]" style={{ color: pct === null ? TIDE.mist : chanceColor(pct) }}>{pct === null ? '–' : `${pct}%`}</span>
-            </button>
+              <button onClick={() => p.peak && openDay(p.day)} disabled={!p.peak} tabIndex={-1} aria-hidden="true"
+                className="tide-serif text-right text-[26px] leading-none pb-[18px] cursor-pointer disabled:cursor-default" style={{ color: pct === null ? TIDE.mist : chanceColor(pct) }}>{pct === null ? '–' : `${pct}%`}</button>
+            </div>
           );
         })}
         <div className="grid mt-1" style={{ gridTemplateColumns: `56px ${lineW}px 1fr` }} aria-hidden="true">
@@ -115,7 +114,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
 
       <p className="mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)]">
         <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />te surfen (≥ {OK}%).
-        Onder elke lijn de golfhoogte aan het strand om 9, 13 en 17 uur.
+        Onder elke lijn de golfhoogte aan het strand om 9, 13 en 17 uur. Veeg of wijs over een lijn voor de tijd en de cijfers; tik de dag voor de details.
         Vanaf dag 4 gestippeld: een richting, geen belofte.
       </p>
 

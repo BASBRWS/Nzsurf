@@ -6,7 +6,7 @@ import { planDays, sizeWord, useChances } from '../home/AnswerCard';
 import { reasonSentence, windTypeNl } from '../../utils/surfMoments';
 import { computeSurfChance, degreesToCompass16 } from '../../utils/spotKnowledge';
 import { DayLine } from './DayLine';
-import { GOOD, OK, TIDE, dayProfile, hourOf, useWidth } from './tide';
+import { OK, TIDE, dayProfile, dayTips, hourOf, useWidth } from './tide';
 
 /**
  * Vandaag als instrument: één woord dat oordeelt, het tijdvak, en de dag als lijn.
@@ -81,7 +81,7 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
 
           <div ref={ref} className="mt-6">
             {(() => { const prof = dayProfile(todayItems, chance); return prof.hours.length > 1 && (
-              <DayLine hours={prof.hours} chances={prof.chances} tide={prof.tide}
+              <DayLine hours={prof.hours} chances={prof.chances} tide={prof.tide} tips={dayTips(spot, todayItems, chance)}
                 width={width} height={190} now={now.getHours() + now.getMinutes() / 60} axis
                 label={`Kans vandaag per uur, beste ${pct}%`} />
             ); })()}
