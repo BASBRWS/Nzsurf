@@ -6,7 +6,7 @@ import { planDays, sizeWord, useChances } from '../home/AnswerCard';
 import { reasonSentence, windTypeNl } from '../../utils/surfMoments';
 import { computeSurfChance, degreesToCompass16 } from '../../utils/spotKnowledge';
 import { DayLine } from './DayLine';
-import { OK, TIDE, dayProfile, dayTips, hourOf, useWidth } from './tide';
+import { OK, TIDE, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide';
 
 /**
  * Vandaag als instrument: één woord dat oordeelt, het tijdvak, en de dag als lijn.
@@ -52,7 +52,7 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
     when = <>{s.getTime() <= now.getTime() ? `nu – ${hh(today.end)}` : `${hh(s)} – ${hh(today.end)}`}</>;
   } else if (next) {
     word = today?.items.length ? 'Vandaag niet.' : `${dayWord(next.day, now).replace(/^./, c => c.toUpperCase())}.`;
-    when = <>eerste kans {dayWord(next.day, now)} {hh(next.start)} – {hh(next.end)}</>;
+    when = today?.items.length ? <>eerste kans {dayWord(next.day, now)} {hh(next.start)} – {hh(next.end)}</> : <>{hh(next.start)} – {hh(next.end)}</>;
   } else if (plans.some(p => p.items.length)) {
     word = 'Deze week niet.';
     when = <>geen moment boven {OK}%</>;
@@ -80,11 +80,19 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
           <p className="mt-2 text-[17px] leading-snug text-[color:var(--tide-sea)] max-w-[34ch]">{reasonSentence(spot, f)}</p>
 
           <div ref={ref} className="mt-6">
-            {(() => { const prof = dayProfile(todayItems, chance); return prof.hours.length > 1 && (
-              <DayLine hours={prof.hours} chances={prof.chances} tide={prof.tide} tips={dayTips(spot, todayItems, chance)}
-                width={width} height={190} now={now.getHours() + now.getMinutes() / 60} axis
-                label={`Kans vandaag per uur, beste ${pct}%`} />
-            ); })()}
+            {(() => {
+              const prof = dayProfile(todayItems, chance, x => computeSurfChance(spot, x).spotWave);
+              if (prof.hours.length < 2) return null;
+              const sc = heightScale(Math.max(...prof.values));
+              return (
+                <>
+                  <Mono className="block mb-10 text-[color:var(--tide-mist)]">{today?.items.length ? 'vandaag · ' : 'vandaag (voorbij) · '}golf aan strand · <span style={{ color: TIDE.sun }}>oranje = surfen</span></Mono>
+                  <DayLine hours={prof.hours} chances={prof.chances} values={prof.values} scaleMax={sc} guides={[1, 2, 3]} tide={prof.tide}
+                    tips={dayTips(spot, todayItems, chance)} width={width} height={200} now={now.getHours() + now.getMinutes() / 60} axis
+                    label={`Golfhoogte aan het strand vandaag, tot ${Math.max(...prof.values).toFixed(1)} meter`} />
+                </>
+              );
+            })()}
           </div>
 
           <div className="mt-5 border-t border-[color:var(--tide-line)] pt-3">

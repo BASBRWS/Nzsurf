@@ -63,17 +63,25 @@ export function useWidth<T extends HTMLElement>(fallback = 340) {
   return [ref, w] as const;
 }
 
-/** De lijn van één dag: alleen daglicht, met aan beide kanten een zachte aanloop naar 0. */
-export function dayProfile(items: ForecastData[], chance: (f: ForecastData) => number) {
+/**
+ * De lijn van één dag: alleen daglicht. Met `height` ook de golfhoogte per blok (de lijn
+ * wordt dan de hoogte; de kans bepaalt waar het oranje is). Zonder hoogte een zachte
+ * aanloop naar 0 aan beide kanten.
+ */
+export function dayProfile(items: ForecastData[], chance: (f: ForecastData) => number, height?: (f: ForecastData) => number) {
   const day = items.filter(f => f.isDaylight !== false && hourOf(f) >= 6 && hourOf(f) <= 21)
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-  if (!day.length) return { hours: [] as number[], chances: [] as number[], tide: [] as (number | undefined)[] };
+  if (!day.length) return { hours: [] as number[], chances: [] as number[], tide: [] as (number | undefined)[], values: [] as number[] };
   const hours = day.map(hourOf), chances = day.map(chance), tide = day.map(f => f.tideLevel);
+  const values = height ? day.map(height) : [];
   const first = hours[0], last = hours[hours.length - 1];
-  if (first > 6) { hours.unshift(Math.max(6, first - 1.5)); chances.unshift(0); tide.unshift(undefined); }
-  if (last < 21) { hours.push(Math.min(21, last + 1.5)); chances.push(0); tide.push(undefined); }
-  return { hours, chances, tide };
+  if (first > 6) { hours.unshift(Math.max(6, first - 1.5)); chances.unshift(0); tide.unshift(undefined); if (height) values.unshift(values[0]); }
+  if (last < 21) { hours.push(Math.min(21, last + 1.5)); chances.push(0); tide.push(undefined); if (height) values.push(values[values.length - 1]); }
+  return { hours, chances, tide, values };
 }
+
+/** Bovenkant van de hoogteschaal: ruim boven de hoogste golf, in halve meters, 1,5–4 m. */
+export const heightScale = (maxM: number) => Math.min(4, Math.max(1.5, Math.ceil((maxM * 1.2) * 2) / 2));
 
 import { computeSurfChance, degreesToCompass16 } from '../../utils/spotKnowledge';
 import type { SurfSpot } from '../../types';
