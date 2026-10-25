@@ -28,10 +28,9 @@ import { nl } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { Capacitor } from '@capacitor/core';
 import { TodayStrip } from './home/TodayStrip';
-import { AnswerCard } from './home/AnswerCard';
+import { TodayInstrument } from './tide/TodayInstrument';
 import { TodayChart } from './home/TodayChart';
 import { BestMoments } from './home/BestMoments';
-import { OtherSpotsNow } from './home/OtherSpotsNow';
 import { pickNow, chanceOf, chanceLevel, nextGoodWindow, rawLine, reasonSentence, windowLabel, knotsToBft, windTypeNl } from '../utils/surfMoments';
 import { degreesToCompass16, tideLevelLabel } from '../utils/spotKnowledge';
 import { generateLocalSurfAdvice } from '../services/geminiService';
@@ -125,17 +124,22 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-4 text-slate-800 select-none">
+    <div className="space-y-6 text-slate-800 select-none">
 
-      {/* 1. HET ANTWOORD: kan ik vandaag surfen, wanneer en met welk board? */}
-      <AnswerCard
+      {/* 1. HET ANTWOORD: één woord, het tijdvak, en de dag als lijn */}
+      <TodayInstrument
         spot={spot} forecasts={forecasts} user={user} isLoggedIn={isLoggedIn}
         isLoading={isForecastLoading} error={forecastError} staleAt={forecastStaleAt} onRetry={onRetryForecast}
         onSelectHour={handleHourSelect} onOpenAICoach={onOpenAICoach} onOpenSessionWindow={onOpenSessionWindow}
-        onOpenMap={onOpenMap} onOpenProfile={onOpenProfile}
+        onOpenProfile={onOpenProfile}
       />
 
-      {/* 2. DE CIJFERS: per uur, nu, en het verloop van vandaag */}
+      {/* 2. ALLE CIJFERS VAN VANDAAG: één tik dieper */}
+      <details className="group border-t border-[color:var(--tide-line)]">
+        <summary className="list-none flex items-center justify-between min-h-[56px] px-1 cursor-pointer text-[17px]">
+          <span>Alle cijfers van vandaag</span>
+          <ChevronDown className="w-5 h-5 transition-transform group-open:rotate-180" />
+        </summary>
       <div className="relative bg-white rounded-3xl border border-slate-200 p-4 sm:p-7 space-y-6">
 
         <TodayStrip spot={spot} forecast={forecasts} nowItem={nowItem} onSelectHour={handleHourSelect} />
@@ -202,20 +206,16 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
 
         <TodayChart forecast={forecasts} />
 
-        {onOpenWeek && (
-          <button onClick={onOpenWeek} className="w-full flex items-center justify-between min-h-[52px] px-4 rounded-2xl bg-slate-50 border border-slate-200 text-[16px] font-semibold text-slate-900 hover:bg-slate-100 cursor-pointer">
-            <span className="flex items-center gap-2"><Calendar className="w-5 h-5 text-cyan-700" /> De hele week bekijken</span>
-            <ChevronRight className="w-5 h-5 text-slate-500" />
-          </button>
-        )}
-
-        {/* 3. SUGGESTIES: beste momenten en andere spots (met cijfers, zelf oordelen) */}
         <BestMoments spot={spot} forecast={forecasts} onSelectHour={handleHourSelect} />
-        {allSpots && onSelectSpot && (
-          <OtherSpotsNow spot={spot} spots={allSpots} currentChance={nowChance} onSelectSpot={onSelectSpot} />
-        )}
-
       </div>
+      </details>
+
+      {onOpenWeek && (
+        <button onClick={onOpenWeek} className="w-full flex items-center justify-between min-h-[56px] px-1 border-t border-b border-[color:var(--tide-line)] text-[17px] cursor-pointer">
+          <span>De week</span>
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      )}
 
     </div>
   );

@@ -2,12 +2,14 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif-display: "Instrument Serif", Georgia, serif;
+  --font-dm: "DM Mono", ui-monospace, monospace;
   --font-display: "Space Grotesk", "Rajdhani", "Outfit", sans-serif;
   --font-tactical: "Rajdhani", "Space Grotesk", "Chakra Petch", sans-serif;
   --font-technical: "Space Grotesk", "Rajdhani", sans-serif;
   /* "mono" was de tactische stijl voor labels en cijfers; voor leesbaarheid nu Inter met cijfers op gelijke breedte. */
-  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-pixel: "Silkscreen", "Press Start 2P", monospace;
   --font-retro: "Press Start 2P", monospace;
@@ -25,10 +27,10 @@
 
 @layer utilities {
   .font-tactical {
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
   .font-technical {
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
   .glass-tactical {
     background-color: rgba(16, 22, 32, 0.75);
@@ -2726,3 +2728,47 @@ body.theme-developer {
 .text-\[8px\], .text-\[9px\], .text-\[10px\] { font-size: 12px; line-height: 1.35; }
 .text-\[11px\] { font-size: 13px; line-height: 1.4; }
 .tracking-widest, .tracking-\[0\.2em\], .tracking-\[0\.3em\], .tracking-\[0\.25em\] { letter-spacing: 0.06em; }
+
+/* ══ Getijdeninstrument ══════════════════════════════════════════════════════
+   Zand als ondergrond, zeegroen als inkt, schuim voor wat ondersteunt, één warme
+   oranje toon voor het goede moment. Buiten de lagen, zodat het de oude
+   Tailwind-kleuren in alle schermen overstemt. */
+:root {
+  --tide-paper: #efe9dd;
+  --tide-sand: #f7f3eb;
+  --tide-ink: #12292b;
+  --tide-sea: #2d6466;
+  --tide-foam: #cfded8;
+  --tide-mist: #8aa3a0;
+  --tide-sun: #d97a24;
+  --tide-line: rgba(18, 41, 43, 0.14);
+}
+html, body, body.theme-light {
+  background: var(--tide-paper) !important;
+  background-image: none !important;
+  color: var(--tide-ink) !important;
+  font-family: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+body::after { display: none !important; }
+h1, h2, h3, h4 {
+  font-family: "Instrument Serif", Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  text-transform: none !important;
+  letter-spacing: -0.01em !important;
+}
+.tide-mono, .tide-mono * { font-family: "DM Mono", ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
+.tide-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; }
+
+/* Oude kleuren naar het nieuwe palet */
+.bg-white, .bg-white\/90, .bg-white\/95, .bg-white\/80 { background-color: var(--tide-sand) !important; }
+.bg-slate-50, .bg-slate-50\/80, .bg-slate-100 { background-color: #f1ebdf !important; }
+.border-slate-200, .border-slate-200\/80, .border-slate-200\/90, .border-slate-100, .border-slate-300 { border-color: var(--tide-line) !important; }
+.text-slate-900, .text-slate-800 { color: var(--tide-ink) !important; }
+.text-slate-700, .text-slate-600 { color: #3e5658 !important; }
+.text-slate-500, .text-slate-400 { color: #6b8082 !important; }
+.text-cyan-600, .text-cyan-700, .text-cyan-800, .text-cyan-900 { color: var(--tide-sea) !important; }
+.bg-cyan-50, .bg-cyan-100 { background-color: #e3ece8 !important; }
+.border-cyan-200, .border-cyan-400 { border-color: rgba(45, 100, 102, 0.35) !important; }
+.bg-slate-900 { background-color: var(--tide-ink) !important; }
+.bg-cyan-600, .bg-cyan-500 { background-color: var(--tide-sea) !important; }

@@ -12,6 +12,7 @@ import { fetchForecast } from './services/weatherService';
 import { TacticalDashboard } from './components/TacticalDashboard';
 import { TacticalBottomNav, TacticalTab } from './components/TacticalBottomNav';
 import { WeekView } from './components/WeekView';
+import { CoastView } from './components/tide/CoastView';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
 import { RegionalSeoGuide } from './components/RegionalSeoGuide';
@@ -464,31 +465,23 @@ export default function App() {
   const currentForecastData = pickNow(forecast);
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] text-slate-800 font-sans antialiased overflow-x-hidden selection:bg-cyan-500 selection:text-slate-950">
+    <div className="min-h-screen bg-[color:var(--tide-paper)] text-slate-800 font-sans antialiased overflow-x-hidden selection:bg-cyan-500 selection:text-slate-950">
       
       {/* Background Soft Coastal Atmospheric Gradients */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-cyan-100/60 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-1/4 w-[500px] h-[500px] bg-blue-100/60 rounded-full blur-3xl" />
-      </div>
 
       {/* Main Responsive App Container */}
       <div className="relative z-10 w-full max-w-4xl lg:max-w-5xl mx-auto px-2 sm:px-4 py-2 sm:py-5 pb-40">
         
         {/* Tactical App Top Bar in Crisp Light Theme */}
-        <header className="sticky top-2 z-40 bg-white/90 backdrop-blur-xl border border-slate-200/90 rounded-2xl px-4 py-3 mb-4 flex items-center justify-between shadow-xs">
+        <header className="sticky top-0 z-40 px-2 py-3 mb-2 flex items-center justify-between border-b" style={{ background: 'var(--tide-paper)', borderColor: 'var(--tide-line)' }}>
           
           {/* Logo & Spot Quick Selector */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 p-0.5 shadow-sm">
-              <div className="w-full h-full bg-white rounded-[10px] flex items-center justify-center text-cyan-600 font-tactical font-black text-sm">
-                NZ
-              </div>
-            </div>
+            <span className="tide-serif text-[24px] leading-none" style={{ color: 'var(--tide-ink)' }}>Nz<i style={{ color: 'var(--tide-sea)' }}>Surf</i></span>
 
             <div className="relative group flex items-center gap-1.5">
               <div className="flex items-center gap-1.5 cursor-pointer">
-                <span className="text-sm font-black font-tactical uppercase tracking-wider text-slate-900 truncate max-w-[140px] sm:max-w-none">
+                <span className="tide-mono text-[12px] truncate max-w-[130px] sm:max-w-none" style={{ color: 'var(--tide-sea)' }}>
                   {selectedSpot.name}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-cyan-600 group-hover:translate-y-0.5 transition-transform" />
@@ -530,17 +523,18 @@ export default function App() {
                 setNewSpotInitialCoords(null);
                 setIsAddSpotModalOpen(true);
               }}
-              className="px-2.5 py-1 rounded-full text-[10px] font-tactical font-black uppercase tracking-wider bg-slate-900 hover:bg-cyan-600 text-white flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-              title="Nieuwe surfspot toevoegen"
+              className="w-10 h-10 rounded-full border grid place-items-center cursor-pointer"
+              style={{ borderColor: 'var(--tide-line)', color: 'var(--tide-ink)' }}
+              title="Nieuwe surfspot toevoegen" aria-label="Nieuwe surfspot toevoegen"
             >
-              <Plus className="w-3 h-3 text-cyan-400 stroke-[3]" />
-              <span className="hidden sm:inline">Spot</span>
+              <Plus className="w-4 h-4" />
             </button>
 
             {authUser ? (
               <button 
                 onClick={() => setActiveTab('profile')}
-                className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-cyan-600 overflow-hidden cursor-pointer"
+                className="w-10 h-10 rounded-full border flex items-center justify-center overflow-hidden cursor-pointer"
+                style={{ borderColor: 'var(--tide-ink)' }} aria-label="Ik"
               >
                 {authUser.photoURL ? (
                   <img src={authUser.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -551,9 +545,10 @@ export default function App() {
             ) : (
               <button
                 onClick={handleLogin}
-                className="px-3 py-1 rounded-full bg-slate-900 text-white font-tactical font-black text-xs uppercase tracking-wider shadow-sm hover:bg-cyan-600 transition-colors cursor-pointer"
+                className="min-h-[40px] px-4 rounded-full text-[15px] font-semibold cursor-pointer"
+                style={{ background: 'var(--tide-ink)', color: 'var(--tide-sand)' }}
               >
-                INLOGGEN
+                Inloggen
               </button>
             )}
           </div>
@@ -657,8 +652,19 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* View 2: Real Interactive OpenStreetMap Coastline Map (SPOTS) */}
+            {/* Kust: spots langs de kustlijn met hun beste moment vandaag */}
             {activeTab === 'spots' && (
+              <motion.div key="coast" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <CoastView
+                  spot={selectedSpot} forecast={forecast} spots={allSpots} user={user} isLoggedIn={!!authUser}
+                  onSelectSpot={(id) => { setSelectedSpotId(id); setActiveTab('forecast'); window.scrollTo({ top: 0 }); }}
+                  onOpenMap={() => setActiveTab('map')}
+                />
+              </motion.div>
+            )}
+
+            {/* Kaart (vanuit Kust): de interactieve kaart met alle spots */}
+            {activeTab === 'map' && (
               <motion.div
                 key="map"
                 initial={{ opacity: 0, scale: 0.98 }}
