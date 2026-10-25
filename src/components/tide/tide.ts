@@ -6,11 +6,13 @@ export const TIDE = {
   paper: '#efe9dd', sand: '#f7f3eb', ink: '#12292b', sea: '#2d6466',
   foam: '#cfded8', mist: '#8aa3a0', sun: '#d97a24',
 };
-/** Vanaf deze kans licht het moment op. */
-export const GOOD = 65;
+/** Vanaf deze kans is het te surfen en licht het moment op (zelfde grens als het tijdvak in de kop). */
 export const OK = 45;
+export const GOOD = OK;
+/** Vanaf hier "goed" in woorden. */
+export const GREAT = 70;
 
-export const chanceColor = (c: number) => (c >= GOOD ? TIDE.sun : c >= OK ? TIDE.ink : TIDE.mist);
+export const chanceColor = (c: number) => (c >= OK ? TIDE.sun : TIDE.mist);
 
 /** Vloeiende lijn door punten (Catmull-Rom → Bézier), zonder overschot onder de basislijn. */
 export function smoothPath(pts: [number, number][], minY?: number, maxY?: number): string {

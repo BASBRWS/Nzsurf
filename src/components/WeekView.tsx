@@ -6,7 +6,8 @@ import { CompactDailyForecast } from './CompactDailyForecast';
 import { ForecastGrid } from './ForecastGrid';
 import { planDays, useChances } from './home/AnswerCard';
 import { DayLine } from './tide/DayLine';
-import { GOOD, OK, TIDE, chanceColor, dayProfile, hourOf, useWidth } from './tide/tide';
+import { OK, TIDE, chanceColor, dayProfile, hourOf, useWidth } from './tide/tide';
+import { computeSurfChance } from '../utils/spotKnowledge';
 
 /**
  * Week als zeven getijden: elke dag dezelfde lijn, onder elkaar. Licht waar het ≥ 65% is.
@@ -31,7 +32,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
   const personal = canPersonal && mode === 'personal';
   const { chance, board, generic } = useChances(spot, forecasts, user, personal);
   const plans = useMemo(() => planDays(forecasts, chance, board, generic, new Date(), 7), [forecasts, chance, board, generic]);
-  const [detail, setDetail] = useState<'cards' | 'grid'>('cards');
+  const [detail, setDetail] = useState<'cards' | 'grid'>('grid');
   const [focusDay, setFocusDay] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -42,7 +43,6 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
 
   const openDay = (d: Date) => {
     setFocusDay(format(d, 'yyyy-MM-dd'));
-    setDetail('cards');
     setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   };
 
@@ -82,16 +82,24 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
           return (
             <button key={i} onClick={() => p.peak && openDay(p.day)} disabled={!p.peak}
               className="w-full grid items-end gap-0 text-left cursor-pointer disabled:cursor-default"
-              style={{ gridTemplateColumns: `56px ${lineW}px 1fr`, height: 78 }}
+              style={{ gridTemplateColumns: `56px ${lineW}px 1fr`, height: 94 }}
               aria-label={`${i === 0 ? 'Vandaag' : format(p.day, 'EEEE d MMMM', { locale: nl })}: ${desc}${i >= 3 ? ', nog onzeker' : ''}`}>
-              <span className="pb-1 leading-tight">
+              <span className="pb-5 leading-tight">
                 <Mono className="block text-[color:var(--tide-ink)]">{label}</Mono>
                 <Mono className="block text-[color:var(--tide-mist)]">{format(p.day, 'd')}</Mono>
               </span>
               {(() => { const prof = dayProfile(items, chance); return prof.hours.length > 1; })()
-                ? (() => { const prof = dayProfile(items, chance); return <DayLine hours={prof.hours} chances={prof.chances} width={lineW} height={70} uncertain={i >= 3} />; })()
-                : <span className="h-[70px] border-b border-[color:var(--tide-line)]" />}
-              <span className="tide-serif text-right text-[28px] leading-none pb-0.5" style={{ color: pct === null ? TIDE.mist : chanceColor(pct) }}>{pct === null ? '–' : `${pct}%`}</span>
+                ? (() => {
+                    const prof = dayProfile(items, chance);
+                    // Hoogte aan het strand om 9, 13 en 17 uur, als duiding onder de lijn.
+                    const heights = [9, 13, 17].map(hr => {
+                      const f = items.reduce<ForecastData | undefined>((a, b) => (!a || Math.abs(hourOf(b) - hr) < Math.abs(hourOf(a) - hr) ? b : a), undefined);
+                      return f && Math.abs(hourOf(f) - hr) <= 2 ? { h: hr, v: computeSurfChance(spot, f).spotWave } : null;
+                    }).filter((x): x is { h: number; v: number } => !!x);
+                    return <DayLine hours={prof.hours} chances={prof.chances} width={lineW} height={86} uncertain={i >= 3} heights={heights} />;
+                  })()
+                : <span className="h-[86px] border-b border-[color:var(--tide-line)]" />}
+              <span className="tide-serif text-right text-[28px] leading-none pb-[18px]" style={{ color: pct === null ? TIDE.mist : chanceColor(pct) }}>{pct === null ? '–' : `${pct}%`}</span>
             </button>
           );
         })}
@@ -106,7 +114,8 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
       </div>
 
       <p className="mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)]">
-        <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />goed moment (≥ {GOOD}%).
+        <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />te surfen (≥ {OK}%).
+        Onder elke lijn de golfhoogte aan het strand om 9, 13 en 17 uur.
         Vanaf dag 4 gestippeld: een richting, geen belofte.
       </p>
 
@@ -114,7 +123,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[28px] leading-none">Alle cijfers</h3>
           <div className="flex gap-4">
-            {([['cards', 'Dagkaarten'], ['grid', 'Tabel']] as const).map(([k, l]) => (
+            {([['grid', 'Tabel'], ['cards', 'Dagkaarten']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setDetail(k)} aria-pressed={detail === k}
                 className={`min-h-[44px] text-[15px] cursor-pointer ${detail === k ? 'underline underline-offset-[6px] decoration-[color:var(--tide-sun)] decoration-2' : 'text-[color:var(--tide-mist)]'}`}>{l}</button>
             ))}

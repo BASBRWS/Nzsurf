@@ -15,14 +15,15 @@ interface Props {
   uncertain?: boolean;      // verder vooruit: lijn gestippeld, licht gedempt
   axis?: boolean;
   label?: string;           // schermlezer
+  heights?: { h: number; v: number }[]; // golfhoogte aan het strand op een paar uren, onder de lijn
 }
 
 const H0 = 6, H1 = 21;
 
-export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, now, uncertain, axis, label }) => {
+export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, now, uncertain, axis, label, heights }) => {
   const clip = useId().replace(/:/g, '');
-  const tideBand = tide ? 34 : 0, axisBand = axis ? 20 : 0;
-  const base = height - tideBand - axisBand - 1, top = 8;
+  const tideBand = tide ? 34 : 0, axisBand = axis ? 20 : 0, hBand = heights?.length ? 16 : 0;
+  const base = height - tideBand - axisBand - hBand - 1, top = 8;
   const x = (h: number) => 2 + ((h - H0) / (H1 - H0)) * (width - 4);
   const y = (c: number) => base - (Math.max(0, Math.min(100, c)) / 100) * (base - top);
   const pts = hours.map((h, i) => [x(h), y(chances[i])] as [number, number]).filter(p => p[0] >= 0 && p[0] <= width);
@@ -55,6 +56,11 @@ export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, 
           <text x={width - 2} y={base + 10} textAnchor="end" fontFamily="DM Mono" fontSize={9.5} letterSpacing={1.4} fill={TIDE.mist}>GETIJ</text>
         </g>
       )}
+      {heights?.map(({ h, v }) => (
+        <text key={h} x={x(h)} y={base + 13} textAnchor="middle" fontFamily="DM Mono" fontSize={10} letterSpacing={0.6} fill={TIDE.sea}>
+          {v.toFixed(1).replace('.', ',')} m
+        </text>
+      ))}
       {axis && [6, 9, 12, 15, 18, 21].map(h => (
         <text key={h} x={x(h)} y={height - 4} textAnchor={h === 6 ? 'start' : h === 21 ? 'end' : 'middle'} fontFamily="DM Mono" fontSize={10} letterSpacing={1} fill={TIDE.sea}>{String(h).padStart(2, '0')}</text>
       ))}

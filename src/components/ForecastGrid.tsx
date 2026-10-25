@@ -158,9 +158,20 @@ export function ForecastGrid({ forecast, onCellClick, spot, onDayClick }: Foreca
                       )}
 
                       <div className="flex flex-col items-center leading-none">
-                        <span className="text-xs sm:text-2xl font-black font-tactical tracking-tight text-slate-900">
-                          {data.waveHeight.toFixed(1)}<span className="text-[7px] sm:text-[10px] ml-0.5 font-mono text-slate-500 uppercase font-normal">m</span>
-                        </span>
+                        {(() => {
+                          // Groot: wat er aan het strand aankomt (zelfde hoogte als Vandaag en de kans); klein: op zee.
+                          const strand = spot ? computeSurfChance(spot, data).spotWave : (data.spotWaveHeight ?? data.waveHeight);
+                          return (
+                            <>
+                              <span className="text-xs sm:text-2xl font-black font-tactical tracking-tight text-slate-900" title={`Aan het strand ${strand.toFixed(1)} m · op zee ${data.waveHeight.toFixed(1)} m`}>
+                                {strand.toFixed(1).replace('.', ',')}<span className="text-[7px] sm:text-[10px] ml-0.5 font-mono text-slate-500 font-normal">m</span>
+                              </span>
+                              {Math.abs(data.waveHeight - strand) >= 0.2 && (
+                                <span className="text-[8px] sm:text-[10px] font-mono text-slate-500 mt-0.5">zee {data.waveHeight.toFixed(1).replace('.', ',')}</span>
+                              )}
+                            </>
+                          );
+                        })()}
                         <div className="flex items-center gap-0.5 mt-0.5 opacity-80">
                           <Waves className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                           <span className="text-[8px] sm:text-[10px] font-mono font-bold">{Math.round(data.swellPeriod)}s</span>
@@ -223,6 +234,7 @@ export function ForecastGrid({ forecast, onCellClick, spot, onDayClick }: Foreca
           </span>
         ))}
         <span className="text-slate-400">• golfhoogte, swellrichting, periode, wind en getij</span>
+        <span className="basis-full text-slate-600"><b>Groot getal</b> = golf aan het strand, <b>zee</b> = op open zee. Het verschil is de demping door zandbanken en de swellrichting.</span>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { nl } from 'date-fns/locale';
 import type { ForecastData, SurfSpot, UserProfile } from '../../types';
 import { planDays, sizeWord, useChances } from '../home/AnswerCard';
 import { reasonSentence, windTypeNl } from '../../utils/surfMoments';
-import { degreesToCompass16 } from '../../utils/spotKnowledge';
+import { computeSurfChance, degreesToCompass16 } from '../../utils/spotKnowledge';
 import { DayLine } from './DayLine';
 import { GOOD, OK, TIDE, dayProfile, hourOf, useWidth } from './tide';
 
@@ -58,7 +58,10 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
     when = <>geen moment boven {OK}%</>;
   }
   const pct = show?.peakChance ?? 0;
-  const h = f ? f.spotWaveHeight ?? f.waveHeight : 0;
+  // Hoogte aan het strand: dezelfde als waar de kans op rekent (en de tabel nu groot toont).
+  const h = f ? computeSurfChance(spot, f).spotWave : 0;
+  const sea = f?.waveHeight ?? 0;
+  const damped = f && sea >= 0.5 && h < sea * 0.6;
 
   return (
     <section aria-label="Kan ik vandaag surfen?" className="px-1 pt-2">
@@ -72,7 +75,7 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
           <h2 className="mt-6 leading-[0.95] text-[color:var(--tide-ink)]" style={{ fontSize: 'clamp(56px, 19vw, 92px)' }}>{word}</h2>
           <div className="mt-3 flex items-baseline gap-3 flex-wrap">
             <span className="text-[20px] font-semibold tabular-nums">{when}</span>
-            <span className="tide-serif text-[30px] leading-none" style={{ color: pct >= GOOD ? TIDE.sun : pct >= OK ? TIDE.ink : TIDE.mist }}>{pct}%</span>
+            <span className="tide-serif text-[30px] leading-none" style={{ color: pct >= OK ? TIDE.sun : TIDE.mist }}>{pct}%</span>
           </div>
           <p className="mt-2 text-[17px] leading-snug text-[color:var(--tide-sea)] max-w-[34ch]">{reasonSentence(spot, f)}</p>
 
@@ -84,11 +87,21 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
             ); })()}
           </div>
 
-          <div className="mt-5 grid grid-cols-3 border-t border-[color:var(--tide-line)] pt-4">
-            <div><div className="tide-serif text-[34px] leading-none">{fmt1(h)} m</div><Mono className="block mt-1.5">{sizeWord(h)}</Mono></div>
+          <div className="mt-5 border-t border-[color:var(--tide-line)] pt-3">
+            <Mono className="block text-[color:var(--tide-mist)]">{okToday || !next ? '' : `${dayWord(next.day, now)} `}om {format(parseISO(f.timestamp), 'HH:mm')} · aan het strand</Mono>
+          </div>
+          <div className="mt-2 grid grid-cols-3">
+            <div><div className="tide-serif text-[34px] leading-none">{fmt1(h)} m</div><Mono className="block mt-1.5">{sizeWord(h)}</Mono><Mono className="block mt-1 text-[color:var(--tide-mist)]">zee {fmt1(sea)} m</Mono></div>
             <div><div className="tide-serif text-[34px] leading-none">{Math.round(f.swellPeriod)} s</div><Mono className="block mt-1.5">{f.swellPeriod >= 8 ? 'deining' : f.swellPeriod >= 6 ? 'gemengd' : 'windgolven'}</Mono></div>
             <div><div className="tide-serif text-[34px] leading-none">{Math.round(f.windSpeed)} kn</div><Mono className="block mt-1.5">{degreesToCompass16(f.windDirection)} · {windTypeNl(f.windType) || '—'}</Mono></div>
           </div>
+
+          {damped && (
+            <p className="mt-4 text-[15px] leading-snug text-[color:var(--tide-sea)]">
+              Op zee {fmt1(sea)} m, maar aan het strand van {spot.name} komt ongeveer {fmt1(h)} m aan: zandbanken en de swellrichting
+              {f.swellDirection !== undefined ? ` (uit ${degreesToCompass16(f.swellDirection)})` : ''} dempen de golven.
+            </p>
+          )}
 
           <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-[color:var(--tide-line)] pt-4">
             <Mono>board</Mono>

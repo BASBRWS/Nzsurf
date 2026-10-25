@@ -379,7 +379,7 @@ export function CompactDailyForecast({
                   {/* Module 1: Swell & Face Height */}
                   <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200 hover:border-cyan-400 transition-colors space-y-1.5 shadow-xs min-w-0">
                     <div className="flex items-center justify-between text-slate-400">
-                      <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-wider font-bold truncate">Golven & Face</span>
+                      <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-wider font-bold truncate">Golven op zee</span>
                       <Waves className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-600 shrink-0" />
                     </div>
                     <div>
@@ -621,7 +621,7 @@ export function CompactDailyForecast({
                               </div>
                             </div>
                             <div className="flex items-baseline justify-between">
-                              <span className="text-base font-bold text-slate-900 font-tactical">{part.waveHeight.toFixed(1)}m</span>
+                              <span className="text-base font-bold text-slate-900 font-tactical">{part.waveHeight.toFixed(1)} m <span className="text-[11px] font-normal text-slate-500">zee</span></span>
                               <span className="text-cyan-700 font-bold">{part.windBft} Bft {part.windDir}</span>
                             </div>
                             <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-200/80">
