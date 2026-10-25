@@ -11,6 +11,7 @@ import { getSurfAdvice } from './services/geminiService';
 import { fetchForecast } from './services/weatherService';
 import { TacticalDashboard } from './components/TacticalDashboard';
 import { TacticalBottomNav, TacticalTab } from './components/TacticalBottomNav';
+import { WeekView } from './components/WeekView';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
 import { RegionalSeoGuide } from './components/RegionalSeoGuide';
@@ -472,7 +473,7 @@ export default function App() {
       </div>
 
       {/* Main Responsive App Container */}
-      <div className="relative z-10 w-full max-w-4xl lg:max-w-5xl mx-auto px-2 sm:px-4 py-2 sm:py-5 pb-28">
+      <div className="relative z-10 w-full max-w-4xl lg:max-w-5xl mx-auto px-2 sm:px-4 py-2 sm:py-5 pb-40">
         
         {/* Tactical App Top Bar in Crisp Light Theme */}
         <header className="sticky top-2 z-40 bg-white/90 backdrop-blur-xl border border-slate-200/90 rounded-2xl px-4 py-3 mb-4 flex items-center justify-between shadow-xs">
@@ -632,6 +633,26 @@ export default function App() {
                   onOpenProfile={() => setActiveTab('profile')}
                   allSpots={allSpots}
                   onSelectSpot={(id) => { setSelectedSpotId(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  onOpenWeek={() => { setActiveTab('week'); window.scrollTo({ top: 0 }); }}
+                />
+              </motion.div>
+            )}
+
+            {/* Week: per dag wanneer het werkt, met alle cijfers eronder */}
+            {activeTab === 'week' && (
+              <motion.div key="week" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                <WeekView
+                  spot={selectedSpot} forecasts={forecast} user={user} isLoggedIn={!!authUser}
+                  onSelectHour={async (selectedHourData) => {
+                    setSelectedForecastHour(selectedHourData);
+                    setIsAdviceModalOpen(true);
+                    setIsAdviceLoading(true);
+                    try {
+                      const nearby = allSpots.filter(s => s.id !== selectedSpot.id);
+                      setAdvice(await getSurfAdvice(user, selectedSpot, selectedHourData, nearby));
+                    } catch (e) { console.error(e); } finally { setIsAdviceLoading(false); }
+                  }}
+                  onOpenProfile={() => setActiveTab('profile')}
                 />
               </motion.div>
             )}
@@ -721,6 +742,21 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                {/* Meer: wat niet in de hoofdbalk zit */}
+                <nav aria-label="Meer" className="grid grid-cols-2 gap-2 mb-5">
+                  {([
+                    ['community', 'Community', 'Berichten van surfers'],
+                    ['weather', 'Weer & modellen', 'Alle weermodellen'],
+                    ['ai', 'AI-coach', 'Vraag om advies'],
+                    ['window', 'Sessievenster', 'Meldingen bij goede surf'],
+                  ] as const).map(([id, label, sub]) => (
+                    <button key={id} onClick={() => setActiveTab(id)}
+                      className="text-left min-h-[64px] rounded-2xl bg-white border border-slate-200 px-4 py-3 hover:border-cyan-400 cursor-pointer">
+                      <span className="block text-[15px] font-semibold text-slate-900">{label}</span>
+                      <span className="block text-[13px] text-slate-500">{sub}</span>
+                    </button>
+                  ))}
+                </nav>
                 <ProfileSettings 
                   user={user}
                   onUpdate={handleUpdateProfile}
@@ -787,18 +823,19 @@ export default function App() {
           </Suspense>
         </main>
 
-        {/* Regional SEO Guide & Spot Navigation */}
-        <RegionalSeoGuide 
+        {/* Regional SEO Guide & Spot Navigation: alleen op de website (vindbaarheid), niet in de app */}
+        {!Capacitor.isNativePlatform() && <RegionalSeoGuide 
           spots={allSpots}
           selectedSpotId={selectedSpotId}
           onSelectSpot={(spotId) => setSelectedSpotId(spotId)}
-        />
+        />}
 
         {/* Tactical Bottom Navigation with (+) Quick Action Button */}
         <TacticalBottomNav 
           activeTab={activeTab as TacticalTab}
           onSelectTab={(tab) => setActiveTab(tab)}
-          onQuickAction={handleTriggerQuickAction}
+          onReport={() => { setActiveTab('report'); window.scrollTo({ top: 0 }); }}
+          showReport={activeTab === 'forecast' || activeTab === 'week' || activeTab === 'spots'}
         />
       </div>
 

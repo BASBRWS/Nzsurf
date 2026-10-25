@@ -41,6 +41,13 @@ const WIND_TYPE_NL: Record<string, string> = {
   'onshore': 'aanlandig',
 };
 export const windTypeNl = (t?: string) => (t ? WIND_TYPE_NL[t] || t : '');
+/** Als bijvoeglijk naamwoord vóór "wind": "aflandige wind", maar "zijwind" blijft één woord. */
+const windAdj = (t?: string, fallback = '') => {
+  const w = windTypeNl(t);
+  if (!w) return `${fallback} wind`;
+  if (w === 'zijwind') return 'zijwind';
+  return `${w.endsWith('ig') ? `${w}e` : w} wind`;
+};
 
 /** Korte regel met de ruwe cijfers: "1,4 m · 6 s · WNW 6 Bft (24 kn) aanlandig · hoogwater, afgaand" */
 export function rawLine(f: ForecastData): string {
@@ -73,14 +80,14 @@ export function reasonSentence(spot: SurfSpot, f: ForecastData): string {
   if (c.reasons.includes('ongunstige swellrichting')) return `De swell komt uit het ${degreesToCompass16(f.swellDirection)}; daarvan komt op ${spot.name} weinig aan (~${h} m).`;
   if (c.spotWave < 0.3) return `Te klein: ongeveer ${h} m op de spot.`;
   const bits: string[] = [];
-  if (c.reasons.includes('ongunstige wind')) bits.push(`${Math.round(f.windSpeed)} kn ${windTypeNl(f.windType)} wind maakt het rommelig`);
+  if (c.reasons.includes('ongunstige wind')) bits.push(`${Math.round(f.windSpeed)} kn ${windAdj(f.windType).trim()} maakt het rommelig`);
   // Alleen de eerste letter klein: plaatsnamen in de notitie houden hun hoofdletter.
   if (c.reasons.includes('ongunstig getij')) bits.push(f.tideNote ? f.tideNote.replace(/\.$/, '').replace(/^./, ch => ch.toLowerCase()) : 'het getij werkt niet mee');
   if (c.reasons.includes('korte periode')) bits.push(`korte periode (${Math.round(f.swellPeriod)} s), weinig kracht`);
   if (bits.length) return `${h} m golf, maar ${bits.join(' en ')}.`;
   return c.chance >= 70
-    ? `${h} m met ${windTypeNl(f.windType) || 'rustige'} wind: alles valt samen.`
-    : `${h} m, ${Math.round(f.swellPeriod)} s en ${windTypeNl(f.windType) || 'matige'} wind: berijdbaar.`;
+    ? `${h} m met ${windAdj(f.windType, 'rustige')}: alles valt samen.`
+    : `${h} m, ${Math.round(f.swellPeriod)} s en ${windAdj(f.windType, 'matige')}: berijdbaar.`;
 }
 
 export interface SurfWindow {
