@@ -3,7 +3,6 @@
 
 @theme {
   --font-sans: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif-display: "Instrument Serif", Georgia, serif;
   --font-dm: "DM Mono", ui-monospace, monospace;
   --font-display: "Space Grotesk", "Rajdhani", "Outfit", sans-serif;
   --font-tactical: "Rajdhani", "Space Grotesk", "Chakra Petch", sans-serif;
@@ -2751,14 +2750,15 @@ html, body, body.theme-light {
 }
 body::after { display: none !important; }
 h1, h2, h3, h4 {
-  font-family: "Instrument Serif", Georgia, serif !important;
+  font-family: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif !important;
   font-style: normal !important;
-  font-weight: 400 !important;
+  font-weight: 600 !important;
   text-transform: none !important;
-  letter-spacing: -0.01em !important;
+  letter-spacing: -0.025em !important;
 }
 .tide-mono, .tide-mono * { font-family: "DM Mono", ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
-.tide-serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; }
+/* Grote getallen: schreefloos, iets lichter dan koppen, cijfers op gelijke breedte. */
+.tide-serif { font-family: "Instrument Sans", "Inter", ui-sans-serif, system-ui, sans-serif; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 
 /* Oude kleuren naar het nieuwe palet */
 .bg-white, .bg-white\/90, .bg-white\/95, .bg-white\/80 { background-color: var(--tide-sand) !important; }

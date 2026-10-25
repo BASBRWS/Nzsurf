@@ -143,7 +143,7 @@ export const CoastView: React.FC<Props> = ({ spot, forecast, spots, user, isLogg
                   <text x={lx} y={ly + 16} fontFamily="DM Mono" fontSize={10} letterSpacing={1.2} fill={TIDE.mist}>
                     {r.spot.id === spot.id ? 'JOUW SPOT' : `${Math.round(r.dist)} KM`}{r.from && r.to && ok ? ` · ${r.from.toTimeString().slice(0, 2)}–${r.to.toTimeString().slice(0, 2)} U` : ''}
                   </text>
-                  <text x={width - 2} y={ly + 9} textAnchor="end" fontFamily="Instrument Serif" fontSize={28} fill={typeof b === 'number' ? chanceColor(b) : TIDE.mist}>
+                  <text x={width - 2} y={ly + 9} textAnchor="end" fontFamily="Instrument Sans" fontWeight={500} letterSpacing={-0.8} fontSize={24} fill={typeof b === 'number' ? chanceColor(b) : TIDE.mist}>
                     {typeof b === 'number' ? `${b}%` : r.status === 'fout' ? '–' : '…'}
                   </text>
                 </g>

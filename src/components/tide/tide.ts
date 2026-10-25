@@ -74,3 +74,15 @@ export function dayProfile(items: ForecastData[], chance: (f: ForecastData) => n
   if (last < 21) { hours.push(Math.min(21, last + 1.5)); chances.push(0); tide.push(undefined); }
   return { hours, chances, tide };
 }
+
+import { computeSurfChance, degreesToCompass16 } from '../../utils/spotKnowledge';
+import type { SurfSpot } from '../../types';
+/** Tekst per verwachtingsblok voor het aanwijzen: "15:00 · 72% · 1,2 m · ZO 11 kn". */
+export function dayTips(spot: SurfSpot, items: ForecastData[], chance: (f: ForecastData) => number) {
+  return items.filter(f => f.isDaylight !== false && hourOf(f) >= 6 && hourOf(f) <= 21).map(f => {
+    const d = parseISO(f.timestamp);
+    const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const h = computeSurfChance(spot, f).spotWave.toFixed(1).replace('.', ',');
+    return { h: hourOf(f), text: `${hhmm} · ${chance(f)}% · ${h} m · ${degreesToCompass16(f.windDirection)} ${Math.round(f.windSpeed)} kn` };
+  });
+}
