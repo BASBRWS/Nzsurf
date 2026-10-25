@@ -6,7 +6,9 @@
   --font-display: "Space Grotesk", "Rajdhani", "Outfit", sans-serif;
   --font-tactical: "Rajdhani", "Space Grotesk", "Chakra Petch", sans-serif;
   --font-technical: "Space Grotesk", "Rajdhani", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  /* "mono" was de tactische stijl voor labels en cijfers; voor leesbaarheid nu Inter met cijfers op gelijke breedte. */
+  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-pixel: "Silkscreen", "Press Start 2P", monospace;
   --font-retro: "Press Start 2P", monospace;
   --font-serif: "Newsreader", "Playfair Display", Georgia, serif;
@@ -23,10 +25,10 @@
 
 @layer utilities {
   .font-tactical {
-    font-family: "Rajdhani", "Space Grotesk", "Chakra Petch", sans-serif;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   }
   .font-technical {
-    font-family: "Space Grotesk", "Rajdhani", sans-serif;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   }
   .glass-tactical {
     background-color: rgba(16, 22, 32, 0.75);
@@ -2716,3 +2718,11 @@ body.theme-developer {
 .dual-range input[type=range]::-moz-range-track { background: transparent; }
 .dual-range input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; margin-top: 2px; border-radius: 9999px; background: #fff; border: 2px solid #0891b2; box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer; }
 .dual-range input[type=range]::-moz-range-thumb { pointer-events: auto; width: 20px; height: 20px; border-radius: 9999px; background: #fff; border: 2px solid #0891b2; box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer; }
+
+/* ── Leesbaarheid (buiten de lagen, dus wint van de Tailwind-klassen) ─────────
+   Eén lettertype, cijfers op gelijke breedte, geen tekst kleiner dan 12 px en
+   minder wijd gespatieerde hoofdletters. Zo hoeft niet elk scherm apart aangepast. */
+.font-mono { font-variant-numeric: tabular-nums; }
+.text-\[8px\], .text-\[9px\], .text-\[10px\] { font-size: 12px; line-height: 1.35; }
+.text-\[11px\] { font-size: 13px; line-height: 1.4; }
+.tracking-widest, .tracking-\[0\.2em\], .tracking-\[0\.3em\], .tracking-\[0\.25em\] { letter-spacing: 0.06em; }
