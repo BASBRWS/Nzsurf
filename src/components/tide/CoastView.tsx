@@ -129,7 +129,7 @@ export const CoastView: React.FC<Props> = ({ spot, forecast, spots, user, isLogg
             {coast.length >= 2 && <path d={smoothPath(coast)} fill="none" stroke={TIDE.ink} strokeWidth={1.4} />}
             {sorted.map((r, i) => {
               const [px, py] = pts[i], ly = labelY[i], b = r.best;
-              const good = typeof b === 'number' && b >= 65, ok = typeof b === 'number' && b >= OK;
+              const good = typeof b === 'number' && b >= OK, ok = good;
               const lx = coastW + 22;
               return (
                 <g key={r.spot.id} onClick={() => onSelectSpot(r.spot.id)} style={{ cursor: 'pointer' }} role="button" aria-label={`${r.spot.name}: ${typeof b === 'number' ? `${b}%` : r.status === 'fout' ? 'geen gegevens' : 'laden'}`}>
