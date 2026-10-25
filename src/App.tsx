@@ -13,6 +13,7 @@ import { TacticalDashboard } from './components/TacticalDashboard';
 import { TacticalBottomNav, TacticalTab } from './components/TacticalBottomNav';
 import { WeekView } from './components/WeekView';
 import { CoastView } from './components/tide/CoastView';
+import { BrandMark, BrandWordmark } from './components/tide/Brand';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
 import { RegionalSeoGuide } from './components/RegionalSeoGuide';
@@ -477,7 +478,9 @@ export default function App() {
           
           {/* Logo & Spot Quick Selector */}
           <div className="flex items-center gap-3">
-            <span className="tide-serif text-[24px] leading-none" style={{ color: 'var(--tide-ink)' }}>Nz<i style={{ color: 'var(--tide-sea)' }}>Surf</i></span>
+            <button onClick={() => { setActiveTab('forecast'); window.scrollTo({ top: 0 }); }} aria-label="Noordzeesurf, naar Vandaag" className="cursor-pointer shrink-0 flex">
+              <BrandMark height={30} />
+            </button>
 
             <div className="relative group flex items-center gap-1.5">
               <div className="flex items-center gap-1.5 cursor-pointer">
@@ -748,6 +751,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                <div className="flex justify-center pt-2 pb-6"><BrandWordmark height={30} /></div>
                 {/* Meer: wat niet in de hoofdbalk zit */}
                 <nav aria-label="Meer" className="grid grid-cols-2 gap-2 mb-5">
                   {([
