@@ -6,6 +6,7 @@ import { TableHelp } from './TableHelp';
 import { degreesToCompass16 } from '../utils/spotKnowledge';
 import { knotsToBft } from '../utils/surfMoments';
 import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../utils/forecastAudit';
+import { V2_SOURCE } from '../utils/forecastV2';
 import {
   COMPONENTS, ComponentKey, DEFAULT_RULE, FULL_PARTS, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
   balanced, combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
@@ -81,7 +82,8 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
   const now = Date.now();
   const ids = sources.map(s => s.source);
   const labelOf = (id: string) => sources.find(s => s.source === id)?.label || id;
-  const isNz = (id: string) => sources.find(s => s.source === id)?.kind === 'nzsurf';
+  // Gemarkeerd: alleen het live algoritme (v2). v1 blijft gewoon zichtbaar als basis.
+  const isNz = (id: string) => id === V2_SOURCE;
 
   const day = useMemo(() => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + dayOffset); return d; }, [dayOffset]);
   const slots = useMemo(() => daySlots(day), [day]);
