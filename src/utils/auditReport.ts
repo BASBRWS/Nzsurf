@@ -5,13 +5,13 @@
 
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, PARAMS, LEAD_BUCKETS, MIN_N, MIN_REPORTS,
-  Pair, Score, SpotReportLike, WIND_10M_FACTOR, buildPairs, scorePairs, reportRows, summarizeReports, energyScores,
+  Pair, Score, FairScore, SpotReportLike, WIND_10M_FACTOR, MIN_HOURS, MIN_DAYS, buildPairs, fairScores, reportRows, summarizeReports, energyScores,
 } from './forecastAudit';
 import { V2_SOURCE, V2_RULES } from './forecastV2';
 import type { WebcamMeasurement } from '../services/webcamMeasure';
 import { webcamRow, summarizeWebcam, nearbyEstimates, buoyAt, siteHeightAt, spotHeightAt, maeVsWebcam } from './webcamVerify';
 import { barChart, lineChart, timeChart, pctChart, C, BarRow } from './reportCharts';
-import { DAY_MIN_SLOTS, DEFAULT_RULE, componentScores, componentRanking, combinedTruth, dayRanking, dayScores, obsTruth, reportTruth } from './surfVerdict';
+import { pairedSurfScores, DAY_MIN_SLOTS, DEFAULT_RULE, componentScores, componentRanking, combinedTruth, dayRanking, dayScores, obsTruth, reportTruth } from './surfVerdict';
 
 /** Eén spot in het rapport. */
 export interface ReportSpot { id: string; name: string; forecasts: AuditForecastDoc[]; buoyNote: string }
@@ -43,7 +43,9 @@ const OURS = [NZ, V2_SOURCE];
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const nl = (x: number, d = 2) => x.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
 const signed = (x: number, d = 2) => (x > 0 ? '+' : '') + nl(x, d);
-const decimals = (p: AuditParam) => (p === 'dir' || p === 'windDir' ? 0 : p === 'windKn' || p === 'tp' || p === 'power' ? 1 : 2);
+const decimals = (p: AuditParam) => (p === 'dir' || p === 'windDir' ? 0 : p === 'windKn' || p === 'tp' || p === 'tpPeak' || p === 'power' ? 1 : 2);
+/** Eerlijke ranglijst (zelfde uren als NzSurf), alleen bronnen met genoeg data. */
+const ranked = (ps: Pair[], param: AuditParam) => fairScores(ps, param).filter(r => r.ranked);
 
 interface ParamVerdict {
   param: AuditParam; label: string; unit: string; total: number;
@@ -58,7 +60,7 @@ function rankFor(scores: Score[], source: string) {
 
 function verdicts(pairs: Pair[]): ParamVerdict[] {
   return PARAMS.map(p => {
-    const sc = scorePairs(pairs.filter(x => x.param === p.key)).filter(s => s.n >= MIN_N);
+    const sc = ranked(pairs, p.key);
     return {
       param: p.key, label: p.label, unit: p.unit, total: sc.length,
       nz: rankFor(sc, NZ), hybrid: rankFor(sc, V2_SOURCE), best: sc[0],
@@ -87,11 +89,11 @@ function judge(s: (Score & { rank: number }) | undefined, v: ParamVerdict): stri
 function bucketTable(pairs: Pair[], param: AuditParam): string {
   const prm = PARAMS.find(p => p.key === param)!, d = decimals(param);
   const rows = LEAD_BUCKETS.map(b => {
-    const sc = scorePairs(pairs.filter(p => p.param === param && p.bucket === b.key)).filter(s => s.n >= MIN_N);
+    const sc = ranked(pairs.filter(p => p.bucket === b.key), param);
     if (!sc.length) return '';
     const nz = sc.find(s => s.source === NZ), h = sc.find(s => s.source === V2_SOURCE);
     const other = sc.find(s => !OURS.includes(s.source));
-    const cell = (s?: Score) => s ? `${nl(s.mae, d)} <small>#${sc.indexOf(s) + 1}</small>` : '–';
+    const cell = (s?: FairScore) => s ? `${nl(s.mae, d)} <small>#${sc.indexOf(s) + 1}</small>` : "–";
     return `<tr><td>${esc(b.label)}</td><td>${cell(nz)}</td><td>${cell(h)}</td><td>${other ? `${nl(other.mae, d)} <small>${esc(other.label)}</small>` : '–'}</td></tr>`;
   }).join('');
   if (!rows) return '';
@@ -107,7 +109,7 @@ function conditionRows(pairs: Pair[]): string {
     { label: 'Wind < 10 kn (gemeten), windrichting', f: (p: Pair) => (p.obsWindKn ?? 99) < 10, param: 'windDir' as AuditParam },
   ];
   return sets.map(s => {
-    const sc = scorePairs(pairs.filter(p => p.param === s.param && s.f(p))).filter(x => x.n >= MIN_N);
+    const sc = ranked(pairs.filter(p => p.param === s.param && s.f(p)), s.param);
     if (!sc.length) return '';
     const d = decimals(s.param), unit = PARAMS.find(p => p.key === s.param)!.unit;
     const r = (src: string) => { const i = sc.findIndex(x => x.source === src); return i < 0 ? '–' : `#${i + 1} (${nl(sc[i].mae, d)})`; };
@@ -160,7 +162,7 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
   const barsFor = (param: AuditParam) => {
     const v = vs.find(x => x.param === param);
     if (!v) return '';
-    const sc = scorePairs(pairs.filter(p => p.param === param)).filter(x => x.n >= MIN_N);
+    const sc = ranked(pairs, param);
     return barChart(`${v.label}: afwijking per bron`, v.unit, sc.map(x => ({ label: x.label, value: x.mae, role: roleOf(x.source, v.bestOther?.source) })), decimals(param));
   };
 
@@ -170,8 +172,7 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
     if (!v) return '';
     const val = (src?: string) => LEAD_BUCKETS.map(b => {
       if (!src) return undefined;
-      const sc = scorePairs(pairs.filter(p => p.param === param && p.bucket === b.key && p.source === src));
-      return sc[0] && sc[0].n >= MIN_N ? sc[0].mae : undefined;
+      return ranked(pairs.filter(p => p.bucket === b.key), param).find(x => x.source === src)?.mae;
     });
     return lineChart(`${v.label} per looptijd`, `gem. afwijking, ${v.unit}`, LEAD_BUCKETS.map(b => b.label.replace(/ \(.*\)/, '').replace('Dag ', 'd')), [
       { name: 'NzSurf', color: C.nz, values: val(NZ) },
@@ -220,6 +221,13 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
 <p class="meta">De vraag van 's ochtends: "kan ik vandaag surfen?". Een dag telt als te surfen bij minstens ${DAY_MIN_SLOTS} surfbare daglichtmomenten (om de 3 uur), voor voorspelling én werkelijkheid. Alleen verwachtingen van een eerdere dag; per vooruitkijkdag de laatste. Zo doen bronnen met één oordeel per dag (Wompy) op gelijke voet mee; in de uurvergelijking hierboven en in de bijlage staan zij op achterstand, omdat één daggetal tegen elk uur wordt gelegd. Werkelijkheid en score als bij "Te surfen?". Minder dan ${MIN_DAYS} dagen: grijs, zonder rang.</p>
 <table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Score</th><th>Gevangen</th><th>Terecht nee</th><th>1 dag vooruit</th><th>2 dagen</th><th>3 dagen</th><th>dagen</th></tr></thead><tbody>${dayOk.map((r, i) => dayRow(r, i)).join('')}${dayFew.map(r => dayRow(r, null)).join('')}</tbody></table>` : '';
 
+  // Te surfen? eerlijk: tegen NzSurf op dezelfde momenten.
+  const paired = pairedSurfScores(forecasts, DEFAULT_RULE, truth);
+  const pairedTable = paired.length ? `<h3>Te surfen? tegen NzSurf op dezelfde momenten</h3>
+<p class="meta">Per bron alleen de momenten (uur + vooruitkijkdag) waarop ook NzSurf een oordeel had en de werkelijkheid bekend is; op precies die momenten ook NzSurf. Δ = bron − NzSurf in gebalanceerde score, met 90%-interval (bootstrap per dag). Geen rang onder 40 momenten of 5 dagen.</p>
+<table class="rank"><thead><tr><th>Bron</th><th>Bron</th><th>NzSurf</th><th>Δ (90%)</th><th>momenten</th><th>dagen</th></tr></thead><tbody>${paired.map(r =>
+    `<tr class="${OURS.includes(r.source) ? 'ours' : ''}${r.ranked ? '' : ' few'}"><td>${esc(labelOf.get(r.source) || r.source)}</td><td>${r.score}%</td><td>${r.ref}%</td><td><b>${r.delta > 0 ? '+' : ''}${r.delta}</b> <small>(${r.lo > 0 ? '+' : ''}${r.lo} – ${r.hi > 0 ? '+' : ''}${r.hi})</small></td><td>${r.moments}</td><td>${r.days}</td></tr>`).join('')}</tbody></table>` : '';
+
   const verdictRows = vs.map(v => {
     const d = decimals(v.param);
     const cell = (x?: Score & { rank: number }) => x ? `<b>#${x.rank}</b>/${v.total}<br><small>${nl(x.mae, d)} ${esc(v.unit)} · bias ${signed(x.bias, d)}</small>` : '–';
@@ -245,7 +253,7 @@ function spotSection(spot: ReportSpot, observations: AuditObsDoc[], reports: Spo
 ${maturity}
 
 <h3>Op zee: per onderdeel (tegen de boei)</h3>
-<p class="meta">Rang en gemiddelde afwijking t.o.v. de metingen op zee. Bias = gemiddeld te hoog (+) of te laag (−). Dit toetst de zeelaag; het strand wordt getoetst met de webcam en spotrapporten (verderop).</p>
+<p class="meta">Rang en afwijking t.o.v. de metingen op zee, eerlijk vergeleken op dezelfde uren als NzSurf (zie bijlage). Bias = gemiddeld te hoog (+) of te laag (−). Dit toetst de zeelaag; het strand wordt getoetst met de webcam en spotrapporten (verderop).</p>
 <table><thead><tr><th>Onderdeel</th><th>NzSurf</th><th>NzSurf v2</th><th>Beste bron</th></tr></thead><tbody>${verdictRows}</tbody></table>
 
 <div class="legend"><span><i style="background:${C.nz}"></i>NzSurf</span><span><i style="background:${C.hybrid}"></i>NzSurf v2</span><span><i style="background:${C.best}"></i>Beste andere bron</span><span><i style="background:${C.other}"></i>Overige</span></div>
@@ -260,6 +268,7 @@ ${time}
 
 <h3>Te surfen?</h3>
 ${surfChart}
+${pairedTable}
 ${dayTable}
 
 ${conditions ? `<h3>Als het ertoe doet</h3>
@@ -271,19 +280,20 @@ ${reportSection}
 </section>`;
   // Bijlage: alle ranglijsten van deze spot.
   const appendixTables = PARAMS.map(prm => {
-    const sc = scorePairs(pairs.filter(p => p.param === prm.key));
+    const sc = fairScores(pairs, prm.key);
     if (!sc.length) return '';
     const d = decimals(prm.key);
-    const ok = sc.filter(x => x.n >= MIN_N), few = sc.filter(x => x.n < MIN_N);
-    const row = (x: Score, i: number | null) => `<tr class="${OURS.includes(x.source) ? 'ours' : ''}${i === null ? ' few' : ''}"><td>${i === null ? '–' : i + 1}</td><td>${esc(x.label)}</td><td>${nl(x.mae, d)}</td><td>${signed(x.bias, d)}</td><td>${nl(x.rmse, d)}</td><td>${x.n}</td></tr>`;
-    return `<h3>${esc(prm.label)} (${esc(prm.unit)})</h3>
-<table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Gem. afwijking</th><th>Bias</th><th>RMSE</th><th>n</th></tr></thead><tbody>${ok.map((x, i) => row(x, i)).join('')}${few.map(x => row(x, null)).join('')}</tbody></table>`;
+    const ok = sc.filter(x => x.ranked), few = sc.filter(x => !x.ranked);
+    const ci = (x: FairScore) => !x.mean ? 'eigen uren' : x.source === NZ ? 'referentie' : `${signed(x.delta, d)} <small>(${signed(x.lo, d)} – ${signed(x.hi, d)})</small>`;
+    const row = (x: FairScore, i: number | null) => `<tr class="${OURS.includes(x.source) ? 'ours' : ''}${i === null ? ' few' : ''}"><td>${i === null ? '–' : i + 1}</td><td>${esc(x.label)}</td><td>${nl(x.mae, d)}</td><td>${ci(x)}</td><td>${signed(x.bias, d)}</td><td>${x.hours}</td><td>${x.days}</td></tr>`;
+    return `<h3>${esc(prm.label)} (${esc(prm.unit)})</h3>${prm.note ? `<p class="meta">${esc(prm.note)}</p>` : ''}
+<table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Afwijking</th><th>Δ NzSurf (90%)</th><th>Bias</th><th>uren</th><th>dagen</th></tr></thead><tbody>${ok.map((x, i) => row(x, i)).join('')}${few.map(x => row(x, null)).join('')}</tbody></table>`;
   }).join('');
   const surfTable = surfRank.length ? `<h3>Te surfen? (gebalanceerd)</h3>
 <table class="rank"><thead><tr><th>#</th><th>Bron</th><th>Score</th><th>Gevangen</th><th>Terecht nee</th><th>Zegt ja</th><th>n</th></tr></thead><tbody>${surfRank.map((r, i) =>
     `<tr class="${OURS.includes(r.source) ? 'ours' : ''}"><td>${i + 1}</td><td>${esc(labelOf.get(r.source) || r.source)}</td><td><b>${r.pct}%</b></td><td>${r.caught ?? '–'}%</td><td>${r.rightNo ?? '–'}%</td><td>${r.saysYes ?? '–'}%</td><td>${r.n}</td></tr>`).join('')}</tbody></table>` : '';
   const appendix = appendixTables || surfTable ? `<section class="spot"><h2 class="spot-h">Bijlage — ${esc(spot.name)}: alle ranglijsten</h2>
-<p class="meta">Alle bronnen per onderdeel, gesorteerd op gemiddelde afwijking (lager = beter). Bias: + = te hoog, − = te laag. RMSE weegt grote missers zwaarder. Bronnen met minder dan ${MIN_N} vergelijkingen staan grijs onderaan zonder rang. Vet = NzSurf en NzSurf v2. Wompy geeft één waarde per dag; per uur vergeleken staat hij daardoor op achterstand (zie "Te surfen? per dag").</p>
+<p class="meta">Eerlijke vergelijking: elke bron alleen op de uren waarop ook NzSurf een verwachting had, met één stem per meetuur (ophaalrondes gemiddeld). <b>Δ NzSurf</b> = verschil in gemiddelde afwijking op die uren (negatief = beter dan NzSurf), met 90%-interval (bootstrap per dag); loopt het interval door 0, dan is het verschil niet aangetoond. <b>Afwijking</b> = NzSurf over al zijn uren + Δ, zodat alle getallen op één schaal staan. Bias: + = te hoog. <b>uren</b> = verschillende meeturen. Geen rang onder ${MIN_HOURS} uur of ${MIN_DAYS} dagen. Open-Meteo best match telt niet mee (kopie). Periode: modellen (gemiddelde periode) tegen Tm02; sites met piek-/swellperiode apart en indicatief. Vet = NzSurf en NzSurf v2. Wompy geeft één waarde per dag; per uur vergeleken staat hij daardoor op achterstand (zie "Te surfen? per dag").</p>
 ${surfTable}${appendixTables}</section>` : '';
   return { html, vs, days, pairs: pairs.length, name: spot.name, appendix };
 }
@@ -342,7 +352,8 @@ ${webcam ? `<section class="spot">${webcam}</section>` : ''}
 <li><b>Boei ≠ strand.</b> De meting is op zee (Maasgeul 2, oudere dagen Schouwenbank): voor de Maasvlakte ±5 km, voor Ouddorp 20 km. Hoogtes op de spot en de surfkans zijn alleen met spotrapporten en de webcam te toetsen.</li>
 <li><b>Wind:</b> gemeten op ±30 m hoogte op zee (Lichteiland Goeree / Europlatform) en omgerekend naar 10 m, de hoogte van de modellen (× ${String(WIND_10M_FACTOR).replace('.', ',')}). Aan het strand kan het nog anders zijn.</li>
 <li><b>Golfrichting Maasvlakte</b> telt niet mee: het rekenpunt ligt dicht onder de kust, waar de modellen de golven naar het strand laten draaien, terwijl de boei op open zee meet.</li>
-<li><b>Periode:</b> de boei meet de gemiddelde periode (Tm02); een vaste afwijking is normaal.</li>
+<li><b>Periode:</b> de boei meet de gemiddelde periode (Tm02). Modellen en NzSurf (ook gemiddelde periode) worden daartegen getoetst; sites met een piek- of swellperiode (Surfline e.d.) apart en alleen indicatief tegen Tm02 × 1,25. Golfkracht alleen voor bronnen met een gemiddelde periode.</li>
+<li><b>Eerlijk vergelijken:</b> ranglijsten gaan over dezelfde uren als NzSurf, één stem per meetuur, met een 90%-interval. Een verschil waarvan het interval door 0 loopt, is niet aangetoond.</li>
 <li><b>Golfkracht</b> is berekend (0,49 × Hs² × 1,2 × T), niet gemeten.</li>
 <li><b>Dubbelingen:</b> Open-Meteo best match is golf van Météo-France en wind van KNMI; telt niet als aparte stem.</li>
 </ul>
