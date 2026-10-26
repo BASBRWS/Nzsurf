@@ -30,7 +30,8 @@ async function calibrations() {
   if (calCache && Date.now() - calCache.t < 30 * 60e3) return calCache.cals;
   const snap = await getDocs(collection(db, 'v2Calibration'));
   const cals = snap.docs.map(d => d.data() as V2Calibration & { lat: number; lng: number });
-  calCache = { t: Date.now(), cals };
+  // Alleen een gevulde uitkomst onthouden: een lege lijst kan vlak voor de eerste audit zijn.
+  if (cals.length) calCache = { t: Date.now(), cals };
   return cals;
 }
 
@@ -71,11 +72,17 @@ export async function applyV2(inputSpot: SurfSpot, base: ForecastData[]): Promis
   const spot = withAreaDefaults(inputSpot);
   if (!base.length || spot.isAtlantic) return { data: base, algo: 'v1', note: 'v1 (buiten het gekalibreerde gebied)' };
   let cal: (V2Calibration & { lat: number; lng: number }) | undefined;
-  try {
-    const cals = (await calibrations()).filter(c => Date.now() - Date.parse(c.asOf) < MAX_AGE_MS && typeof c.lat === 'number');
-    cal = cals.map(c => ({ c, d: km(spot, c) })).filter(x => x.d <= MAX_DIST_KM).sort((a, b) => a.d - b.d)[0]?.c;
-  } catch { cal = undefined; }
-  if (!cal) return { data: base, algo: 'v1', note: 'v1 (geen recente v2-kalibratie)' };
+  let all: (V2Calibration & { lat: number; lng: number })[];
+  try { all = await calibrations(); }
+  catch (e) {
+    const code = (e as { code?: string })?.code || '';
+    return { data: base, algo: 'v1', note: `v1 (kalibratie niet leesbaar${code ? `: ${code}` : ''})` };
+  }
+  if (!all.length) return { data: base, algo: 'v1', note: 'v1 (nog geen v2-kalibratie in de database)' };
+  const near = all.filter(c => typeof c.lat === 'number').map(c => ({ c, d: km(spot, c) })).filter(x => x.d <= MAX_DIST_KM).sort((a, b) => a.d - b.d);
+  if (!near.length) return { data: base, algo: 'v1', note: `v1 (geen kalibratie binnen ${MAX_DIST_KM} km)` };
+  cal = near.map(x => x.c).find(c => Date.now() - Date.parse(c.asOf) < MAX_AGE_MS);
+  if (!cal) return { data: base, algo: 'v1', note: 'v1 (v2-kalibratie te oud)' };
 
   const { lat, lng } = spot;
   // GMT, zodat de tijden gelijk lopen met de ISO-tijdstempels van v1.
