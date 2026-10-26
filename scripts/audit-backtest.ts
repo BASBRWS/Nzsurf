@@ -4,7 +4,7 @@
 // backtest = true.
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { AuditForecastDoc, AuditObsDoc, PARAMS, LEAD_BUCKETS, auditView, buildPairs, cleanObservations, fairScores, scorePairs } from '../src/utils/forecastAudit';
+import { AuditForecastDoc, AuditObsDoc, PARAMS, LEAD_BUCKETS, auditView, buildPairs, cleanObservations, fairScores, scorePairs, slotKey } from '../src/utils/forecastAudit';
 import { buildConceptDocs, CONCEPT_SOURCE } from '../src/utils/forecastBlend';
 import { buildHybridDocs, HYBRID_SOURCE } from '../src/utils/forecastHybrid';
 import { buildV2Docs, V2_SOURCE } from '../src/utils/forecastV2';
@@ -99,4 +99,18 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
   const paired = pairedSurfScores(docs.filter(d => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(d.source)), DEFAULT_RULE, truthF);
   fl.push(`Te surfen vs NzSurf (zelfde momenten): ${paired.slice(0, 6).map(r => `${SHORT[r.source] ?? r.source} ${r.score}% vs ${r.ref}% Δ${r.delta >= 0 ? '+' : ''}${r.delta} [${r.lo};${r.hi}] n${r.moments}/${r.days}d${r.ranked ? '' : ' (te weinig)'}`).join(' · ')}`);
   notice(`Eerlijk ${spotId}`, fl);
+
+  // Rechtstreeks v2 tegen één bron, per vooruitkijkklasse en per omstandigheid (zelfde 3-uursvakken).
+  const vs = (a: string, b: string, filt: (p: typeof pairs[number]) => boolean, param: 'hs' | 'tp' | 'windKn' | 'dir') => {
+    const m = (src: string) => { const r = new Map<string, number[]>(); for (const p of pairs) if (p.source === src && p.param === param && filt(p)) { const k = `${slotKey(p.t)}|${p.bucket}`; (r.get(k) || r.set(k, []).get(k)!).push(Math.abs(p.err)); } return r; };
+    const A = m(a), B = m(b); let sa = 0, sb = 0, n = 0;
+    for (const [k, va] of A) { const vb = B.get(k); if (!vb) continue; sa += va.reduce((x, y) => x + y, 0) / va.length; sb += vb.reduce((x, y) => x + y, 0) / vb.length; n++; }
+    return n ? `${f(sa / n, param === 'hs' ? 2 : 1)} vs ${f(sb / n, param === 'hs' ? 2 : 1)} (n${n})` : '–';
+  };
+  const dl: string[] = [];
+  for (const b of LEAD_BUCKETS) dl.push(`hs ${b.key}: V2 vs DWD ${vs(V2_SOURCE, 'dwd', p => p.bucket === b.key, 'hs')} · V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => p.bucket === b.key, 'hs')}`);
+  dl.push(`hs <1 m: V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) < 1, 'hs')} · 1–2 m: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) >= 1 && (p.obsHs ?? 0) < 2, 'hs')} · ≥2 m: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) >= 2, 'hs')}`);
+  dl.push(`wind ≥20 kn: V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => (p.obsWindKn ?? 0) >= 20, 'windKn')} · <20: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsWindKn ?? 0) < 20, 'windKn')}`);
+  dl.push(`periode V2 vs NZ: ${vs(V2_SOURCE, 'nzsurf', () => true, 'tp')} · swellrichting d4+ V2-punten: ${pairs.filter(p => p.source === V2_SOURCE && p.param === 'dir' && (p.bucket === 'd4-5' || p.bucket === 'd6-7')).length}`);
+  notice(`Direct ${spotId}`, dl);
 }
