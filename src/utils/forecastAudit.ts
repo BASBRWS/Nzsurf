@@ -188,7 +188,7 @@ export const MIN_HOURS = 40, MIN_DAYS = 5;
 // Elke bron dekt andere uren (Surfline alleen als de app open stond, Wompy één waarde
 // per dag, Secret Swell alleen na een upload). Een ranglijst over verschillende uren
 // vergelijkt deels het weer. Daarom: per bron alleen de uren (en vooruitkijkklasse)
-// waarop ook NzSurf een verwachting had; per uur eerst middelen over de ophaalrondes
+// (in hetzelfde 3-uursvak) waarop ook NzSurf een verwachting had; per vak eerst middelen over de ophaalrondes en uren
 // (één stem per meetuur). Het verschil met NzSurf op die uren is de maatstaf; de getoonde
 // "afwijking" = NzSurf over al zijn uren + dat verschil, zodat alle getallen op dezelfde
 // schaal staan. Onzekerheid: 90%-interval met bootstrap per dag (dagen trekken met
@@ -203,6 +203,16 @@ export interface FairScore extends Score {
   mean: boolean;     // vergeleken met NzSurf (anders: eigen uren, geen referentie)
 }
 
+/**
+ * Tijdvak van 3 uur (UTC) voor het koppelen van bronnen: NzSurf rekent in blokken op
+ * NL-tijd (bv. 02:00 UTC), de modellen op UTC-uren deelbaar door 3 (03:00). Afronden op het
+ * dichtstbijzijnde 3-uursvak koppelt die aan elkaar (max. 1,5 uur verschil).
+ */
+export function slotKey(t: string | number): string {
+  const ms = typeof t === 'number' ? t : Date.parse(t);
+  return new Date(Math.round(ms / (3 * 3600e3)) * 3 * 3600e3).toISOString().slice(0, 13);
+}
+
 function seeded(seed: number) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 export function fairScores(pairs: Pair[], param: AuditParam, ref = 'nzsurf', boot = 400): FairScore[] {
@@ -211,7 +221,7 @@ export function fairScores(pairs: Pair[], param: AuditParam, ref = 'nzsurf', boo
   const per = new Map<string, Map<string, { a: number; e: number; n: number; day: string }>>();
   const meta = new Map<string, { label: string; kind: string }>();
   for (const p of ps) {
-    const key = `${p.t.slice(0, 13)}|${p.bucket}`;
+    const key = `${slotKey(p.t)}|${p.bucket}`;
     if (!per.has(p.source)) per.set(p.source, new Map());
     const m = per.get(p.source)!;
     const c = m.get(key) || { a: 0, e: 0, n: 0, day: p.t.slice(0, 10) };

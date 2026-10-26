@@ -1,4 +1,4 @@
-import { AuditForecastDoc, AuditObsDoc, AuditPoint, NOT_RANKED_SOURCES, ObsPoint, SpotReportLike, UserRating, periodKind } from './forecastAudit';
+import { AuditForecastDoc, AuditObsDoc, AuditPoint, NOT_RANKED_SOURCES, ObsPoint, SpotReportLike, UserRating, periodKind, slotKey } from './forecastAudit';
 import { angleDiff } from './spotKnowledge';
 import { knotsToBft } from './surfMoments';
 
@@ -534,7 +534,8 @@ export interface PairedSurfRow { source: string; moments: number; days: number; 
 
 export function pairedSurfScores(docs: AuditForecastDoc[], rule: SurfRule, truthFn: TruthFn, ref = 'nzsurf', minMoments = 40, minDays = 5, boot = 300): PairedSurfRow[] {
   // bron → sleutel → laatste oordeel (per uur + vooruitkijkdag één stem)
-  const verdicts = new Map<string, Map<string, { ok: boolean; run: number }>>();
+  // Sleutel: 3-uursvak + vooruitkijkdag (NzSurf en de modellen hebben andere uurroosters).
+  const verdicts = new Map<string, Map<string, { ok: boolean; run: number; t: number }>>();
   for (const d of docs) {
     if (NOT_RANKED_SOURCES.has(d.source)) continue;
     const run = Date.parse(d.runAt);
@@ -543,19 +544,20 @@ export function pairedSurfScores(docs: AuditForecastDoc[], rule: SurfRule, truth
       if (!isDaytime(t) || p.lead <= 0) continue;
       const ok = forecastVerdict(d.source, p, rule).ok;
       if (ok === undefined) continue;
-      const key = `${hourKey(t)}|${leadDay(p.lead)}`;
+      const key = `${slotKey(t)}|${leadDay(p.lead)}`;
       const m = verdicts.get(d.source) || new Map();
       const prev = m.get(key);
-      if (!prev || run > prev.run) m.set(key, { ok, run });
+      if (!prev || run > prev.run) m.set(key, { ok, run, t });
       verdicts.set(d.source, m);
     }
   }
   const refM = verdicts.get(ref);
   if (!refM) return [];
   const truthCache = new Map<string, boolean | undefined>();
-  const truthOf = (key: string, src: string) => {
-    const k = `${key}|${src}`;
-    if (!truthCache.has(k)) truthCache.set(k, truthFn(Date.parse(`${key.split('|')[0]}:00:00Z`), src));
+  // Werkelijkheid op het uur van de bron zelf (de meting op dat uur), per bron gecachet.
+  const truthOf = (t: number, src: string) => {
+    const k = `${t}|${src}`;
+    if (!truthCache.has(k)) truthCache.set(k, truthFn(t, src));
     return truthCache.get(k);
   };
   const bal = (rows: { s: boolean; r: boolean; y: boolean }[], pick: 's' | 'r') => {
@@ -569,7 +571,8 @@ export function pairedSurfScores(docs: AuditForecastDoc[], rule: SurfRule, truth
     const rows: { s: boolean; r: boolean; y: boolean; day: string }[] = [];
     for (const [key, v] of m) {
       const r = refM.get(key); if (!r) continue;
-      const y = truthOf(key, src); if (y === undefined) continue;
+      const y = truthOf(v.t, src); if (y === undefined) continue;
+      if (truthOf(r.t, ref) === undefined) continue;
       rows.push({ s: v.ok, r: r.ok, y, day: key.slice(0, 10) });
     }
     if (!rows.length) continue;
