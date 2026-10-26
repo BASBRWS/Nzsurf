@@ -42,6 +42,9 @@ const WAVE_FILTERS = [
 
 // De audit draait voor Ouddorp (zie scripts/forecast-audit.ts).
 // Auditspots (zie scripts/forecast-audit.ts). Metingen gedeeld (boei Maasgeul 2, wind Europlatform).
+// Alle bronnen tellen mee (de aan/uit-knoppen per bron zijn weg).
+const hidden = new Set<string>();
+
 const AUDIT_SPOTS = [
   { id: 'ouddorp-p-noordweg', name: 'Ouddorp', buoy: 'boei Maasgeul 2, 20 km van Ouddorp — oudere dagen Schouwenbank, 41 km' },
   { id: 'maasvlakte', name: 'Maasvlakte', buoy: 'boei Maasgeul 2, vlak voor de Maasvlakte (±5 km) — oudere dagen Schouwenbank' },
@@ -65,7 +68,6 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
   const [bucket, setBucket] = useState<LeadBucket | 'all'>('all');
   const [minWind, setMinWind] = useState(0);
   const [minWave, setMinWave] = useState(0);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [forecasts, setForecasts] = useState<AuditForecastDoc[] | null>(null);
   const [observations, setObservations] = useState<AuditObsDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -299,33 +301,46 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
             ) : null;
           })()}
 
-          {/* Filters */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-1 text-[10px] font-mono font-bold uppercase text-slate-500"><Filter className="w-3 h-3" /> Filters</div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: period, set: (v: string) => setPeriod(Number(v)), opts: PERIODS.map(p => ({ v: p.key, l: p.label })) },
-                { value: param, set: (v: string) => setParam(v as AuditParam), opts: PARAMS.map(p => ({ v: p.key, l: p.label })) },
-                { value: bucket, set: (v: string) => setBucket(v as any), opts: [{ v: 'all', l: 'Alle looptijden' }, ...LEAD_BUCKETS.map(b => ({ v: b.key, l: b.label }))] },
-                { value: minWind, set: (v: string) => setMinWind(Number(v)), opts: WIND_FILTERS.map(f => ({ v: f.key, l: f.label })) },
-                { value: minWave, set: (v: string) => setMinWave(Number(v)), opts: WAVE_FILTERS.map(f => ({ v: f.key, l: f.label })) },
-              ].map((f, i) => (
-                <select key={i} value={String(f.value)} onChange={e => f.set(e.target.value)}
-                  className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
-                  {f.opts.map(o => <option key={String(o.v)} value={String(o.v)}>{o.l}</option>)}
-                </select>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {sources.map(([id, s]) => (
-                <button key={id} onClick={() => setHidden(h => { const n = new Set(h); n.has(id) ? n.delete(id) : n.add(id); return n; })}
-                  className={cn('text-[11px] px-2 py-1 rounded-full border cursor-pointer',
-                    hidden.has(id) ? 'bg-white text-slate-400 border-slate-200 line-through' : s.kind === 'nzsurf' ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-slate-100 text-slate-800 border-slate-300')}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Filters: per regel één keuze, direct zichtbaar (geen uitklaplijsten). */}
+          {(() => {
+            const short = (l: string) => l.replace(/^Wind ≥ /, '≥ ').replace(/^Golf ≥ /, '≥ ').replace(/^Alle wind$|^Alle golven$|^Alle looptijden$/, 'Alles').replace(/ \(.*\)$/, '');
+            const rows: { name: string; value: string; set: (v: string) => void; opts: { v: string; l: string }[] }[] = [
+              { name: 'Variabele', value: param, set: v => setParam(v as AuditParam), opts: PARAMS.map(p => ({ v: p.key, l: p.key === 'tpPeak' ? 'Piekperiode' : p.label })) },
+              { name: 'Periode', value: String(period), set: v => setPeriod(Number(v)), opts: PERIODS.map(p => ({ v: String(p.key), l: p.label })) },
+              { name: 'Vooruit', value: bucket, set: v => setBucket(v as LeadBucket | 'all'), opts: [{ v: 'all', l: 'Alles' }, ...LEAD_BUCKETS.map(b => ({ v: b.key, l: short(b.label) }))] },
+              { name: 'Wind', value: String(minWind), set: v => setMinWind(Number(v)), opts: WIND_FILTERS.map(f => ({ v: String(f.key), l: short(f.label) })) },
+              { name: 'Golf', value: String(minWave), set: v => setMinWave(Number(v)), opts: WAVE_FILTERS.map(f => ({ v: String(f.key), l: short(f.label) })) },
+            ];
+            const changed = period !== 30 || bucket !== 'all' || minWind !== 0 || minWave !== 0;
+            return (
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500"><Filter className="w-3.5 h-3.5" /> Filters</div>
+                  {changed && (
+                    <button onClick={() => { setPeriod(30); setBucket('all'); setMinWind(0); setMinWave(0); }}
+                      className="text-[12px] underline underline-offset-2 text-slate-600 cursor-pointer">standaard</button>
+                  )}
+                </div>
+                {rows.map(r => (
+                  <div key={r.name} className="flex items-start gap-2">
+                    <span className="w-[64px] shrink-0 pt-2 text-[12px] font-semibold text-slate-500">{r.name}</span>
+                    <div role="radiogroup" aria-label={r.name} className="flex gap-1.5 overflow-x-auto pb-1 -mr-3 pr-3 [scrollbar-width:none]">
+                      {r.opts.map(o => {
+                        const on = o.v === r.value;
+                        return (
+                          <button key={o.v} role="radio" aria-checked={on} onClick={() => r.set(o.v)}
+                            className={cn('shrink-0 min-h-[36px] px-3 rounded-full border text-[13px] whitespace-nowrap cursor-pointer transition-colors',
+                              on ? 'bg-[color:var(--tide-ink)] text-[color:var(--tide-sand)] border-[color:var(--tide-ink)] font-semibold' : 'bg-white text-slate-700 border-slate-300')}>
+                            {o.l}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Is er te surfen? Verwachting, variabelen, werkelijkheid en score per voorspeller */}
           <SurfAuditBoard forecasts={forecasts} observations={observations} sources={visibleSources} reports={reports || []} spotId={AUDIT_SPOT_ID} />
