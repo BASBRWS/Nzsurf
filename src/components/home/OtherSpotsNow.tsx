@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { ForecastData, SurfSpot } from '../../types';
 import { cn } from '../../lib/utils';
-import { fetchForecast } from '../../services/weatherService';
+import { fetchSpotForecast } from '../../services/liveV2';
 import { chanceOf, chanceLevel, pickNow, rawLine } from '../../utils/surfMoments';
 import { withAreaDefaults } from '../../utils/spotKnowledge';
 
@@ -44,7 +44,7 @@ export function OtherSpotsNow({ spot, spots, currentChance, onSelectSpot }: Othe
     const timer = setTimeout(async () => {
       const results = await Promise.allSettled(candidates.map(async s => {
         const hit = cache.get(s.id);
-        const data = hit && Date.now() - hit.t < TTL ? hit.data : await fetchForecast(s);
+        const data = hit && Date.now() - hit.t < TTL ? hit.data : await fetchSpotForecast(s);
         cache.set(s.id, { t: Date.now(), data });
         const now = pickNow(data);
         if (!now) throw new Error('geen data');

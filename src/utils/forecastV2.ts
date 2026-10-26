@@ -213,3 +213,44 @@ export function buildV2Docs(forecasts: AuditForecastDoc[], observations: AuditOb
   }
   return out;
 }
+
+// ── Kalibratie voor de live app ──────────────────────────────────────────────
+// De dagelijkse audit rekent per auditspot uit hoe elke bron zich tot de metingen
+// verhoudt (meting ≈ a + b × verwachting, per vooruitkijkklasse) en welke windbron per
+// klasse het best is. De app past dat toe op de live modeldata (zie services/liveV2.ts).
+
+export interface V2Skill { a: number; b: number; rmse: number; n: number }
+export interface V2Calibration {
+  spotId: string;
+  asOf: string;                       // tot en met dit moment geleerd
+  leadBuckets: number[];              // bovengrenzen (uur) van de klassen
+  hs: Record<string, V2Skill[]>;      // bron → per klasse
+  windKn: Record<string, V2Skill[]>;
+  windDir: Record<string, V2Skill[]>; // a = verschuiving (graden)
+  windPick: string[];                 // per klasse de windbron
+}
+
+export function computeV2Calibration(forecasts: AuditForecastDoc[], observations: AuditObsDoc[], asOf: number, spotId: string): V2Calibration {
+  const obs = cleanObservations(observations);
+  const nb = BLEND_DEFAULTS.leadBuckets.length;
+  const table = (sources: string[], v: BlendVar) => {
+    const sk = learnSkill(forecasts, obs, asOf, { sources, vars: [v], exclude: {} });
+    const out: Record<string, V2Skill[]> = {};
+    for (const s of sources) {
+      out[s] = Array.from({ length: nb }, (_, b) => {
+        const k = sk[`${s}|${v}|${b}`];
+        return k ? { a: r(k.a, 3), b: r(k.b, 3), rmse: r(k.rmse, 3), n: k.n } : { a: 0, b: 1, rmse: BLEND_DEFAULTS.priorRmse[v], n: 0 };
+      });
+    }
+    return out;
+  };
+  const windKn = table(WIND_CANDIDATES, 'windKn');
+  const windPick = Array.from({ length: nb }, (_, b) => {
+    const ranked = WIND_CANDIDATES.filter(s => windKn[s][b].n >= WIND_MIN_PAIRS).sort((x, y) => windKn[x][b].rmse - windKn[y][b].rmse);
+    return ranked[0] ?? WIND_DEFAULT;
+  });
+  return {
+    spotId, asOf: new Date(asOf).toISOString(), leadBuckets: BLEND_DEFAULTS.leadBuckets,
+    hs: table(HS_SOURCES, 'hs'), windKn, windDir: table(WDIR_SOURCES, 'windDir'), windPick,
+  };
+}

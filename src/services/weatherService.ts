@@ -27,7 +27,7 @@ async function fetchSeaLevel(lat: number, lng: number): Promise<{ times: string[
 
 // Open-Meteo weigert soms tijdelijk (429 "Too many concurrent requests", 5xx)
 // of hangt. Zonder timeout en herhaling bleef de app dan eindeloos laden.
-async function fetchWithRetry(url: string, tries = 3, timeoutMs = 12000): Promise<Response> {
+export async function fetchWithRetry(url: string, tries = 3, timeoutMs = 12000): Promise<Response> {
   let last: unknown;
   for (let i = 0; i < tries; i++) {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;

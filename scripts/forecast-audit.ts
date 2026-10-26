@@ -21,6 +21,8 @@ import { fetchForecast } from '../src/services/weatherService';
 import { withAreaDefaults } from '../src/utils/spotKnowledge';
 import { plausibleObs } from '../src/utils/forecastAudit';
 import { parseWompy } from '../src/utils/siteParsers';
+import { computeV2Calibration } from '../src/utils/forecastV2';
+import type { AuditForecastDoc, AuditObsDoc } from '../src/utils/forecastAudit';
 
 // ── Instellingen ────────────────────────────────────────────────────────────
 // Auditspots. De metingen (boei Maasgeul 2, wind Europlatform) zijn voor beide gelijk;
@@ -525,6 +527,23 @@ async function main() {
     }
   }
   console.log(`Klaar: ${ok} bronnen opgeslagen${DRY_RUN ? ' (niet echt, dry run)' : ''}.`);
+
+  // Kalibratie voor NzSurf v2 in de app: per auditspot uit de laatste 35 dagen.
+  if (db) {
+    const since = new Date(Date.now() - 35 * 86400e3).toISOString().slice(0, 10);
+    const [fcSnap, obsSnap] = await Promise.all([
+      db.collection('auditForecasts').where('runDate', '>=', since).get(),
+      db.collection('auditObservations').where('date', '>=', since).get(),
+    ]);
+    const all = fcSnap.docs.map(d => d.data() as AuditForecastDoc);
+    const obsDocs = obsSnap.docs.map(d => d.data() as AuditObsDoc);
+    for (const cfg of AUDIT_SPOTS) {
+      const fc = all.filter(d => (d.spotId || 'ouddorp-p-noordweg') === cfg.spot.id);
+      const cal = computeV2Calibration(fc, obsDocs, Date.now(), cfg.spot.id);
+      await db.collection('v2Calibration').doc(cfg.spot.id).set({ ...cal, lat: cfg.spot.lat, lng: cfg.spot.lng, updatedAt: new Date().toISOString() });
+      console.log(`v2-kalibratie ${cfg.spot.id}: wind ${cal.windPick.join('/')}, golf d1 ${Object.entries(cal.hs).map(([k, v]) => `${k} ${v[0].a}+${v[0].b}x (n${v[0].n})`).join(', ')}`);
+    }
+  }
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

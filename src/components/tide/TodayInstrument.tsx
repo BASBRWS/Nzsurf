@@ -16,6 +16,7 @@ interface Props {
   spot: SurfSpot; forecasts: ForecastData[]; user: UserProfile; isLoggedIn: boolean;
   isLoading?: boolean; error?: string | null; staleAt?: string | null; onRetry?: () => void;
   onSelectHour?: (f: ForecastData) => void; onOpenAICoach?: () => void; onOpenSessionWindow?: () => void; onOpenProfile?: () => void;
+  algoNote?: string;
 }
 
 const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
@@ -28,7 +29,7 @@ const Mono: React.FC<{ children: React.ReactNode; className?: string }> = ({ chi
   <span className={`tide-mono text-[11px] text-[color:var(--tide-sea)] ${className}`}>{children}</span>
 );
 
-export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, isLoading, error, staleAt, onRetry, onSelectHour, onOpenAICoach, onOpenSessionWindow, onOpenProfile }) => {
+export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, isLoading, error, staleAt, onRetry, onSelectHour, onOpenAICoach, onOpenSessionWindow, onOpenProfile, algoNote }) => {
   const now = new Date();
   const personal = isLoggedIn && (user.boards?.length ?? 0) > 0;
   const { chance, board, generic } = useChances(spot, forecasts, user, personal);
@@ -136,6 +137,8 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
       ) : (
         <h2 className="mt-6 text-[44px] leading-none text-[color:var(--tide-mist)]">{isLoading ? 'Even kijken…' : 'Nog geen verwachting.'}</h2>
       )}
+
+      {algoNote && <Mono className="block mt-4 text-[color:var(--tide-mist)]">model: {algoNote}</Mono>}
 
       {staleAt && error && !isLoading && (
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-[color:var(--tide-line)] pt-3 text-[15px] text-[#8a4b12]">

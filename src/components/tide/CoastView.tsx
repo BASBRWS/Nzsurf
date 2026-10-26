@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { ForecastData, SurfSpot, UserProfile } from '../../types';
 import { SPOT_CATALOG, toSurfSpot } from '../../data/spotCatalog';
-import { fetchForecast } from '../../services/weatherService';
+import { fetchSpotForecast } from '../../services/liveV2';
 import { withAreaDefaults } from '../../utils/spotKnowledge';
 import { chanceOf } from '../../utils/surfMoments';
 import { personalHours } from '../../utils/surfProfile';
@@ -73,7 +73,7 @@ export const CoastView: React.FC<Props> = ({ spot, forecast, spots, user, isLogg
     candidates.filter(s => s.id !== spot.id).forEach(async s => {
       try {
         const hit = cache.get(s.id);
-        const data = hit && Date.now() - hit.t < TTL ? hit.data : await fetchForecast(s);
+        const data = hit && Date.now() - hit.t < TTL ? hit.data : await fetchSpotForecast(s);
         cache.set(s.id, { t: Date.now(), data });
         if (!cancelled) setRows(rs => rs.map(r => (r.spot.id === s.id ? { ...r, status: 'ok', ...score(s, data) } : r)));
       } catch {

@@ -55,6 +55,7 @@ interface TacticalDashboardProps {
   forecastStaleAt?: string | null;
   onRetryForecast?: () => void;
   onOpenWeek?: () => void;
+  algoNote?: string;
 }
 
 export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
@@ -74,7 +75,8 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
   forecastStaleAt = null,
   onRetryForecast,
   onSelectSpot,
-  onOpenWeek
+  onOpenWeek,
+  algoNote
 }) => {
   // Standaard de tabel (weekoverzicht); dagkaarten pas na een klik.
   const [forecastViewMode, setForecastViewMode] = useState<'cards' | 'grid'>('grid');
@@ -131,7 +133,7 @@ export const TacticalDashboard: React.FC<TacticalDashboardProps> = ({
         spot={spot} forecasts={forecasts} user={user} isLoggedIn={isLoggedIn}
         isLoading={isForecastLoading} error={forecastError} staleAt={forecastStaleAt} onRetry={onRetryForecast}
         onSelectHour={handleHourSelect} onOpenAICoach={onOpenAICoach} onOpenSessionWindow={onOpenSessionWindow}
-        onOpenProfile={onOpenProfile}
+        onOpenProfile={onOpenProfile} algoNote={algoNote}
       />
 
       {/* 2. ALLE CIJFERS VAN VANDAAG: één tik dieper */}
