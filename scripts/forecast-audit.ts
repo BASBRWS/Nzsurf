@@ -116,7 +116,7 @@ async function collectNzSurf(spot: SurfSpot): Promise<SourceResult> {
     }))
     // NzSurf rekent in 3-uursblokken op NL-tijd; die liggen niet op het UTC-raster.
     .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
-  return { source: 'nzsurf', label: 'NzSurf (ons algoritme)', kind: 'nzsurf', points,
+  return { source: 'nzsurf', label: 'NzSurf v1 (basis)', kind: 'nzsurf', points,
     note: fc[0]?.tideSource ? `getij: ${fc[0].tideSource}` : undefined };
 }
 
