@@ -16,7 +16,7 @@ export interface AuditForecastDoc {
 export interface ObsPoint { t: string; hs?: number; tm02?: number; dir?: number; windKn?: number; windDir?: number; level?: number }
 export interface AuditObsDoc { date: string; points: ObsPoint[]; stations?: string[]; source?: string; windAt10m?: boolean }
 
-export type AuditParam = 'hs' | 'tp' | 'dir' | 'windKn' | 'windDir' | 'power';
+export type AuditParam = 'hs' | 'tp' | 'tpPeak' | 'dir' | 'windKn' | 'windDir' | 'power';
 
 /**
  * Natuurkundig mogelijke meetwaarden. Rijkswaterstaat markeert ontbrekende
@@ -67,13 +67,27 @@ export function auditView(docs: AuditForecastDoc[], spotId: string): AuditForeca
   return docs.map(d => ({ ...d, points: (d.points || []).map(p => { const { dir: _d, ...rest } = p; return rest as AuditPoint; }) }));
 }
 
+// ── Soort golfperiode per bron ────────────────────────────────────────────────
+// De boei meet de gemiddelde periode (Tm02). De modellen via Open-Meteo (wave_period) en
+// NzSurf geven ook een gemiddelde periode; die vergelijken we rechtstreeks met Tm02.
+// Sites geven een piek- of swellperiode (Surfline: dominante swell). Die is niet hetzelfde;
+// we vergelijken ze apart en alleen indicatief met Tm02 × 1,25 (gangbare verhouding Tp/Tm02).
+export const MEAN_PERIOD_SOURCES = new Set(['nzsurf', 'nzsurf-v2', 'nzsurf-concept', 'nzsurf-hybride', 'dwd', 'meteofrance', 'ecmwf', 'gfs', 'openmeteo']);
+export const periodKind = (source: string): 'mean' | 'peak' => (MEAN_PERIOD_SOURCES.has(source) ? 'mean' : 'peak');
+/** Gemeten Tm02 → piekperiode (benadering, alleen voor de indicatieve vergelijking en de surfregel). */
+export const TM02_TO_TP = 1.25;
+
+/** Bronnen die in de ranglijsten niet als aparte stem tellen (kopie van andere bronnen). */
+export const NOT_RANKED_SOURCES = new Set(['openmeteo']);
+
 export const PARAMS: { key: AuditParam; label: string; unit: string; obsKey: keyof ObsPoint; circular?: boolean; note?: string }[] = [
   { key: 'hs', label: 'Golfhoogte', unit: 'm', obsKey: 'hs' },
-  { key: 'tp', label: 'Golfperiode', unit: 's', obsKey: 'tm02', note: 'gemeten: gemiddelde periode (Tm02)' },
+  { key: 'tp', label: 'Golfperiode', unit: 's', obsKey: 'tm02', note: 'gemiddelde periode: modellen en NzSurf tegen de gemeten Tm02' },
+  { key: 'tpPeak', label: 'Piek-/swellperiode (indicatief)', unit: 's', obsKey: 'tm02', note: 'sites met een piek- of swellperiode, tegen Tm02 × 1,25 (benadering)' },
   { key: 'dir', label: 'Golfrichting', unit: '°', obsKey: 'dir', circular: true },
   { key: 'windKn', label: 'Windsnelheid', unit: 'kn', obsKey: 'windKn' },
   { key: 'windDir', label: 'Windrichting', unit: '°', obsKey: 'windDir', circular: true },
-  { key: 'power', label: 'Golfkracht', unit: 'kW/m', obsKey: 'hs', note: 'berekend uit hoogte en periode: 0,49 × Hs² × 1,2 × T (verwachting: T zoals gegeven; boei: Tm02)' },
+  { key: 'power', label: 'Golfkracht', unit: 'kW/m', obsKey: 'hs', note: 'berekend uit hoogte en gemiddelde periode: 0,49 × Hs² × 1,2 × Tm (alleen bronnen met een gemiddelde periode)' },
 ];
 
 // ── Golfkracht ───────────────────────────────────────────────────────────────
@@ -87,7 +101,8 @@ export const powerKw = (hs?: number, period?: number) =>
   typeof hs === 'number' && typeof period === 'number' && hs >= 0 && period > 0 ? waveFluxKw(hs, TE_PER_TM * period) : undefined;
 
 export const LEAD_BUCKETS = [
-  { key: 'd1', label: 'Dag 1 (0–24 u)', min: -1, max: 24 },
+  // Alleen echte vooruitverwachtingen: punten op of vóór het ophaalmoment tellen niet mee.
+  { key: 'd1', label: 'Dag 1 (0–24 u)', min: 0.01, max: 24 },
   { key: 'd2', label: 'Dag 2 (24–48 u)', min: 24, max: 48 },
   { key: 'd3', label: 'Dag 3 (48–72 u)', min: 48, max: 72 },
   { key: 'd4-5', label: 'Dag 4–5', min: 72, max: 120 },
@@ -117,9 +132,17 @@ export function buildPairs(forecasts: AuditForecastDoc[], observations: AuditObs
       const o = obsByHour.get(p.t.slice(0, 13));
       const bucket = leadBucketOf(p.lead);
       if (!o || !bucket) continue;
+      if (NOT_RANKED_SOURCES.has(doc.source)) continue;
+      const pk = periodKind(doc.source);
       for (const prm of PARAMS) {
-        const fc = prm.key === 'power' ? powerKw(p.hs, p.tp) : p[prm.key];
-        const ob = prm.key === 'power' ? powerKw(o.hs, o.tm02) : o[prm.obsKey] as number | undefined;
+        // Periode: gemiddelde-periodebronnen tegen Tm02, piekbronnen apart tegen Tm02 × 1,25.
+        if (prm.key === 'tp' && pk !== 'mean') continue;
+        if (prm.key === 'tpPeak' && pk !== 'peak') continue;
+        if (prm.key === 'power' && pk !== 'mean') continue;
+        const fc = prm.key === 'power' ? powerKw(p.hs, p.tp) : prm.key === 'tpPeak' ? p.tp : p[prm.key];
+        const ob = prm.key === 'power' ? powerKw(o.hs, o.tm02)
+          : prm.key === 'tpPeak' ? (typeof o.tm02 === 'number' ? Math.round(o.tm02 * TM02_TO_TP * 10) / 10 : undefined)
+          : o[prm.obsKey] as number | undefined;
         if (typeof fc !== 'number' || typeof ob !== 'number') continue;
         const err = prm.circular ? circDiff(fc, ob) : fc - ob;
         pairs.push({
@@ -157,6 +180,92 @@ export function scorePairs(pairs: Pair[]): Score[] {
 
 /** Minimale steekproef voordat we een ranglijst serieus nemen. */
 export const MIN_N = 20;
+/** Voor een rang in de eerlijke vergelijking: zoveel verschillende meeturen en dagen. */
+export const MIN_HOURS = 40, MIN_DAYS = 5;
+
+// ── Eerlijke vergelijking: op dezelfde uren als NzSurf ──────────────────────
+//
+// Elke bron dekt andere uren (Surfline alleen als de app open stond, Wompy één waarde
+// per dag, Secret Swell alleen na een upload). Een ranglijst over verschillende uren
+// vergelijkt deels het weer. Daarom: per bron alleen de uren (en vooruitkijkklasse)
+// waarop ook NzSurf een verwachting had; per uur eerst middelen over de ophaalrondes
+// (één stem per meetuur). Het verschil met NzSurf op die uren is de maatstaf; de getoonde
+// "afwijking" = NzSurf over al zijn uren + dat verschil, zodat alle getallen op dezelfde
+// schaal staan. Onzekerheid: 90%-interval met bootstrap per dag (dagen trekken met
+// teruglegging, want uren binnen een dag hangen samen).
+
+export interface FairScore extends Score {
+  hours: number;     // verschillende meeturen gemeen met NzSurf
+  days: number;      // verschillende dagen
+  delta: number;     // gem. |fout| bron − NzSurf op dezelfde uren (negatief = beter)
+  lo: number; hi: number; // 90%-interval van delta
+  ranked: boolean;   // genoeg data voor een rang
+  mean: boolean;     // vergeleken met NzSurf (anders: eigen uren, geen referentie)
+}
+
+function seeded(seed: number) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+
+export function fairScores(pairs: Pair[], param: AuditParam, ref = 'nzsurf', boot = 400): FairScore[] {
+  const ps = pairs.filter(p => p.param === param);
+  // per bron: sleutel (uur + klasse) → gemiddelde |fout| en fout over de ophaalrondes
+  const per = new Map<string, Map<string, { a: number; e: number; n: number; day: string }>>();
+  const meta = new Map<string, { label: string; kind: string }>();
+  for (const p of ps) {
+    const key = `${p.t.slice(0, 13)}|${p.bucket}`;
+    if (!per.has(p.source)) per.set(p.source, new Map());
+    const m = per.get(p.source)!;
+    const c = m.get(key) || { a: 0, e: 0, n: 0, day: p.t.slice(0, 10) };
+    c.a += Math.abs(p.err); c.e += p.err; c.n++; m.set(key, c);
+    meta.set(p.source, { label: p.label, kind: p.kind });
+  }
+  const refMap = per.get(ref);
+  const avg = (m: Map<string, { a: number; e: number; n: number }>) => {
+    let a = 0, e = 0, n = 0; for (const c of m.values()) { a += c.a / c.n; e += c.e / c.n; n++; } return { mae: n ? a / n : 0, bias: n ? e / n : 0, n };
+  };
+  const refAll = refMap ? avg(refMap) : null;
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const out: FairScore[] = [];
+  for (const [src, m] of per) {
+    const all = avg(m);
+    const rmse = Math.sqrt([...m.values()].reduce((s, c) => s + (c.e / c.n) ** 2, 0) / (m.size || 1));
+    const base = { source: src, label: meta.get(src)!.label, kind: meta.get(src)!.kind, param, rmse: r2(rmse) };
+    if (!refMap || !refAll) {
+      const days = new Set([...m.values()].map(c => c.day)).size;
+      out.push({ ...base, n: m.size, mae: r2(all.mae), bias: r2(all.bias), hours: m.size, days, delta: 0, lo: 0, hi: 0, ranked: m.size >= MIN_HOURS && days >= MIN_DAYS, mean: false });
+      continue;
+    }
+    // Gemeenschappelijke uren
+    const rows: { d: number; eb: number; day: string }[] = [];
+    for (const [k, c] of m) {
+      const r = refMap.get(k); if (!r) continue;
+      rows.push({ d: c.a / c.n - r.a / r.n, eb: c.e / c.n - r.e / r.n, day: c.day });
+    }
+    const hours = new Set([...m.keys()].filter(k => refMap.has(k)).map(k => k.split('|')[0])).size;
+    const byDay = new Map<string, number[]>();
+    for (const r of rows) { if (!byDay.has(r.day)) byDay.set(r.day, []); byDay.get(r.day)!.push(r.d); }
+    const days = byDay.size;
+    const delta = rows.length ? rows.reduce((s, r) => s + r.d, 0) / rows.length : 0;
+    const dBias = rows.length ? rows.reduce((s, r) => s + r.eb, 0) / rows.length : 0;
+    let lo = delta, hi = delta;
+    if (src !== ref && days >= 2) {
+      const dayList = [...byDay.values()], rnd = seeded(src.length * 7919 + param.length), sims: number[] = [];
+      for (let b = 0; b < boot; b++) {
+        let s = 0, n = 0;
+        for (let i = 0; i < dayList.length; i++) { const dl = dayList[Math.floor(rnd() * dayList.length)]; for (const v of dl) { s += v; n++; } }
+        sims.push(n ? s / n : 0);
+      }
+      sims.sort((a, b) => a - b);
+      lo = sims[Math.floor(boot * 0.05)]; hi = sims[Math.floor(boot * 0.95)];
+    }
+    out.push({
+      ...base, n: hours, hours, days, mean: true,
+      mae: r2(refAll.mae + delta), bias: r2(refAll.bias + dBias),
+      delta: r2(delta), lo: r2(lo), hi: r2(hi),
+      ranked: src === ref ? true : hours >= MIN_HOURS && days >= MIN_DAYS,
+    });
+  }
+  return out.sort((a, b) => Number(b.ranked) - Number(a.ranked) || a.mae - b.mae);
+}
 
 export function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return '';

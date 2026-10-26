@@ -4,11 +4,11 @@
 // backtest = true.
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { AuditForecastDoc, AuditObsDoc, PARAMS, LEAD_BUCKETS, auditView, buildPairs, cleanObservations, scorePairs } from '../src/utils/forecastAudit';
+import { AuditForecastDoc, AuditObsDoc, PARAMS, LEAD_BUCKETS, auditView, buildPairs, cleanObservations, fairScores, scorePairs } from '../src/utils/forecastAudit';
 import { buildConceptDocs, CONCEPT_SOURCE } from '../src/utils/forecastBlend';
 import { buildHybridDocs, HYBRID_SOURCE } from '../src/utils/forecastHybrid';
 import { buildV2Docs, V2_SOURCE } from '../src/utils/forecastV2';
-import { DEFAULT_RULE, componentRanking, componentScores, dayRanking, dayScores, obsTruth } from '../src/utils/surfVerdict';
+import { DEFAULT_RULE, componentRanking, componentScores, dayRanking, dayScores, obsTruth, pairedSurfScores } from '../src/utils/surfVerdict';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa) throw new Error('Ontbrekende env-var: FIREBASE_SERVICE_ACCOUNT');
@@ -81,4 +81,22 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
     }
   }
   notice(`Per looptijd ${spotId}`, bl);
+
+  // Eerlijk: zelfde uren als NzSurf, één stem per meetuur, 90%-interval (zonder concept/hybride/v2-zonder).
+  const fairPairs = pairs.filter(p => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(p.source));
+  const fl: string[] = [];
+  for (const prm of PARAMS) {
+    const sc = fairScores(fairPairs, prm.key);
+    if (!sc.length) continue;
+    const rk = sc.filter(x => x.ranked);
+    const d = prm.key === 'hs' ? 2 : 1;
+    const fmt = (x: typeof sc[number]) => `${(SHORT[x.source] ?? x.label.split(' (')[0])} #${rk.indexOf(x) + 1 || '-'} ${f(x.mae, d)}${x.mean && x.source !== 'nzsurf' ? ` Δ${x.delta >= 0 ? '+' : ''}${f(x.delta, d)} [${f(x.lo, d)};${f(x.hi, d)}]` : ''} (${x.hours}u/${x.days}d)`;
+    const show = rk.slice(0, 4);
+    for (const s of ['nzsurf', V2_SOURCE]) { const x = sc.find(y => y.source === s); if (x && !show.includes(x)) show.push(x); }
+    fl.push(`${prm.label}: ${show.map(fmt).join(' · ')} | ${rk.length}/${sc.length} met rang`);
+  }
+  const truthF = obsTruth(obs, DEFAULT_RULE);
+  const paired = pairedSurfScores(docs.filter(d => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(d.source)), DEFAULT_RULE, truthF);
+  fl.push(`Te surfen vs NzSurf (zelfde momenten): ${paired.slice(0, 6).map(r => `${SHORT[r.source] ?? r.source} ${r.score}% vs ${r.ref}% Δ${r.delta >= 0 ? '+' : ''}${r.delta} [${r.lo};${r.hi}] n${r.moments}/${r.days}d${r.ranked ? '' : ' (te weinig)'}`).join(' · ')}`);
+  notice(`Eerlijk ${spotId}`, fl);
 }

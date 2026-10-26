@@ -1,4 +1,4 @@
-import { AuditForecastDoc, AuditObsDoc, AuditPoint, ObsPoint, SpotReportLike, UserRating } from './forecastAudit';
+import { AuditForecastDoc, AuditObsDoc, AuditPoint, NOT_RANKED_SOURCES, ObsPoint, SpotReportLike, UserRating, periodKind } from './forecastAudit';
 import { angleDiff } from './spotKnowledge';
 import { knotsToBft } from './surfMoments';
 
@@ -71,7 +71,9 @@ export function forecastVerdict(source: string, p: AuditPoint, rule: SurfRule): 
   }
   // NzSurf v2 kalibreert zijn periode op de gemeten gemiddelde periode (Tm02); voor de regel
   // (piekperiode) dezelfde omrekening als bij de meting, anders zegt v2 te vaak "te kort".
-  if (source === 'nzsurf-v2') return { ok: ruleVerdict({ ...p, tp: typeof p.tp === 'number' ? p.tp * TM02_TO_TP : undefined }, rule), own: false };
+  // De regel gaat over de piekperiode (de meting wordt ook omgerekend: Tm02 × 1,25). Bronnen
+  // met een gemiddelde periode rekenen we op dezelfde manier om; piekbronnen niet.
+  if (periodKind(source) === 'mean') return { ok: ruleVerdict({ ...p, tp: typeof p.tp === 'number' ? p.tp * TM02_TO_TP : undefined }, rule), own: false };
   return { ok: ruleVerdict(p, rule), own: false };
 }
 
@@ -86,11 +88,11 @@ export const observedVerdict = (o: ObsPoint, rule: SurfRule) => ruleVerdict(obse
 export const COMPONENTS = [
   { key: 'total', label: 'Te surfen?', rule: 'gebalanceerd: gemiddelde van "surfbare momenten gevangen" en "terecht nee" (wie altijd nee zegt, komt op 50%)' },
   { key: 'hs', label: 'Golf', rule: '≤ 0,25 m of ≤ 25% verschil' },
-  { key: 'tp', label: 'Periode', rule: '≤ 1,5 s (gemeten Tm02 × 1,25)' },
+  { key: 'tp', label: 'Periode', rule: 'gemiddelde periode: ≤ 1,2 s van de gemeten Tm02; piek-/swellperiode (sites): ≤ 1,5 s van Tm02 × 1,25 (benadering)' },
   { key: 'dir', label: 'Swellrichting', rule: '≤ 30°' },
   { key: 'wind', label: 'Windkracht', rule: '≤ 1 Bft verschil' },
   { key: 'windDir', label: 'Windrichting', rule: '≤ 30°' },
-  { key: 'angle', label: 'Windhoek', rule: 'zelfde: aflandig / zij / aanlandig' },
+  { key: 'angle', label: 'Windhoek', rule: 'zelfde: aflandig / zij / aanlandig (telt niet mee in de totaalscore: zelfde informatie als windrichting)' },
 ] as const;
 export type ComponentKey = typeof COMPONENTS[number]['key'];
 
@@ -106,7 +108,11 @@ export function componentHits(source: string, p: AuditPoint, o: ObsPoint | undef
   if (!o) return out;
   const ov = observedVars(o);
   if (typeof p.hs === 'number' && typeof ov.hs === 'number') out.hs = Math.abs(p.hs - ov.hs) <= Math.max(0.25, 0.25 * ov.hs);
-  if (typeof p.tp === 'number' && typeof ov.tp === 'number') out.tp = Math.abs(p.tp - ov.tp) <= 1.5;
+  // Periode: gemiddelde-periodebronnen tegen de gemeten Tm02 (±1,2 s); piek-/swellbronnen
+  // tegen Tm02 × 1,25 (±1,5 s, benadering). Nooit door elkaar.
+  if (typeof p.tp === 'number' && typeof o.tm02 === 'number') {
+    out.tp = periodKind(source) === 'mean' ? Math.abs(p.tp - o.tm02) <= 1.2 : Math.abs(p.tp - o.tm02 * TM02_TO_TP) <= 1.5;
+  }
   if (typeof p.dir === 'number' && typeof ov.dir === 'number') out.dir = angleDiff(p.dir, ov.dir) <= 30;
   if (typeof p.windKn === 'number' && typeof ov.windKn === 'number') out.wind = Math.abs(knotsToBft(p.windKn) - knotsToBft(ov.windKn)) <= 1;
   if (typeof p.windDir === 'number' && typeof ov.windDir === 'number') {
@@ -208,9 +214,10 @@ export function componentScores(docs: AuditForecastDoc[], obs: AuditObsDoc[], ru
   const idx = obsIndex(obs);
   const rows = new Map<string, ScoreRow>();
   for (const d of docs) {
+    if (NOT_RANKED_SOURCES.has(d.source)) continue;
     for (const p of d.points || []) {
       const t = Date.parse(p.t);
-      if (!isDaytime(t) || p.lead < 0) continue;
+      if (!isDaytime(t) || p.lead <= 0) continue;
       if (onlyLeadDay && leadDay(p.lead) !== onlyLeadDay) continue;
       const o = idx.get(hourKey(t));
       const truth = truthFn(t, d.source);
@@ -248,7 +255,7 @@ export function stability(docs: AuditForecastDoc[], sources: string[], rule: Sur
       const run = Date.parse(d.runAt);
       for (const p of d.points || []) {
         const t = Date.parse(p.t);
-        if (!isDaytime(t) || p.lead < 0) continue;
+        if (!isDaytime(t) || p.lead <= 0) continue;
         const day = leadDay(p.lead);
         if (day > maxDay) continue;
         const v = forecastVerdict(source, p, rule).ok;
@@ -392,7 +399,9 @@ export function componentRanking(scores: Map<string, ScoreRow>, key: ComponentKe
 export interface OverallRow { source: string; score: number; parts: number; n: number; keys: ComponentKey[] }
 
 /** Onderdelen waarop een voorspeller beoordeeld is (minstens `minN` vergelijkingen). */
-export const scoredKeys = (r: ScoreRow, minN = 1) => COMPONENTS.map(c => c.key).filter(k => (r.n[k] || 0) >= minN);
+/** Onderdelen in de totaalscore: windhoek niet (afgeleid van de windrichting, zou die dubbel tellen). */
+export const SCORE_KEYS = COMPONENTS.map(c => c.key).filter(k => k !== 'angle');
+export const scoredKeys = (r: ScoreRow, minN = 1) => SCORE_KEYS.filter(k => (r.n[k] || 0) >= minN);
 
 /** Gewogen % goed over de gegeven onderdelen; "te surfen?" telt dubbel (daar draait het om). */
 export function weightedScore(r: ScoreRow, keys: ComponentKey[]): number | null {
@@ -408,7 +417,7 @@ export function weightedScore(r: ScoreRow, keys: ComponentKey[]): number | null 
 }
 
 /** Vanaf zoveel onderdelen telt een voorspeller als "volledig" (de rest is alleen wind, alleen golf, …). */
-export const FULL_PARTS = COMPONENTS.length - 1;
+export const FULL_PARTS = SCORE_KEYS.length - 1;
 
 /**
  * Totaalranglijst: gemiddelde van het % goed over alle onderdelen die een voorspeller
@@ -468,6 +477,7 @@ export function dayScores(docs: AuditForecastDoc[], rule: SurfRule, truthFn: Tru
   // Laatste verwachting per (bron, doeldag, vooruitkijkdag).
   const latest = new Map<string, { doc: AuditForecastDoc; day: number; lead: number }>();
   for (const d of docs) {
+    if (NOT_RANKED_SOURCES.has(d.source)) continue;
     const run = Date.parse(d.runAt);
     const days = new Set((d.points || []).map(p => startOfLocalDay(Date.parse(p.t))));
     for (const day of days) {
@@ -511,4 +521,70 @@ export function dayRanking(rows: Map<string, DayScoreRow>): DayRankRow[] {
       byLead: [...r.byLead.entries()].sort((a, b) => a[0] - b[0]).map(([day, cm]) => ({ day, pct: pctOf(balanced(cm)), n: cm.tp + cm.fn + cm.tn + cm.fp })),
     };
   }).filter(r => r.n > 0).sort((a, b) => b.pct - a.pct || b.n - a.n);
+}
+
+
+// ── "Te surfen?" eerlijk: tegen NzSurf op dezelfde momenten ──────────────────
+//
+// Elke bron alleen beoordelen op de momenten (uur + vooruitkijkdag) waarop ook NzSurf een
+// oordeel had én de werkelijkheid bekend is; op precies die momenten ook NzSurf. Het
+// verschil in gebalanceerde score is de maatstaf; 90%-interval via bootstrap per dag.
+
+export interface PairedSurfRow { source: string; moments: number; days: number; score: number; ref: number; delta: number; lo: number; hi: number; ranked: boolean }
+
+export function pairedSurfScores(docs: AuditForecastDoc[], rule: SurfRule, truthFn: TruthFn, ref = 'nzsurf', minMoments = 40, minDays = 5, boot = 300): PairedSurfRow[] {
+  // bron → sleutel → laatste oordeel (per uur + vooruitkijkdag één stem)
+  const verdicts = new Map<string, Map<string, { ok: boolean; run: number }>>();
+  for (const d of docs) {
+    if (NOT_RANKED_SOURCES.has(d.source)) continue;
+    const run = Date.parse(d.runAt);
+    for (const p of d.points || []) {
+      const t = Date.parse(p.t);
+      if (!isDaytime(t) || p.lead <= 0) continue;
+      const ok = forecastVerdict(d.source, p, rule).ok;
+      if (ok === undefined) continue;
+      const key = `${hourKey(t)}|${leadDay(p.lead)}`;
+      const m = verdicts.get(d.source) || new Map();
+      const prev = m.get(key);
+      if (!prev || run > prev.run) m.set(key, { ok, run });
+      verdicts.set(d.source, m);
+    }
+  }
+  const refM = verdicts.get(ref);
+  if (!refM) return [];
+  const truthCache = new Map<string, boolean | undefined>();
+  const truthOf = (key: string, src: string) => {
+    const k = `${key}|${src}`;
+    if (!truthCache.has(k)) truthCache.set(k, truthFn(Date.parse(`${key.split('|')[0]}:00:00Z`), src));
+    return truthCache.get(k);
+  };
+  const bal = (rows: { s: boolean; r: boolean; y: boolean }[], pick: 's' | 'r') => {
+    const cm = { tp: 0, fn: 0, tn: 0, fp: 0 };
+    for (const x of rows) { const v = x[pick]; if (x.y) { if (v) cm.tp++; else cm.fn++; } else { if (v) cm.fp++; else cm.tn++; } }
+    return balanced(cm) ?? 0;
+  };
+  const out: PairedSurfRow[] = [];
+  for (const [src, m] of verdicts) {
+    if (src === ref) continue;
+    const rows: { s: boolean; r: boolean; y: boolean; day: string }[] = [];
+    for (const [key, v] of m) {
+      const r = refM.get(key); if (!r) continue;
+      const y = truthOf(key, src); if (y === undefined) continue;
+      rows.push({ s: v.ok, r: r.ok, y, day: key.slice(0, 10) });
+    }
+    if (!rows.length) continue;
+    const byDay = new Map<string, typeof rows>();
+    rows.forEach(x => { if (!byDay.has(x.day)) byDay.set(x.day, []); byDay.get(x.day)!.push(x); });
+    const score = bal(rows, 's'), refScore = bal(rows, 'r'), delta = score - refScore;
+    let lo = delta, hi = delta;
+    if (byDay.size >= 2) {
+      const dl = [...byDay.values()]; let seed = src.length * 31 + 7; const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+      const sims: number[] = [];
+      for (let b = 0; b < boot; b++) { const sample = dl.flatMap(() => dl[Math.floor(rnd() * dl.length)]); sims.push(bal(sample, 's') - bal(sample, 'r')); }
+      sims.sort((a, b) => a - b); lo = sims[Math.floor(boot * 0.05)]; hi = sims[Math.floor(boot * 0.95)];
+    }
+    const pct = (x: number) => Math.round(x * 100);
+    out.push({ source: src, moments: rows.length, days: byDay.size, score: pct(score), ref: pct(refScore), delta: pct(delta), lo: pct(lo), hi: pct(hi), ranked: rows.length >= minMoments && byDay.size >= minDays });
+  }
+  return out.sort((a, b) => Number(b.ranked) - Number(a.ranked) || b.delta - a.delta);
 }
