@@ -10,7 +10,8 @@
 //     golfhoogte   = gewogen DWD, Météo-France en NzSurf (ECMWF niet: bias −0,76 m)
 //     periode      = NzSurf (in de eerlijke toets het best)
 //     swellrichting= DWD, waar DWD ophoudt (na ±3 dagen) NzSurf
-//     kleine golven (< ±1 m) en harde wind (> ±20 kn): NzSurf, want daar maakte de kalibratie het slechter
+//     kleine golven (< ±1 m): NzSurf, want daar maakte de kalibratie het slechter.
+//     (Harde wind ook naar NzSurf zetten is getest: winst ≥ 20 kn 0,3 kn, maar verlies < 20 kn 0,7 kn → niet gedaan.)
 //     windsnelheid = per vooruitkijkklasse de ene bron met de kleinste fout na kalibratie
 //                    (standaard GFS); niet mengen, want een slechte bron trekt het gemiddelde mee
 //     windrichting = gewogen Météo-France, KNMI, GFS en NzSurf
@@ -27,7 +28,7 @@ import { BlendVar, blendForecast, learnSkill, BLEND_DEFAULTS } from './forecastB
 
 export const V2_SOURCE = 'nzsurf-v2';
 export const V2_LABEL = 'NzSurf v2';
-export const V2_RULES = 'zee: golfhoogte = DWD, Météo-France en NzSurf gewogen (elk gekalibreerd op de boei), onder ±1 m NzSurf · periode = NzSurf · swellrichting = DWD, daarna NzSurf · windsnelheid = de bron met de kleinste fout na kalibratie (standaard GFS), vanaf ±20 kn NzSurf · windrichting = Météo-France, KNMI, GFS en NzSurf gewogen · eerste uren bijgestuurd met de laatste meting (uitdovend) · strand = NzSurf-strandvertaling op de v2-zeehoogte';
+export const V2_RULES = 'zee: golfhoogte = DWD, Météo-France en NzSurf gewogen (elk gekalibreerd op de boei), onder ±1 m NzSurf · periode = NzSurf · swellrichting = DWD, daarna NzSurf · windsnelheid = de bron met de kleinste fout na kalibratie (standaard GFS) · windrichting = Météo-France, KNMI, GFS en NzSurf gewogen · eerste uren bijgestuurd met de laatste meting (uitdovend) · strand = NzSurf-strandvertaling op de v2-zeehoogte';
 
 const NZ = 'nzsurf';
 const HS_SOURCES = ['dwd', 'meteofrance', NZ];
@@ -120,12 +121,6 @@ export function buildV2Doc(forecasts: AuditForecastDoc[], observations: AuditObs
     if (typeof np?.hs === 'number' && typeof x.hs === 'number') {
       const w = clamp((np.hs - 0.8) / 0.4, 0, 1);
       x.hs = (1 - w) * np.hs + w * x.hs;
-    }
-    // Harde wind: de gekozen gekalibreerde bron zat vanaf 20 kn naast NzSurf; daar de NzSurf-wind,
-    // tussen 17 en 20 kn geleidelijk.
-    if (typeof np?.windKn === 'number' && typeof x.windKn === 'number') {
-      const w = clamp((Math.max(x.windKn, np.windKn) - 17) / 3, 0, 1);
-      x.windKn = (1 - w) * x.windKn + w * np.windKn;
     }
   }
 
