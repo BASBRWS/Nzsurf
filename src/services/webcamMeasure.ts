@@ -2,7 +2,7 @@ import { InAppBrowser } from '@capgo/inappbrowser';
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { generateViaServer, aiProviderLabel } from './aiServer';
-import { fetchForecast } from './weatherService';
+import { fetchSpotForecast } from './liveV2';
 import { SPOT_CATALOG, toSurfSpot } from '../data/spotCatalog';
 import { ForecastData, SurfSpot } from '../types';
 
@@ -132,7 +132,7 @@ export async function forecastSnapshots(userSpots: SurfSpot[], at: number) {
   const one = async (spot: SurfSpot, distKm: number, tries = 1): Promise<SpotForecastSnap | undefined> => {
     for (let i = 0; i < tries; i++) {
       try {
-        const snap = snapAt(spot, distKm, await fetchForecast(spot), at);
+        const snap = snapAt(spot, distKm, await fetchSpotForecast(spot), at);
         if (snap) return snap;
         errors.push(`${spot.name}: geen uur binnen 90 min`); return undefined;
       } catch (e: any) {

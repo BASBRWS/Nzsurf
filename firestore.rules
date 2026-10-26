@@ -161,6 +161,11 @@ service cloud.firestore {
     // Voorspellingsaudit. De GitHub-workflow schrijft met de service-account
     // (admin SDK, buiten deze regels om). Surfline en surfnerd weren die servers;
     // daarom mag de admin-app alleen díe twee bronnen zelf opslaan.
+    // Kalibratie van NzSurf v2 (geschreven door de dagelijkse audit, server-side); de app leest hem.
+    match /v2Calibration/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
     match /auditForecasts/{id} {
       allow read: if isAdmin();
       allow create, update: if isAdmin() && request.resource.data.source in ['surfline', 'surfnerd', 'secretswell'];

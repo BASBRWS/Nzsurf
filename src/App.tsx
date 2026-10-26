@@ -8,10 +8,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SharedSpot } from './types';
 import { INITIAL_USER, DEFAULT_SPOTS } from './constants';
 import { getSurfAdvice } from './services/geminiService';
-import { fetchForecast } from './services/weatherService';
 import { TacticalDashboard } from './components/TacticalDashboard';
 import { TacticalBottomNav, TacticalTab } from './components/TacticalBottomNav';
 import { WeekView } from './components/WeekView';
+import { fetchSpotForecastWithAlgo } from './services/liveV2';
 import { CoastView } from './components/tide/CoastView';
 import { BrandMark, BrandWordmark } from './components/tide/Brand';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
@@ -282,6 +282,7 @@ export default function App() {
   const [forecastError, setForecastError] = useState<string | null>(null);
   const [forecastStaleAt, setForecastStaleAt] = useState<string | null>(null);
   const [forecastReload, setForecastReload] = useState(0);
+  const [forecastAlgo, setForecastAlgo] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
     const cacheKey = selectedSpot ? `nzs_forecast_cache_${selectedSpot.id}` : '';
@@ -290,9 +291,11 @@ export default function App() {
       setIsForecastLoading(true);
       setForecastError(null);
       try {
-        const data = await fetchForecast(selectedSpot);
+        // NzSurf v2 (live): v1 + gekalibreerde modellen; valt zelf terug op v1.
+        const { data, note } = await fetchSpotForecastWithAlgo(selectedSpot);
         if (cancelled) return;
         setForecast(data);
+        setForecastAlgo(note);
         setForecastStaleAt(null);
         try { localStorage.setItem(cacheKey, JSON.stringify({ at: new Date().toISOString(), data })); } catch { /* opslag vol of niet beschikbaar */ }
       } catch (error) {
@@ -632,6 +635,7 @@ export default function App() {
                   allSpots={allSpots}
                   onSelectSpot={(id) => { setSelectedSpotId(id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   onOpenWeek={() => { setActiveTab('week'); window.scrollTo({ top: 0 }); }}
+                  algoNote={forecastAlgo}
                 />
               </motion.div>
             )}
