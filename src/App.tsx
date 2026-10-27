@@ -14,6 +14,7 @@ import { WeekView } from './components/WeekView';
 import { fetchSpotForecastWithAlgo } from './services/liveV2';
 import { CoastView } from './components/tide/CoastView';
 import { BrandMark, BrandWordmark } from './components/tide/Brand';
+import { InstallCard } from './components/InstallCard';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
 import { RegionalSeoGuide } from './components/RegionalSeoGuide';
@@ -756,6 +757,7 @@ export default function App() {
                 transition={{ duration: 0.2 }}
               >
                 <div className="flex justify-center pt-2 pb-6"><BrandWordmark height={30} /></div>
+                <InstallCard />
                 {/* Meer: wat niet in de hoofdbalk zit */}
                 <nav aria-label="Meer" className="grid grid-cols-2 gap-2 mb-5">
                   {([
