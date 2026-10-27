@@ -8,6 +8,9 @@ import '@fontsource/instrument-sans/600.css';
 import '@fontsource/instrument-sans/700.css';
 import '@fontsource/dm-mono/400.css';
 import './index.css';
+import { setupPwa } from './lib/pwa';
+
+setupPwa();
 
 createRoot(document.getElementById('root')!).render(
   <App />,
