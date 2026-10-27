@@ -33,7 +33,10 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
   const personal = canPersonal && mode === 'personal';
   const { chance, board, generic } = useChances(spot, forecasts, user, personal);
   const plans = useMemo(() => planDays(forecasts, chance, board, generic, new Date(), 7), [forecasts, chance, board, generic]);
-  const [detail, setDetail] = useState<'hours' | 'cards' | 'grid'>('hours');
+  const [detail, setDetail] = useState<'cards' | 'grid'>('grid');
+  // Bovenaan: Uurstaat (standaard) of de zeven daglijnen. De keuze blijft bewaard.
+  const [view, setViewState] = useState<'hours' | 'lines'>(() => { try { return localStorage.getItem('nzs_week_view') === 'lines' ? 'lines' : 'hours'; } catch { return 'hours'; } });
+  const setView = (v: 'hours' | 'lines') => { setViewState(v); try { localStorage.setItem('nzs_week_view', v); } catch { /* geen opslag */ } };
   const [focusDay, setFocusDay] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -46,8 +49,8 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
 
   const openDay = (d: Date) => {
     setFocusDay(format(d, 'yyyy-MM-dd'));
-    if (detail === 'grid') setDetail('hours');
-    setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    setView('hours');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -67,6 +70,12 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
       </div>
 
       <h2 className="mt-4 text-[54px] leading-none">Deze week</h2>
+      <div role="tablist" aria-label="Weergave" className="mt-4 inline-flex rounded-full border border-[color:var(--tide-line)] bg-[color:var(--tide-sand)] p-1">
+        {([['hours', 'Per uur'], ['lines', 'Per dag']] as const).map(([k, l]) => (
+          <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
+            className={`min-h-[40px] px-5 rounded-full text-[15px] cursor-pointer ${view === k ? 'bg-[color:var(--tide-ink)] text-[color:var(--tide-sand)] font-semibold' : 'text-[color:var(--tide-sea)]'}`}>{l}</button>
+        ))}
+      </div>
       {best && best.peakChance >= OK ? (
         <Mono className="block mt-3 text-[color:var(--tide-ink)]">
           beste · {isSameDay(best.day, now) ? 'vandaag' : format(best.day, 'EEEE', { locale: nl })} {format(best.start!, 'HH')} – {format(best.end!, 'HH')} · <span style={{ color: chanceColor(best.peakChance) }}>{best.peakChance}%</span>
@@ -76,7 +85,13 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
         <p className="mt-2 text-[15px] text-[color:var(--tide-sea)]">Algemene kans. {isLoggedIn ? <button onClick={onOpenProfile} className="underline underline-offset-4 cursor-pointer">Voeg je boards toe</button> : 'Log in'} voor advies op maat.</p>
       )}
 
-      <div ref={ref} className="mt-6">
+      {view === 'hours' && (
+        <div className="mt-5">
+          <HourTable spot={spot} forecasts={forecasts} plans={plans} chance={chance} personal={personal} focusDay={focusDay} onSelectHour={onSelectHour} />
+        </div>
+      )}
+
+      <div ref={ref} className={view === 'lines' ? 'mt-6' : 'hidden'}>
         {plans.map((p, i) => {
           const items = forecasts.filter(f => isSameDay(parseISO(f.timestamp), p.day) && hourOf(f) >= 5 && hourOf(f) <= 22)
             .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
@@ -116,7 +131,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
         </div>
       </div>
 
-      <p className="mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)]">
+      <p className={`mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)] ${view === 'lines' ? '' : 'hidden'}`}>
         <span className="inline-block w-6 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: `linear-gradient(90deg, ${GREEN.lo}, ${GREEN.hi})` }} />groen = te surfen (kans ≥ {OK}%); hoe donkerder, hoe zekerder.
         De lijn is de golfhoogte aan het strand (zelfde schaal voor alle dagen, tot {String(weekScale).replace('.', ',')} m); de getallen eronder om 9, 13 en 17 uur. Veeg of wijs over een lijn voor de tijd en de cijfers; tik de dag voor de details.
         Vanaf dag 4 gestippeld: een richting, geen belofte.
@@ -124,17 +139,15 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
 
       <div ref={detailRef} className="mt-6 border-t border-[color:var(--tide-line)] pt-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-[28px] leading-none">Per uur</h3>
+          <h3 className="text-[28px] leading-none">Alle cijfers</h3>
           <div className="flex gap-4">
-            {([['hours', 'Uurstaat'], ['grid', 'Tabel'], ['cards', 'Dagkaarten']] as const).map(([k, l]) => (
+            {([['grid', 'Tabel'], ['cards', 'Dagkaarten']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setDetail(k)} aria-pressed={detail === k}
                 className={`min-h-[44px] text-[15px] cursor-pointer ${detail === k ? 'underline underline-offset-[6px] decoration-[color:var(--tide-sun)] decoration-2' : 'text-[color:var(--tide-mist)]'}`}>{l}</button>
             ))}
           </div>
         </div>
-        {detail === 'hours'
-          ? <HourTable spot={spot} forecasts={forecasts} plans={plans} chance={chance} personal={personal} focusDay={focusDay} onSelectHour={onSelectHour} />
-          : detail === 'cards'
+        {detail === 'cards'
           ? <CompactDailyForecast forecast={forecasts} spot={spot} user={user} isLoggedIn={isLoggedIn} onSelectForecastHour={(f) => onSelectHour?.(f)} onOpenProfile={onOpenProfile} focusDay={focusDay} />
           : <ForecastGrid forecast={forecasts} onCellClick={(f) => onSelectHour?.(f)} spot={spot} onDayClick={(d) => { setFocusDay(d); setDetail('cards'); }} />}
       </div>
