@@ -6,7 +6,7 @@ import { CompactDailyForecast } from './CompactDailyForecast';
 import { ForecastGrid } from './ForecastGrid';
 import { planDays, useChances } from './home/AnswerCard';
 import { DayLine } from './tide/DayLine';
-import { OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide/tide';
+import { GREEN, OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide/tide';
 import { computeSurfChance } from '../utils/spotKnowledge';
 
 /**
@@ -115,7 +115,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
       </div>
 
       <p className="mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)]">
-        <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />oranje = te surfen (kans ≥ {OK}%).
+        <span className="inline-block w-6 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: `linear-gradient(90deg, ${GREEN.lo}, ${GREEN.hi})` }} />groen = te surfen (kans ≥ {OK}%); hoe donkerder, hoe zekerder.
         De lijn is de golfhoogte aan het strand (zelfde schaal voor alle dagen, tot {String(weekScale).replace('.', ',')} m); de getallen eronder om 9, 13 en 17 uur. Veeg of wijs over een lijn voor de tijd en de cijfers; tik de dag voor de details.
         Vanaf dag 4 gestippeld: een richting, geen belofte.
       </p>

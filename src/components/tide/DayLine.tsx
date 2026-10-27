@@ -1,8 +1,8 @@
 import React, { useId, useRef, useState } from 'react';
-import { TIDE, GOOD, smoothPath, windowsAbove } from './tide';
+import { TIDE, GOOD, smoothPath, surfFill, windowsAbove } from './tide';
 
 /**
- * De dag als één lijn: kans van 06 tot 21 uur, licht waar het ≥ 65% is.
+ * De dag als één lijn: kans van 06 tot 21 uur, groen waar het te surfen is (hoe dieper, hoe zekerder).
  * Groot (Vandaag, met getij, uren en "nu") of klein (één rij in de week).
  */
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
   label?: string;           // schermlezer
   heights?: { h: number; v: number }[]; // golfhoogte aan het strand op een paar uren, onder de lijn
   tips?: { h: number; text: string }[];  // aanwijzen/vegen: tijd en cijfers van het dichtstbijzijnde blok
-  values?: number[];        // als gegeven: de lijn is de golfhoogte (m); oranje blijft "te surfen" uit chances
+  values?: number[];        // als gegeven: de lijn is de golfhoogte (m); groen blijft "te surfen" uit chances
   scaleMax?: number;        // bovenkant van de hoogteschaal (m)
   guides?: number[];        // hulplijnen op deze hoogtes (m), met label
 }
@@ -70,9 +70,13 @@ export const DayLine: React.FC<Props> = ({ hours, chances, tide, width, height, 
       onPointerUp={e => { if (e.pointerType !== 'mouse') hideTimer.current = window.setTimeout(() => setHover(null), 2500); }}>
       <defs>
         <clipPath id={clip}>{wins.map(([a, b], i) => <rect key={i} x={x(a)} y={0} width={Math.max(1, x(b) - x(a))} height={base} />)}</clipPath>
+        {/* Groen loopt mee met de kans: licht net boven de grens, diep bij een (bijna) zeker moment. */}
+        <linearGradient id={`${clip}g`} gradientUnits="userSpaceOnUse" x1={0} x2={width} y1={0} y2={0}>
+          {hours.map((h, i) => <stop key={i} offset={Math.max(0, Math.min(1, x(h) / width))} stopColor={surfFill(chances[i] ?? 0)} />)}
+        </linearGradient>
       </defs>
       <path d={area} fill={TIDE.foam} opacity={uncertain ? 0.6 : 1} />
-      {wins.length > 0 && <path d={area} fill={TIDE.sun} opacity={uncertain ? 0.55 : 0.92} clipPath={`url(#${clip})`} />}
+      {wins.length > 0 && <path d={area} fill={`url(#${clip}g)`} opacity={uncertain ? 0.6 : 0.95} clipPath={`url(#${clip})`} />}
       {values && guides?.filter(g => g < scaleMax).map(g => (
         <g key={g}>
           <line x1={0} x2={width} y1={yH(g)} y2={yH(g)} stroke={TIDE.ink} strokeWidth={0.6} opacity={0.35} strokeDasharray="2 4" />

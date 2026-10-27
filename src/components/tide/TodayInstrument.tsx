@@ -6,7 +6,7 @@ import { planDays, sizeWord, useChances } from '../home/AnswerCard';
 import { reasonSentence, windTypeNl } from '../../utils/surfMoments';
 import { computeSurfChance, degreesToCompass16 } from '../../utils/spotKnowledge';
 import { DayLine } from './DayLine';
-import { OK, TIDE, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide';
+import { OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide';
 
 /**
  * Vandaag als instrument: één woord dat oordeelt, het tijdvak, en de dag als lijn.
@@ -76,7 +76,7 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
           <h2 className="mt-6 leading-[0.95] text-[color:var(--tide-ink)]" style={{ fontSize: 'clamp(56px, 19vw, 92px)' }}>{word}</h2>
           <div className="mt-3 flex items-baseline gap-3 flex-wrap">
             <span className="text-[20px] font-semibold tabular-nums">{when}</span>
-            <span className="tide-serif text-[30px] leading-none" style={{ color: pct >= OK ? TIDE.sun : TIDE.mist }}>{pct}%</span>
+            <span className="tide-serif text-[30px] leading-none" style={{ color: chanceColor(pct) }}>{pct}%</span>
           </div>
           <p className="mt-2 text-[17px] leading-snug text-[color:var(--tide-sea)] max-w-[34ch]">{reasonSentence(spot, f)}</p>
 
@@ -87,7 +87,7 @@ export const TodayInstrument: React.FC<Props> = ({ spot, forecasts, user, isLogg
               const sc = heightScale(Math.max(...prof.values));
               return (
                 <>
-                  <Mono className="block mb-10 text-[color:var(--tide-mist)]">{today?.items.length ? 'vandaag · ' : 'vandaag (voorbij) · '}golf aan strand · <span style={{ color: TIDE.sun }}>oranje = surfen</span></Mono>
+                  <Mono className="block mb-10 text-[color:var(--tide-mist)]">{today?.items.length ? 'vandaag · ' : 'vandaag (voorbij) · '}golf aan strand · <span style={{ color: chanceColor(70) }}>groen = surfen</span></Mono>
                   <DayLine hours={prof.hours} chances={prof.chances} values={prof.values} scaleMax={sc} guides={[1, 2, 3]} tide={prof.tide}
                     tips={dayTips(spot, todayItems, chance)} width={width} height={200} now={now.getHours() + now.getMinutes() / 60} axis
                     label={`Golfhoogte aan het strand vandaag, tot ${Math.max(...prof.values).toFixed(1)} meter`} />
