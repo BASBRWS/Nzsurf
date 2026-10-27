@@ -14,9 +14,6 @@ name: Play Store-release (AAB)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - claude/playstore   # tijdelijk: build testen vóór de merge
 
 permissions:
   contents: read
