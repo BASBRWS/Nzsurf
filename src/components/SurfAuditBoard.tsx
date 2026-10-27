@@ -9,7 +9,7 @@ import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../
 import { V2_SOURCE } from '../utils/forecastV2';
 import {
   COMPONENTS, ComponentKey, DEFAULT_RULE, FULL_PARTS, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
-  balanced, combinedTruth, componentRanking, consensusTruth, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
+  balanced, combinedTruth, componentRanking, consensusTruth, fairOverallRanking, FairOverallRow, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
   componentScores, dayRanking, dayScores, DAY_MIN_SLOTS, daySlots, forecastVerdict, obsIndex, observedVerdict, outlook, pointFor, stability, windAngle,
 } from '../utils/surfVerdict';
 
@@ -54,6 +54,8 @@ function Verdict({ ok, own }: { ok?: boolean; own?: boolean }) {
 }
 
 const thCls = 'text-right px-1.5 font-semibold';
+type OverallRowLike = { source: string; score: number; parts: number; n: number } & Partial<Pick<FairOverallRow, 'days' | 'raw' | 'ref'>>;
+
 const stickyTd = (nz: boolean) => cn('py-1 pr-2 sticky left-0 whitespace-nowrap', nz ? 'bg-cyan-50 font-bold' : 'bg-white');
 
 export function SurfAuditBoard({ forecasts, observations, sources, reports = [], spotId, initialTab = 'outlook' }: {
@@ -110,8 +112,15 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [forecasts, ids.join(), rule, truthFn]);
   // Alleen voorspellers met genoeg vergelijkingen krijgen een rang; de rest staat eronder zonder nummer.
-  const overall = useMemo(() => { const r = overallRanking(scores).filter(x => x.parts >= FULL_PARTS); return [...r.filter(x => x.n >= MIN_N), ...r.filter(x => x.n < MIN_N)]; }, [scores]);
-  const nzId = sources.find(s => s.kind === 'nzsurf')?.source || 'nzsurf';
+  // "alle": eerlijk per vooruitkijkdag (zie fairOverallRanking); één dag: gewoon die dag.
+  const refId = ids.includes(V2_SOURCE) ? V2_SOURCE : (sources.find(s => s.kind === 'nzsurf')?.source || 'nzsurf');
+  const overall: (OverallRowLike)[] = useMemo(() => {
+    const r: OverallRowLike[] = leadFilter
+      ? overallRanking(scores).filter(x => x.parts >= FULL_PARTS)
+      : fairOverallRanking(forecasts, observations, rule, truthFn, refId);
+    return [...r.filter(x => x.n >= MIN_N), ...r.filter(x => x.n < MIN_N)];
+  }, [scores, leadFilter, forecasts, observations, rule, truthFn, refId]);
+  const nzId = refId;
   const partial = useMemo(() => partialComparison(scores, nzId), [scores, nzId]);
   const perComponent = useMemo(() => { const r = componentRanking(scores, rankKey); return [...r.filter(x => x.n >= MIN_N), ...r.filter(x => x.n < MIN_N)]; }, [scores, rankKey]);
   const perDay = useMemo(() => { const r = dayRanking(dayScores(forecasts, rule, truthFn, now, leadFilter || undefined)); return [...r.filter(x => x.n >= 8), ...r.filter(x => x.n < 8)]; },
@@ -346,14 +355,14 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
           <div className="flex items-center gap-2 text-[11px]">
             <span className="text-slate-600">Vooruitkijktijd:</span>
             <select value={leadFilter} onChange={e => setLeadFilter(Number(e.target.value))} className="border border-slate-300 rounded-lg px-2 py-1 bg-white">
-              <option value={0}>alle</option>
-              {[1, 2, 3, 4, 5].map(d => <option key={d} value={d}>{d} dag{d > 1 ? 'en' : ''} vooruit</option>)}
+              <option value={0}>alle (eerlijk per dag)</option>
+              {[1, 2, 3, 4, 5, 6, 7].map(d => <option key={d} value={d}>{d} dag{d > 1 ? 'en' : ''} vooruit</option>)}
             </select>
           </div>
           {/* Totaalranglijst */}
           <div>
             <div className="text-xs font-black uppercase text-slate-900 mb-1">🏆 Totaalranglijst</div>
-            <p className="text-[11px] text-slate-600 mb-1">Voorspellers die (bijna) alle {COMPONENTS.length} onderdelen leveren, op gelijke voet. Gemiddelde % goed; "te surfen?" telt dubbel. Zet bovenaan de periode op "Alles" voor de stand over alle tijd.</p>
+            <p className="text-[11px] text-slate-600 mb-1">Voorspellers die (bijna) alle {COMPONENTS.length} onderdelen leveren, op gelijke voet. Gemiddelde % goed; "te surfen?" telt dubbel.{!leadFilter && ' Bij "alle" telt elke vooruitkijkdag even zwaar en wordt gecorrigeerd voor hoe moeilijk die dag is: wie maar 3 dagen vooruitkijkt, wint niet doordat hij dag 6–7 overslaat.'}</p>
             {overall.length ? (
               <ol className="space-y-1">
                 {overall.map((r, i) => (
@@ -362,17 +371,27 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                     <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
                     <span className="tabular-nums font-black">{r.score}%</span>
                     <span className="tabular-nums text-[10px] text-slate-500 w-24 text-right whitespace-nowrap">{r.parts} onderd. · n {r.n}</span>
+                    {r.days && (() => {
+                      const maxDays = Math.max(...overall.map(o => o.days?.length || 0));
+                      const short = r.days.length < maxDays;
+                      return (
+                        <span className="basis-full pl-8 text-[10px] font-normal text-slate-500">
+                          dag {r.days[0]}–{r.days[r.days.length - 1]}{short ? ` (korter vooruit)` : ''} · eigen gemiddelde {r.raw}%
+                          {short && r.ref !== null && r.ref !== undefined ? <> · <b className={r.ref >= (r.raw ?? 0) ? 'text-emerald-700' : 'text-slate-700'}>{labelOf(refId).replace(/ \(.*\)$/, '')} op dezelfde dagen {r.ref}%</b></> : null}
+                        </span>
+                      );
+                    })()}
                   </li>
                 ))}
               </ol>
             ) : <p className="text-xs text-slate-500">Nog geen verwachtingen waarvan de uitkomst bekend is.</p>}
             {partial.length > 0 && (
               <div className="mt-2">
-                <div className="text-[11px] font-bold text-slate-700 mb-1">Gedeeltelijke voorspellers — vergeleken met NzSurf op dezelfde onderdelen</div>
+                <div className="text-[11px] font-bold text-slate-700 mb-1">Gedeeltelijke voorspellers — vergeleken met {labelOf(refId)} op dezelfde onderdelen</div>
                 <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
                   <thead><tr className="text-slate-500 border-b border-slate-200">
                     <th className="text-left py-1 pr-2">Voorspeller</th><th className="text-left pr-2">Onderdelen</th>
-                    <th className={thCls}>Zij</th><th className={thCls}>NzSurf</th>
+                    <th className={thCls}>Zij</th><th className={thCls}>{refId === V2_SOURCE ? 'v2' : 'NzSurf'}</th>
                   </tr></thead>
                   <tbody>
                     {partial.map(r => (
@@ -396,6 +415,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                 <li>Windhoek telt niet mee in de totaalscore (zelfde informatie als windrichting). Open-Meteo best match telt niet als aparte stem (kopie van Météo-France en KNMI).</li>
                 <li>Let op: elke voorspeller wordt hier op zíjn uren beoordeeld. De eerlijke vergelijking op dezelfde uren als NzSurf, met onzekerheidsmarge, staat in het rapport.</li>
                 <li>Met "Vooruitkijktijd" bovenaan zie je de stand voor bijvoorbeeld alleen verwachtingen van 3 dagen vooruit.</li>
+                <li><b>"alle (eerlijk per dag)"</b>: eerst per vooruitkijkdag gescoord; per dag het verschil met het gemiddelde van die dag; die verschillen gelijk gemiddeld over de dagen die de voorspeller levert. Zo telt een korte horizon niet als voordeel. <b>Eigen gemiddelde</b> = zijn dagscores zonder die correctie; bij een kortere horizon staat erachter wat {labelOf(refId)} op precies dezelfde dagen haalt.</li>
               </ul>
             </TableHelp></div>
           </div>

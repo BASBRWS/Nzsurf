@@ -591,3 +591,45 @@ export function pairedSurfScores(docs: AuditForecastDoc[], rule: SurfRule, truth
   }
   return out.sort((a, b) => Number(b.ranked) - Number(a.ranked) || b.delta - a.delta);
 }
+
+// ── Eerlijke totaalstand over alle vooruitkijkdagen ─────────────────────────
+// Alles op één hoop bevoordeelt wie kort vooruitkijkt: die wordt nooit afgerekend op de
+// moeilijke dagen 6–7. Daarom eerst per vooruitkijkdag scoren, dan per dag het verschil met
+// het daggemiddelde nemen (de "moeilijkheid" van die dag eruit), en die verschillen gelijk
+// middelen over de dagen die de voorspeller levert. Score = daggemiddelde-over-alle-dagen + dat verschil.
+
+export const FAIR_DAYS = [1, 2, 3, 4, 5, 6, 7];
+export const MIN_DAY_N = 10;
+
+export interface FairOverallRow extends OverallRow {
+  days: number[];             // vooruitkijkdagen waarop beoordeeld
+  raw: number;                // gewoon gemiddelde van de dagscores (zelfde gewicht per dag)
+  ref: number | null;         // referentie (v2) gemiddeld over precies dezelfde dagen
+}
+
+export function fairOverallRanking(docs: AuditForecastDoc[], obs: AuditObsDoc[], rule: SurfRule, truthFn: TruthFn, refSource: string): FairOverallRow[] {
+  const perDay = FAIR_DAYS.map(d => {
+    const rows = overallRanking(componentScores(docs, obs, rule, truthFn, d)).filter(r => r.parts >= FULL_PARTS && r.n >= MIN_DAY_N);
+    const avg = rows.length ? rows.reduce((a, r) => a + r.score, 0) / rows.length : 0;
+    return { d, avg, rows: new Map(rows.map(r => [r.source, r])) };
+  }).filter(x => x.rows.size >= 2);
+  if (!perDay.length) return [];
+  const base = perDay.reduce((a, x) => a + x.avg, 0) / perDay.length;
+  const sources = new Set(perDay.flatMap(x => [...x.rows.keys()]));
+  const out: FairOverallRow[] = [];
+  for (const s of sources) {
+    const mine = perDay.filter(x => x.rows.has(s));
+    const rel = mine.reduce((a, x) => a + x.rows.get(s)!.score - x.avg, 0) / mine.length;
+    const raw = mine.reduce((a, x) => a + x.rows.get(s)!.score, 0) / mine.length;
+    const refDays = mine.filter(x => x.rows.has(refSource));
+    const ref = s !== refSource && refDays.length === mine.length
+      ? Math.round(refDays.reduce((a, x) => a + x.rows.get(refSource)!.score, 0) / refDays.length) : null;
+    const keys = [...new Set(mine.flatMap(x => x.rows.get(s)!.keys))];
+    out.push({
+      source: s, score: Math.round(base + rel), raw: Math.round(raw), ref,
+      parts: Math.max(...mine.map(x => x.rows.get(s)!.parts)), keys,
+      n: mine.reduce((a, x) => a + x.rows.get(s)!.n, 0), days: mine.map(x => x.d),
+    });
+  }
+  return out.sort((a, b) => b.score - a.score || b.days.length - a.days.length);
+}
