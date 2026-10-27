@@ -14,6 +14,7 @@ import { WeekView } from './components/WeekView';
 import { fetchSpotForecastWithAlgo } from './services/liveV2';
 import { CoastView } from './components/tide/CoastView';
 import { BrandMark, BrandWordmark } from './components/tide/Brand';
+import { AccountCard } from './components/AccountCard';
 import { LocationPermissionModal } from './components/LocationPermissionModal';
 import { BetaNoticeModal } from './components/BetaNoticeModal';
 import { RegionalSeoGuide } from './components/RegionalSeoGuide';
@@ -786,6 +787,7 @@ export default function App() {
                   onSelectSpot={(id) => setSelectedSpotId(id)}
                   selectedSpotId={selectedSpotId}
                 />
+                {authUser && <AccountCard email={authUser.email} />}
               </motion.div>
             )}
 

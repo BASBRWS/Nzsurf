@@ -12,6 +12,8 @@ import { openExternalUrl } from '../utils/calendarUtils';
 const APK_URL = 'https://github.com/BASBRWS/Nzsurf/releases/download/latest-build/nzsurf-latest.apk';
 const RELEASE_API = 'https://api.github.com/repos/BASBRWS/Nzsurf/releases/tags/latest-build';
 const CURRENT_BUILD = Number(import.meta.env.VITE_BUILD_NUMBER) || null;
+// Play Store-build: updates lopen via Google Play (beleid: een Play-app mag zichzelf niet bijwerken).
+const PLAY_BUILD = import.meta.env.VITE_DISTRIBUTION === 'play';
 
 type Latest = { build: number | null; date: string | null };
 
@@ -33,9 +35,9 @@ export function AppUpdateCard() {
     setState('checking');
     fetchLatest().then(l => { setLatest(l); setState('idle'); }).catch(() => setState('error'));
   };
-  useEffect(() => { if (Capacitor.isNativePlatform()) check(); }, []);
+  useEffect(() => { if (Capacitor.isNativePlatform() && !PLAY_BUILD) check(); }, []);
 
-  if (!Capacitor.isNativePlatform()) return null;
+  if (!Capacitor.isNativePlatform() || PLAY_BUILD) return null;
 
   const newer = latest?.build && CURRENT_BUILD ? latest.build > CURRENT_BUILD : null;
   const when = latest?.date ? new Date(latest.date).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }) : null;
