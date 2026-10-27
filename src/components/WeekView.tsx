@@ -6,7 +6,8 @@ import { CompactDailyForecast } from './CompactDailyForecast';
 import { ForecastGrid } from './ForecastGrid';
 import { planDays, useChances } from './home/AnswerCard';
 import { DayLine } from './tide/DayLine';
-import { OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide/tide';
+import { HourTable } from './tide/HourTable';
+import { GREEN, OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide/tide';
 import { computeSurfChance } from '../utils/spotKnowledge';
 
 /**
@@ -32,7 +33,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
   const personal = canPersonal && mode === 'personal';
   const { chance, board, generic } = useChances(spot, forecasts, user, personal);
   const plans = useMemo(() => planDays(forecasts, chance, board, generic, new Date(), 7), [forecasts, chance, board, generic]);
-  const [detail, setDetail] = useState<'cards' | 'grid'>('grid');
+  const [detail, setDetail] = useState<'hours' | 'cards' | 'grid'>('hours');
   const [focusDay, setFocusDay] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const [ref, width] = useWidth<HTMLDivElement>();
@@ -45,6 +46,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
 
   const openDay = (d: Date) => {
     setFocusDay(format(d, 'yyyy-MM-dd'));
+    if (detail === 'grid') setDetail('hours');
     setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   };
 
@@ -115,22 +117,24 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
       </div>
 
       <p className="mt-6 border-t border-[color:var(--tide-line)] pt-3 text-[15px] leading-snug text-[color:var(--tide-sea)]">
-        <span className="inline-block w-3 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: TIDE.sun }} />oranje = te surfen (kans ≥ {OK}%).
+        <span className="inline-block w-6 h-3 rounded-sm mr-1.5 align-[-1px]" style={{ background: `linear-gradient(90deg, ${GREEN.lo}, ${GREEN.hi})` }} />groen = te surfen (kans ≥ {OK}%); hoe donkerder, hoe zekerder.
         De lijn is de golfhoogte aan het strand (zelfde schaal voor alle dagen, tot {String(weekScale).replace('.', ',')} m); de getallen eronder om 9, 13 en 17 uur. Veeg of wijs over een lijn voor de tijd en de cijfers; tik de dag voor de details.
         Vanaf dag 4 gestippeld: een richting, geen belofte.
       </p>
 
       <div ref={detailRef} className="mt-6 border-t border-[color:var(--tide-line)] pt-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-[28px] leading-none">Alle cijfers</h3>
+          <h3 className="text-[28px] leading-none">Per uur</h3>
           <div className="flex gap-4">
-            {([['grid', 'Tabel'], ['cards', 'Dagkaarten']] as const).map(([k, l]) => (
+            {([['hours', 'Uurstaat'], ['grid', 'Tabel'], ['cards', 'Dagkaarten']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setDetail(k)} aria-pressed={detail === k}
                 className={`min-h-[44px] text-[15px] cursor-pointer ${detail === k ? 'underline underline-offset-[6px] decoration-[color:var(--tide-sun)] decoration-2' : 'text-[color:var(--tide-mist)]'}`}>{l}</button>
             ))}
           </div>
         </div>
-        {detail === 'cards'
+        {detail === 'hours'
+          ? <HourTable spot={spot} forecasts={forecasts} plans={plans} chance={chance} personal={personal} focusDay={focusDay} onSelectHour={onSelectHour} />
+          : detail === 'cards'
           ? <CompactDailyForecast forecast={forecasts} spot={spot} user={user} isLoggedIn={isLoggedIn} onSelectForecastHour={(f) => onSelectHour?.(f)} onOpenProfile={onOpenProfile} focusDay={focusDay} />
           : <ForecastGrid forecast={forecasts} onCellClick={(f) => onSelectHour?.(f)} spot={spot} onDayClick={(d) => { setFocusDay(d); setDetail('cards'); }} />}
       </div>

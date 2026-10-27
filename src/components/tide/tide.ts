@@ -12,7 +12,18 @@ export const GOOD = OK;
 /** Vanaf hier "goed" in woorden. */
 export const GREAT = 70;
 
-export const chanceColor = (c: number) => (c >= OK ? TIDE.sun : TIDE.mist);
+// Te surfen = groen, van licht (net boven de grens) naar diep (bijna zeker).
+const mix = (a: string, b: string, t: number) => {
+  const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join('');
+};
+const greenT = (c: number) => Math.max(0, Math.min(1, (c - OK) / (90 - OK)));
+/** Vlakken in de grafieken. */
+export const GREEN = { lo: '#a9d4a4', hi: '#2f7a46' };
+export const surfFill = (c: number) => mix(GREEN.lo, GREEN.hi, greenT(c));
+/** Tekst en stippen (iets donkerder, leesbaar op papier). */
+export const surfText = (c: number) => mix('#4d9a5c', '#1f5f35', greenT(c));
+export const chanceColor = (c: number) => (c >= OK ? surfText(c) : TIDE.mist);
 
 /** Vloeiende lijn door punten (Catmull-Rom → Bézier), zonder overschot onder de basislijn. */
 export function smoothPath(pts: [number, number][], minY?: number, maxY?: number): string {
@@ -65,7 +76,7 @@ export function useWidth<T extends HTMLElement>(fallback = 340) {
 
 /**
  * De lijn van één dag: alleen daglicht. Met `height` ook de golfhoogte per blok (de lijn
- * wordt dan de hoogte; de kans bepaalt waar het oranje is). Zonder hoogte een zachte
+ * wordt dan de hoogte; de kans bepaalt waar het groen is). Zonder hoogte een zachte
  * aanloop naar 0 aan beide kanten.
  */
 export function dayProfile(items: ForecastData[], chance: (f: ForecastData) => number, height?: (f: ForecastData) => number) {

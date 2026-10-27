@@ -6,7 +6,7 @@ import { withAreaDefaults } from '../../utils/spotKnowledge';
 import { chanceOf } from '../../utils/surfMoments';
 import { personalHours } from '../../utils/surfProfile';
 import { planDays } from '../home/AnswerCard';
-import { OK, TIDE, chanceColor, useWidth } from './tide';
+import { OK, TIDE, chanceColor, surfFill, useWidth } from './tide';
 
 /**
  * De kust als één lijn van noord naar zuid, met de spots op hun echte plek.
@@ -157,8 +157,8 @@ export const CoastView: React.FC<Props> = ({ spot, forecast, spots, user, isLogg
               return (
                 <g key={r.spot.id} onClick={() => onSelectSpot(r.spot.id)} style={{ cursor: 'pointer' }} role="button" aria-label={`${r.spot.name}: ${typeof b === 'number' ? `${b}%` : r.status === 'fout' ? 'geen gegevens' : 'laden'}`}>
                   <rect x={0} y={ly - 26} width={width} height={52} fill="transparent" />
-                  {good && <circle cx={px} cy={py} r={15} fill={TIDE.sun} opacity={0.18} />}
-                  <circle cx={px} cy={py} r={good ? 7 : 5} fill={good ? TIDE.sun : ok ? TIDE.sand : TIDE.foam} stroke={good ? TIDE.sun : TIDE.ink} strokeWidth={good ? 0 : 1.2} />
+                  {good && <circle cx={px} cy={py} r={15} fill={surfFill(b as number)} opacity={0.35} />}
+                  <circle cx={px} cy={py} r={good ? 7 : 5} fill={good ? chanceColor(b as number) : ok ? TIDE.sand : TIDE.foam} stroke={good ? chanceColor(b as number) : TIDE.ink} strokeWidth={good ? 0 : 1.2} />
                   <polyline points={`${px + 9},${py} ${lx - 14},${ly} ${lx - 6},${ly}`} fill="none" stroke={TIDE.ink} strokeWidth={0.7} opacity={0.35} strokeDasharray="1 4" />
                   <text x={lx} y={ly - 2} fontFamily="Instrument Sans" fontSize={15} fontWeight={r.spot.id === spot.id || good ? 700 : 400} fill={TIDE.ink}>
                     {r.spot.name.length > maxChars ? r.spot.name.slice(0, maxChars - 1) + '…' : r.spot.name}
