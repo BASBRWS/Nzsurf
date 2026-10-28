@@ -139,7 +139,7 @@ export function AdminReportList() {
                     </div>
                     <div className="flex items-center gap-1.5 text-cyan-700">
                       <MapPin className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest">{report.spotName}</span>
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest">{report.spotName}</span>{report.kind === 'later' && <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[8px] font-mono uppercase text-amber-800">achteraf · zonder foto</span>}
                     </div>
                     <div className="flex items-center gap-1.5 text-slate-500 truncate flex-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
@@ -162,10 +162,10 @@ export function AdminReportList() {
                           <button
                             onClick={() => {
                               setTweakingId(report.id as string);
-                              const observedStr = report.analysis.waveHeight.match(/[\d.]+/);
-                              if (observedStr && report.forecastAtTime.waveHeight > 0) {
+                              const observedStr = report.analysis?.waveHeight?.match(/[\d.]+/);
+                              if (observedStr && report.forecastAtTime?.waveHeight > 0) {
                                 const observed = parseFloat(observedStr[0]);
-                                setMultiplier(parseFloat((observed / report.forecastAtTime.waveHeight).toFixed(2)));
+                                setMultiplier(parseFloat((observed / report.forecastAtTime?.waveHeight).toFixed(2)));
                               }
                             }}
                             className="p-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-lg transition-colors border border-cyan-200 cursor-pointer"
@@ -225,29 +225,29 @@ export function AdminReportList() {
                       </div>
                       <p className="text-[10px] text-slate-600 leading-relaxed italic">
                         Dit past een multiplier toe op de wave height voorspelling voor {report.spotName}. 
-                        Current: {report.forecastAtTime.waveHeight}m → New: {(report.forecastAtTime.waveHeight * multiplier).toFixed(2)}m
+                        Current: {report.forecastAtTime?.waveHeight ?? "–"}m → New: {(report.forecastAtTime?.waveHeight * multiplier).toFixed(2)}m
                       </p>
                     </motion.div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
                         <p className="text-[9px] font-mono text-slate-400 uppercase font-bold">Observed H</p>
-                        <p className="text-xs font-bold text-slate-900 tracking-tight">{report.analysis.waveHeight}</p>
+                        <p className="text-xs font-bold text-slate-900 tracking-tight">{report.analysis?.waveHeight ?? "–"}</p>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
                         <p className="text-[9px] font-mono text-slate-400 uppercase font-bold">Forecast H</p>
-                        <p className="text-xs font-bold text-slate-700 tracking-tight">{report.forecastAtTime.waveHeight}m</p>
+                        <p className="text-xs font-bold text-slate-700 tracking-tight">{report.forecastAtTime?.waveHeight ?? "–"}m</p>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
                         <p className="text-[9px] font-mono text-slate-400 uppercase font-bold">Wind Cond.</p>
-                        <p className="text-xs font-bold text-slate-900 tracking-tight">{report.analysis.windCondition}</p>
+                        <p className="text-xs font-bold text-slate-900 tracking-tight">{report.analysis?.windCondition ?? "–"}</p>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
                         <div className="flex items-center justify-between">
                           <p className="text-[9px] font-mono text-slate-400 uppercase font-bold">Match</p>
                           <Gauge className="w-3 h-3 text-cyan-600" />
                         </div>
-                        <p className="text-xs font-bold text-cyan-700">{report.analysis.matchScore}/10</p>
+                        <p className="text-xs font-bold text-cyan-700">{report.analysis?.matchScore ?? "–"}/10</p>
                       </div>
                     </div>
                   )}
@@ -264,9 +264,9 @@ export function AdminReportList() {
 
                   <div className="relative">
                     <p className="text-xs leading-relaxed text-slate-600 italic border-l-2 border-slate-200 pl-3 line-clamp-2">
-                      {report.analysis.interpretation}
+                      {report.analysis?.interpretation ?? "–"}
                     </p>
-                    {report.analysis.isMismatched && (
+                    {report.analysis?.isMismatched && (
                       <div className="mt-2 inline-flex items-center gap-2 px-2.5 py-1 bg-rose-50 rounded-lg border border-rose-200">
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                         <span className="text-[9px] font-mono text-rose-700 uppercase font-bold">Mismatch Gedetecteerd</span>
@@ -324,15 +324,15 @@ export function AdminReportList() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="modal-subcard bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                     <p className="text-[9px] font-mono text-slate-400 uppercase mb-1 font-bold">Observed Height</p>
-                    <p className="text-base font-black text-slate-900">{selectedReport.analysis.waveHeight}</p>
+                    <p className="text-base font-black text-slate-900">{selectedReport.analysis?.waveHeight ?? "–"}</p>
                   </div>
                   <div className="modal-subcard bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                     <p className="text-[9px] font-mono text-slate-400 uppercase mb-1 font-bold">Wind Status</p>
-                    <p className="text-base font-black text-slate-900">{selectedReport.analysis.windCondition}</p>
+                    <p className="text-base font-black text-slate-900">{selectedReport.analysis?.windCondition ?? "–"}</p>
                   </div>
                   <div className="modal-subcard bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                     <p className="text-[9px] font-mono text-slate-400 uppercase mb-1 font-bold">Match Accuracy</p>
-                    <p className="text-base font-black text-cyan-700">{selectedReport.analysis.matchScore}/10</p>
+                    <p className="text-base font-black text-cyan-700">{selectedReport.analysis?.matchScore ?? "–"}/10</p>
                   </div>
                   <div className="modal-subcard bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                     <p className="text-[9px] font-mono text-slate-400 uppercase mb-1 font-bold">Protocol</p>
@@ -344,7 +344,7 @@ export function AdminReportList() {
                   <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 border-b border-slate-100 pb-2">Full AI Interpretation</h4>
                   <div className="modal-subcard bg-slate-50 p-5 rounded-2xl border border-slate-200 relative">
                     <p className="text-sm leading-relaxed text-slate-800 italic">
-                      "{selectedReport.analysis.interpretation}"
+                      "{selectedReport.analysis?.interpretation ?? "–"}"
                     </p>
                   </div>
                 </div>
@@ -380,7 +380,7 @@ export function AdminReportList() {
                     </div>
                     <div className="space-y-1">
                       <p className="text-[9px] font-mono text-slate-400 uppercase font-bold">Forecast Model height</p>
-                      <p className="text-xs text-slate-700">{selectedReport.forecastAtTime.waveHeight}m</p>
+                      <p className="text-xs text-slate-700">{selectedReport.forecastAtTime?.waveHeight ?? "–"}m</p>
                     </div>
                   </div>
                 </div>
@@ -400,10 +400,10 @@ export function AdminReportList() {
                         const id = tweakingId === selectedReport.id ? null : selectedReport.id;
                         setTweakingId(id as string);
                         if (id) {
-                          const observedStr = selectedReport.analysis.waveHeight.match(/[\d.]+/);
-                          if (observedStr && selectedReport.forecastAtTime.waveHeight > 0) {
+                          const observedStr = selectedReport.analysis?.waveHeight?.match(/[\d.]+/);
+                          if (observedStr && selectedReport.forecastAtTime?.waveHeight > 0) {
                             const observed = parseFloat(observedStr[0]);
-                            setMultiplier(parseFloat((observed / selectedReport.forecastAtTime.waveHeight).toFixed(2)));
+                            setMultiplier(parseFloat((observed / selectedReport.forecastAtTime?.waveHeight).toFixed(2)));
                           }
                           setSelectedReport(null);
                         }

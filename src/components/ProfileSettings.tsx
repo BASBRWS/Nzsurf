@@ -223,7 +223,7 @@ export function ProfileSettings({
     return () => unsubscribe();
   }, []);
 
-  const mismatchedReports = userReports.filter(r => r.analysis.isMismatched);
+  const mismatchedReports = userReports.filter(r => r.analysis?.isMismatched);
 
   const updateWeight = (weight: number) => onUpdate({ ...user, weight });
   const updateSkill = (skillLevel: SkillLevel) => onUpdate({ ...user, skillLevel });
@@ -380,16 +380,16 @@ export function ProfileSettings({
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center border",
-                      report.analysis.isMismatched ? "bg-red-500/10 border-red-500/20 text-red-400" : "bg-slate-50 border-slate-200 text-slate-400"
+                      report.analysis?.isMismatched ? "bg-red-500/10 border-red-500/20 text-red-400" : "bg-slate-50 border-slate-200 text-slate-400"
                     )}>
-                      {report.analysis.isMismatched ? <AlertTriangle className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+                      {report.analysis?.isMismatched ? <AlertTriangle className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">{report.spotName}</h4>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-[9px] font-mono text-slate-400 uppercase">{format(new Date(report.timestamp), 'd MMM HH:mm', { locale: nl })}</span>
                         <div className="h-1 w-1 rounded-full bg-slate-100" />
-                        <span className="text-[9px] font-mono text-cyan-600 uppercase">Match {report.analysis.matchScore}/10</span>
+                        <span className="text-[9px] font-mono text-cyan-600 uppercase">{report.kind === 'later' ? `achteraf · ${({ no: 'werkt niet', meh: 'matig', fair: 'redelijk', good: 'goed' } as Record<string, string>)[report.userRating || ''] || ''}` : `Match ${report.analysis?.matchScore ?? '–'}/10`}</span>
                       </div>
                     </div>
                   </div>

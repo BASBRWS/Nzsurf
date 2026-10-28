@@ -124,8 +124,9 @@ export interface SpotReport {
     lat: number;
     lng: number;
   };
-  forecastAtTime: ForecastData;
-  analysis: {
+  // Ontbreken bij een melding achteraf zonder foto.
+  forecastAtTime?: ForecastData;
+  analysis?: {
     waveHeight: string;
     windCondition: string;
     matchScore: number; // 1-10
@@ -135,6 +136,10 @@ export interface SpotReport {
   userNote?: string;
   // Eigen oordeel van de surfer (optioneel; oude rapporten hebben dit niet).
   userRating?: 'no' | 'meh' | 'fair' | 'good';
+  // 'photo' = ter plekke met gps-gecontroleerde foto; 'later' = achteraf, zonder foto en gps.
+  kind?: 'photo' | 'later';
+  reportedAt?: string;              // wanneer ingestuurd (timestamp = wanneer gesurft/gezien)
+  locationSource?: 'gps' | 'spot';  // 'spot' = coördinaten van de spot, niet van de surfer
 }
 
 export interface WeatherModel {
