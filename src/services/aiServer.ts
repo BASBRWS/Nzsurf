@@ -26,7 +26,7 @@ export const getClaudeKey = () => read(KEY_STORE);
 export const setClaudeKey = (key: string) => write(KEY_STORE, key.trim());
 export const getClaudeModel = () => read(MODEL_STORE) || CLAUDE_DEFAULT_MODEL;
 export const setClaudeModel = (m: string) => write(MODEL_STORE, m.trim());
-export const aiProviderLabel = () => (getClaudeKey() ? `Claude (${getClaudeModel()})` : 'Gemini (server)');
+export const aiProviderLabel = () => (getClaudeKey() ? `Claude (${getClaudeModel()})` : 'server (Claude of Gemini)');
 export const maskKey = (k: string) => (k.length > 12 ? `${k.slice(0, 7)}…${k.slice(-4)}` : '••••');
 
 interface GeminiBody { model?: string; contents: any[]; config?: any }

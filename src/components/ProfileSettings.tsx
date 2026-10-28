@@ -413,7 +413,7 @@ export function ProfileSettings({
         <div className="bg-white/90 backdrop-blur-md shadow-sm border border-slate-200 rounded-3xl p-8 border border-purple-500/20 bg-purple-500/5">
            <h3 className="text-xl font-black italic uppercase text-slate-900 mb-6">Beta Laboratory</h3>
            <p className="text-sm text-slate-600 mb-8 leading-relaxed">
-             Activeer experimentele functies zoals Live Wave Calibration. Deze tools gebruiken direct de camera en Gemini Vision voor real-time spot analyse.
+             Activeer experimentele functies zoals Live Wave Calibration. Deze tools gebruiken direct de camera en AI-beeldherkenning voor real-time spot analyse.
            </p>
            <button 
             onClick={() => {

@@ -12,6 +12,53 @@ import type { ForecastData } from "./src/types";
 // rekenen "nu", "vandaag" en de beste momenten op dezelfde tijd als de app.
 process.env.TZ = process.env.TZ || "Europe/Amsterdam";
 
+
+// ── Claude (Anthropic) als AI-motor ─────────────────────────────────────────
+// Staat ANTHROPIC_API_KEY in de serveromgeving, dan gaan alle AI-verzoeken naar Claude.
+// De app stuurt nog het Gemini-formaat ({ model, contents, config }); dat zetten we om.
+// Zonder Anthropic-sleutel blijft Gemini (GEMINI_API_KEY) de motor.
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
+const CLAUDE_LIGHT_MODEL = process.env.ANTHROPIC_LIGHT_MODEL || "claude-haiku-5-5";
+
+function toClaudeContent(contents: any): any[] {
+  const out: any[] = [];
+  const add = (c: any) => {
+    if (c == null) return;
+    if (typeof c === "string") { out.push({ type: "text", text: c }); return; }
+    if (Array.isArray(c)) { c.forEach(add); return; }
+    if (Array.isArray(c.parts)) { c.parts.forEach(add); return; }
+    if (c.inlineData?.data) {
+      out.push({ type: "image", source: { type: "base64", media_type: c.inlineData.mimeType || "image/jpeg", data: c.inlineData.data } });
+      return;
+    }
+    if (typeof c.text === "string") out.push({ type: "text", text: c.text });
+  };
+  add(contents);
+  return out;
+}
+
+async function claudeGenerate(contents: any, opts: { light?: boolean; json?: boolean; temperature?: number } = {}): Promise<string> {
+  const key = process.env.ANTHROPIC_API_KEY as string;
+  const content = toClaudeContent(contents);
+  if (opts.json) content.push({ type: "text", text: "Antwoord uitsluitend met één geldig JSON-object, zonder uitleg of codeblok." });
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: opts.light ? CLAUDE_LIGHT_MODEL : CLAUDE_MODEL,
+      max_tokens: 2000,
+      ...(typeof opts.temperature === "number" ? { temperature: opts.temperature } : {}),
+      messages: [{ role: "user", content }],
+    }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Claude: ${data?.error?.message || `HTTP ${r.status}`}`);
+  const text = (data?.content || []).filter((b: any) => b?.type === "text").map((b: any) => b.text).join("");
+  if (!opts.json) return text;
+  const m = text.match(/\{[\s\S]*\}/);
+  return m ? m[0] : text;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -111,6 +158,12 @@ async function startServer() {
     console.log(`[AI-SERVER] 📥 Adviesverzoek ontvangen voor model: ${targetModel}`);
 
     try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        const light = /lite/i.test(String(model || ""));
+        const text = await claudeGenerate(contents, { light, json: config?.responseMimeType === "application/json", temperature: config?.temperature });
+        console.log(`[AI-SERVER] ✅ Claude (${light ? CLAUDE_LIGHT_MODEL : CLAUDE_MODEL}) in ${Date.now() - startTime}ms`);
+        return res.json({ text });
+      }
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         console.warn(`[AI-SERVER] ⚠️ GEMINI_API_KEY ontbreekt in server environment.`);
@@ -144,6 +197,14 @@ async function startServer() {
         return res.status(400).json({ error: "No image provided" });
       }
 
+      if (process.env.ANTHROPIC_API_KEY) {
+        const m = String(base64Image).match(/^data:([^;]+);base64,(.+)$/);
+        const text = await claudeGenerate([
+          { inlineData: { data: m ? m[2] : base64Image, mimeType: m ? m[1] : "image/jpeg" } },
+          { text: "You are a content moderator for a surfing community. Check this image. Does it contain any inappropriate, explicit, offensive, or non-safe-for-work (NSFW) content? Also, is it completely unrelated to surfing, the beach, or the sea? Reply ONLY with a JSON object: { \"isSafe\": true/false, \"reason\": \"string\" }" },
+        ], { light: true, json: true, temperature: 0.1 });
+        return res.json(JSON.parse(text));
+      }
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         // Safe fallback if moderation API key is missing
