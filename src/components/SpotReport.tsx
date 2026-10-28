@@ -22,6 +22,10 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
   const [isUploading, setIsUploading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  // Ter plekke met foto (gps-controle) of achteraf zonder foto (alleen je oordeel).
+  const [mode, setMode] = useState<'photo' | 'later'>('photo');
+  const [dayBack, setDayBack] = useState(0);
+  const [hour, setHour] = useState(() => { const h = new Date().getHours(); return String(Math.max(7, Math.min(20, h - 1))).padStart(2, '0') + ':00'; });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!auth.currentUser) {
@@ -105,6 +109,8 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
         },
         forecastAtTime: forecast,
         analysis,
+        kind: 'photo',
+        locationSource: 'gps',
         createdAt: serverTimestamp()
       };
 
@@ -142,6 +148,49 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
       }
       
       setStatus({ type: 'error', message: errorMsg });
+      handleFirestoreError(error, OperationType.WRITE, 'spotReports');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const sessionTime = () => {
+    const d = new Date(); d.setDate(d.getDate() - dayBack);
+    const [hh, mm] = hour.split(':').map(Number); d.setHours(hh || 0, mm || 0, 0, 0);
+    return d;
+  };
+
+  const handleLaterSubmit = async () => {
+    const spot = spots.find(s => s.id === selectedSpotId);
+    if (!spot || !userRating) return;
+    const when = sessionTime();
+    if (when.getTime() > Date.now() + 30 * 60e3) { setStatus({ type: 'error', message: 'Dat tijdstip ligt in de toekomst. Kies wanneer je er was.' }); return; }
+    setIsUploading(true);
+    setStatus({ type: 'info', message: 'Opslaan…' });
+    try {
+      const reportData: Record<string, unknown> = {
+        userId: auth.currentUser?.uid,
+        userName: auth.currentUser?.displayName,
+        userEmail: auth.currentUser?.email,
+        userSkillLevel: user?.skillLevel,
+        userNote: userNote.trim() || null,
+        userRating,
+        spotId: spot.id,
+        spotName: spot.name,
+        timestamp: when.toISOString(),        // wanneer je er was
+        reportedAt: new Date().toISOString(), // wanneer je het meldde
+        kind: 'later',
+        location: { lat: spot.lat, lng: spot.lng }, // van de spot, niet gemeten
+        locationSource: 'spot',
+        createdAt: serverTimestamp(),
+      };
+      Object.keys(reportData).forEach(k => { if (reportData[k] === undefined) delete reportData[k]; });
+      await addDoc(collection(db, 'spotReports'), reportData);
+      setStatus({ type: 'success', message: `Opgeslagen: ${spot.name}, ${when.toLocaleString('nl-NL', { weekday: 'long', hour: '2-digit', minute: '2-digit' })}. Dank je, hiermee toetsen we de verwachting.` });
+      setUserRating(null); setUserNote('');
+      if (onComplete) onComplete();
+    } catch (error) {
+      setStatus({ type: 'error', message: `Opslaan mislukt: ${error instanceof Error ? error.message : String(error)}` });
       handleFirestoreError(error, OperationType.WRITE, 'spotReports');
     } finally {
       setIsUploading(false);
@@ -218,8 +267,33 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
           </div>
         </div>
 
+        <div role="tablist" aria-label="Soort melding" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+          {([['photo', 'Nu, met foto'], ['later', 'Achteraf, zonder foto']] as const).map(([k, l]) => (
+            <button key={k} type="button" role="tab" aria-selected={mode === k} onClick={() => { setMode(k); setStatus(null); }}
+              className={cn('min-h-[44px] rounded-lg text-sm font-semibold cursor-pointer', mode === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}>{l}</button>
+          ))}
+        </div>
+
+        {mode === 'later' && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold ml-1">Wanneer was je er?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <select value={dayBack} onChange={e => setDayBack(Number(e.target.value))} aria-label="Dag"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+                {Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(); d.setDate(d.getDate() - i);
+                  return <option key={i} value={i}>{i === 0 ? 'Vandaag' : i === 1 ? 'Gisteren' : d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'short' })}</option>;
+                })}
+              </select>
+              <input type="time" step={900} value={hour} onChange={e => setHour(e.target.value)} aria-label="Tijd"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900" />
+            </div>
+            <p className="text-[11px] text-slate-500 ml-1">Ongeveer het midden van je sessie (of wanneer je keek). Tot een week terug.</p>
+          </div>
+        )}
+
         <div className="space-y-1.5">
-          <label className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold ml-1">Hoe is het om te surfen? (optioneel)</label>
+          <label className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold ml-1">Hoe was het om te surfen?{mode === 'photo' ? ' (optioneel)' : ''}</label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {([
               ['no', 'Werkt niet / flat', 'border-slate-300 bg-slate-100 text-slate-700'],
@@ -252,6 +326,16 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
           />
         </div>
 
+        {mode === 'later' ? (
+          <button
+            disabled={!selectedSpotId || !userRating || isUploading}
+            onClick={handleLaterSubmit}
+            className="w-full h-12 sm:h-14 flex items-center justify-center gap-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-cyan-700 disabled:opacity-40 transition-all shadow-md cursor-pointer text-sm"
+          >
+            {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+            {!userRating ? 'Kies eerst hoe het was' : 'Melding opslaan'}
+          </button>
+        ) : (
         <button
           disabled={!selectedSpotId || isUploading}
           onClick={() => fileInputRef.current?.click()}
@@ -260,6 +344,7 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
           {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
           Report met Foto Verzenden
         </button>
+        )}
         <input 
           type="file" 
           accept="image/*" 
@@ -285,7 +370,7 @@ export function SpotReport({ spots, currentForecasts, initialSpotId, onComplete,
       )}
 
       <p className="text-[10px] font-mono text-slate-400 text-center uppercase tracking-wider">
-        Visuele data wordt real-time verwerkt via GPS en AI-analyse.
+        {mode === 'photo' ? 'Met foto: gps-controle (binnen 2 km van de spot) en AI-analyse.' : 'Achteraf: alleen je oordeel, zonder gps of foto. Telt mee in de audit van de verwachting.'}
       </p>
     </div>
   );
