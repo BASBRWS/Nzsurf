@@ -102,7 +102,7 @@ export function WebcamPanel({ observations, onDownload, enabled, spots = [] }: {
       </details>
 
       <details className="text-[11px] text-slate-600" open={!claudeKey && !!run.error && /Gemini-tegoed/.test(run.error)}>
-        <summary className="cursor-pointer">AI-sleutel — nu: <b>{claudeKey ? `Claude ${maskKey(claudeKey)}` : 'Gemini (server)'}</b></summary>
+        <summary className="cursor-pointer">AI-sleutel — nu: <b>{claudeKey ? `Claude ${maskKey(claudeKey)}` : 'server (Claude of Gemini)'}</b></summary>
         <div className="mt-1.5 space-y-1.5">
           <p>Plak hier je Claude API-sleutel (console.anthropic.com → API keys, begint met <span className="font-mono">sk-ant-</span>). Hij blijft alleen op deze telefoon en wordt gebruikt voor de webcam en de Secret Swell-import.</p>
           <div className="flex gap-2">

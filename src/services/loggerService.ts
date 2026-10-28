@@ -15,12 +15,20 @@ export interface AppErrorLog {
 /**
  * Logs an error to the Firestore errorLogs collection for admin troubleshooting.
  */
+// Dezelfde fout niet telkens opnieuw opslaan: per sessie hooguit één keer per 10 minuten.
+const lastLogged = new Map<string, number>();
+
 export async function logAppError(
   errorType: string,
   message: string,
   context: any = {},
   errorObject?: any
 ): Promise<void> {
+  const key = `${errorType}|${message}|${errorObject instanceof Error ? errorObject.message.slice(0, 80) : ''}`;
+  const prev = lastLogged.get(key);
+  if (prev && Date.now() - prev < 10 * 60e3) return;
+  lastLogged.set(key, Date.now());
+
   const user = auth.currentUser;
   const log: Omit<AppErrorLog, 'id'> = {
     userId: user ? user.uid : null,

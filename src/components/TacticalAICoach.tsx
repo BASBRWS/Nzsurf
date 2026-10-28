@@ -173,7 +173,7 @@ export const TacticalAICoach: React.FC<TacticalAICoachProps> = ({
             <RichText text={aiAnalysisText} className="text-xs sm:text-sm text-slate-700 leading-relaxed font-sans" />
 
             <div className="pt-2 flex items-center justify-between border-t border-slate-100 text-[10px] font-mono text-slate-400">
-              <span>Model: Gemini 2.5 Pro Neural Marine</span>
+              <span>Model: Claude (server)</span>
               <button 
                 onClick={handleAskAI} 
                 disabled={isLoading}

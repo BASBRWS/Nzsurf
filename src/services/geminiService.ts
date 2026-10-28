@@ -1,29 +1,20 @@
 import { UserProfile, SurfSpot, ForecastData, SurfAdvice, SpotReport } from "../types";
 import { logAppError } from "./loggerService";
 import { isOuddorpNoordwegKiteZone, getKiteAlert } from "../utils/kiteAlertUtils";
-import { apiUrl } from "../lib/api";
+import { aiCoolingDown, generateViaServer, getClaudeKey, isAiUnavailable, markAiUnavailable } from "./aiServer";
 import { computeSurfChance, tideLevelLabel, degreesToCompass16, chanceScoreCap, spotKnowledgeArea } from "../utils/spotKnowledge";
 
+// Eén route voor alle AI-tekst: eigen Claude-sleutel → Claude; anders Gemini via de server
+// (in de app via de website). Is AI niet bereikbaar, dan een halfuur niet opnieuw proberen.
 async function callGenerateContent(options: { model: string; contents: any; config?: any }) {
-  const url = apiUrl('/api/gemini/generateContent');
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options)
-  });
-
-  const rawText = await response.text();
-  let data: any;
+  if (!getClaudeKey() && aiCoolingDown()) throw new Error('AI tijdelijk niet bereikbaar (geen JSON)');
   try {
-    data = JSON.parse(rawText);
-  } catch {
-    throw new Error(`Server endpoint gaf geen JSON terug (HTTP ${response.status}): ${rawText.slice(0, 120)}`);
+    const text = await generateViaServer(options);
+    return { text };
+  } catch (e) {
+    if (isAiUnavailable(e)) markAiUnavailable();
+    throw e;
   }
-
-  if (!response.ok) {
-    throw new Error(data?.error || `API request failed with status ${response.status}`);
-  }
-  return data;
 }
 
 /**
@@ -598,11 +589,16 @@ export async function getSurfAdvice(
     return adviceResult;
   } catch (primaryError: any) {
     console.warn(`⚠️ [SURF-ADVICE] Primaire AI (Gemini 3.7 Flash) mislukt (${primaryError?.message || primaryError}). Start backup AI (Gemini 3.1 Flash-Lite)...`);
-    // Log the primary error
-    await logAppError("gemini_primary_model_error", "Failed generating advice using primary gemini-3.7-flash", { spotId: spot.id, spotName: spot.name, userEmail: user.favoriteSpotId }, primaryError);
+    // AI niet bereikbaar (geen server in de app, tegoed op, offline): meteen de eigen
+    // adviesmotor, zonder tweede poging en zonder foutlog. Alleen onverwachte fouten loggen.
+    const unavailable = isAiUnavailable(primaryError);
+    if (!unavailable) {
+      await logAppError("gemini_primary_model_error", "Failed generating advice using primary gemini-3.7-flash", { spotId: spot.id, spotName: spot.name }, primaryError);
+    }
 
     // Attempt 2: Secondary model (gemini-3.1-flash-lite) for cost/latency optimization/backup
     try {
+      if (unavailable) throw primaryError;
       const backupResponse = await callGenerateContent({
         model: "gemini-3.1-flash-lite",
         contents: prompt,
@@ -630,8 +626,9 @@ export async function getSurfAdvice(
       return backupResult;
     } catch (secondaryError: any) {
       console.warn(`⚠️ [SURF-ADVICE] Backup AI ook niet beschikbaar (${secondaryError?.message || secondaryError}). Schakelt over naar Offline Noordzee Redundancy Motor...`);
-      // Log the secondary error 
-      await logAppError("gemini_secondary_model_error", "Failed generating advice using secondary gemini-3.1-flash-lite", { spotId: spot.id, spotName: spot.name }, secondaryError);
+      if (!isAiUnavailable(secondaryError)) {
+        await logAppError("gemini_secondary_model_error", "Failed generating advice using secondary gemini-3.1-flash-lite", { spotId: spot.id, spotName: spot.name }, secondaryError);
+      }
 
       // Attempt 3: Ultimate Fallback Rule-based engine (Robust Offline/Heuristic Backup)
       try {

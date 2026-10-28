@@ -26,7 +26,7 @@ export const getClaudeKey = () => read(KEY_STORE);
 export const setClaudeKey = (key: string) => write(KEY_STORE, key.trim());
 export const getClaudeModel = () => read(MODEL_STORE) || CLAUDE_DEFAULT_MODEL;
 export const setClaudeModel = (m: string) => write(MODEL_STORE, m.trim());
-export const aiProviderLabel = () => (getClaudeKey() ? `Claude (${getClaudeModel()})` : 'Gemini (server)');
+export const aiProviderLabel = () => (getClaudeKey() ? `Claude (${getClaudeModel()})` : 'server (Claude of Gemini)');
 export const maskKey = (k: string) => (k.length > 12 ? `${k.slice(0, 7)}…${k.slice(-4)}` : '••••');
 
 interface GeminiBody { model?: string; contents: any[]; config?: any }
@@ -39,7 +39,8 @@ export async function generateViaServer(body: GeminiBody): Promise<string> {
 
 async function generateClaude(body: GeminiBody, key: string): Promise<string> {
   const parts = (Array.isArray(body.contents) ? body.contents : [body.contents]).flatMap((c: any): any[] =>
-    c?.inlineData ? [{ type: 'image', source: { type: 'base64', media_type: c.inlineData.mimeType || 'image/jpeg', data: c.inlineData.data } }]
+    typeof c === 'string' ? [{ type: 'text', text: c }]
+    : c?.inlineData ? [{ type: 'image', source: { type: 'base64', media_type: c.inlineData.mimeType || 'image/jpeg', data: c.inlineData.data } }]
     : typeof c?.text === 'string' ? [{ type: 'text', text: c.text }]
     : []);
   // Tekst na de afbeeldingen (zoals de prompts zijn opgebouwd).
@@ -63,6 +64,20 @@ async function generateClaude(body: GeminiBody, key: string): Promise<string> {
   const m = text.match(/\{[\s\S]*\}/);
   return m ? m[0] : text;
 }
+
+/**
+ * Fouten die betekenen "AI is nu niet bereikbaar" (geen server in de app, tegoed op,
+ * geen netwerk). Daar valt de app stil terug op de eigen adviesmotor; geen foutlog.
+ */
+export function isAiUnavailable(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e ?? '');
+  return /geen JSON|tegoed|credits are depleted|RESOURCE_EXHAUSTED|prepayment|Failed to fetch|Failed to parse URL|NetworkError|Load failed|HTTP 40[24]|HTTP 5\d\d/i.test(m);
+}
+
+// Eén keer "niet bereikbaar" → een halfuur niet opnieuw proberen (scheelt wachten en logs).
+let unavailableUntil = 0;
+export const aiCoolingDown = () => Date.now() < unavailableUntil;
+export const markAiUnavailable = () => { unavailableUntil = Date.now() + 30 * 60e3; };
 
 function safeJson(s: string) { try { return JSON.parse(s); } catch { return { error: { message: s.slice(0, 160) } }; } }
 
