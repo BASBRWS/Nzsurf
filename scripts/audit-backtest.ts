@@ -8,7 +8,13 @@ import { AuditForecastDoc, AuditObsDoc, PARAMS, LEAD_BUCKETS, auditView, buildPa
 import { buildConceptDocs, CONCEPT_SOURCE } from '../src/utils/forecastBlend';
 import { buildHybridDocs, HYBRID_SOURCE } from '../src/utils/forecastHybrid';
 import { buildV2Docs, V2_SOURCE } from '../src/utils/forecastV2';
-import { DEFAULT_RULE, componentRanking, componentScores, dayRanking, dayScores, obsTruth, pairedSurfScores } from '../src/utils/surfVerdict';
+import { DEFAULT_RULE, componentRanking, componentScores, dayRanking, dayScores, isDaytime, obsTruth, observedVars, obsIndex, pairedSurfScores, reportTruth } from '../src/utils/surfVerdict';
+import type { SpotReportLike, AuditPoint } from '../src/utils/forecastAudit';
+import { DEFAULT_SPOTS } from '../src/constants';
+import { SPOT_CATALOG, toSurfSpot } from '../src/data/spotCatalog';
+import { chanceFactors, withAreaDefaults } from '../src/utils/spotKnowledge';
+import { windQualityFor } from '../src/utils/windQuality';
+import type { ForecastData, SurfSpot } from '../src/types';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa) throw new Error('Ontbrekende env-var: FIREBASE_SERVICE_ACCOUNT');
@@ -19,7 +25,66 @@ const SHORT: Record<string, string> = { nzsurf: 'NZ', [CONCEPT_SOURCE]: 'concept
 const f = (x: number, d = 2) => x.toFixed(d);
 const notice = (title: string, lines: string[]) => console.log(`::notice title=${title}::${lines.join('%0A')}`);
 
-const [fcSnap, obsSnap] = await Promise.all([db.collection('auditForecasts').get(), db.collection('auditObservations').get()]);
+const [fcSnap, obsSnap, repSnap] = await Promise.all([db.collection('auditForecasts').get(), db.collection('auditObservations').get(), db.collection('spotReports').get()]);
+const reports = repSnap.docs.map(d => d.data() as SpotReportLike);
+
+// ── Diagnose: waarom zegt NzSurf "nee" op momenten die surfbaar waren? ─────
+// kans = 100 × grootte × periode × wind × getij. Per gemist moment: welke factor drukt
+// het hardst (de kleinste), en had alléén die factor het verschil gemaakt (kans/factor ≥ 45)?
+// Live v2 en nieuwe v1-runs hebben de factoren opgeslagen ("why"); oudere v1-runs
+// rekenen we na uit de punten (getij dan onbekend = 1, dus benadering).
+const DIAG_SPOTS: Record<string, SurfSpot> = {
+  'ouddorp-p-noordweg': withAreaDefaults(DEFAULT_SPOTS.find(x => x.id === 'ouddorp-p-noordweg')!),
+  maasvlakte: withAreaDefaults({ ...toSurfSpot(SPOT_CATALOG.find(x => x.id === 'maasvlakte')!), lat: 51.9292, lng: 3.9766 }),
+};
+const FACTOR_NL: Record<string, string> = { s: 'grootte aan strand', p: 'periode', w: 'wind', t: 'getij' };
+function factorsOf(spot: SurfSpot, p: AuditPoint): { s: number; p: number; w: number; t: number; approx: boolean } | null {
+  if (p.why) return { ...p.why, approx: false };
+  if (typeof p.hs !== 'number' || typeof p.tp !== 'number') return null;
+  const wq = typeof p.windDir === 'number' && typeof p.windKn === 'number' ? windQualityFor(spot.coastlineAngle, p.windDir, p.windKn).windQuality : undefined;
+  const f = { timestamp: p.t, waveHeight: p.hs, swellPeriod: p.tp, swellDirection: p.dir ?? 300, windSpeed: p.windKn ?? 0, windDirection: p.windDir ?? 0,
+    spotWaveHeight: p.spotHs, windQuality: wq, waterTemp: 12, airTemp: 12, isDaylight: true } as ForecastData;
+  return { ...chanceFactors(spot, f), approx: true };
+}
+function diagnose(spotId: string, docs: AuditForecastDoc[], source: string, truth: (t: number, s: string) => boolean | undefined, truthName: string, obsIdx?: ReturnType<typeof obsIndex>): string | null {
+  const spot = DIAG_SPOTS[spotId];
+  let tp = 0, fn = 0, tn = 0, fp = 0, approx = 0;
+  const lim: Record<string, number> = { s: 0, p: 0, w: 0, t: 0 }, alone: Record<string, number> = { s: 0, p: 0, w: 0, t: 0 };
+  const fpWhy: Record<string, number> = { 'golf < 0,6 m': 0, 'periode te kort': 0, 'te veel wind': 0, 'meerdere': 0, 'overig': 0 };
+  const seen = new Set<string>();
+  for (const d of docs.filter(x => x.source === source)) for (const p of d.points || []) {
+    const t = Date.parse(p.t);
+    if (!isDaytime(t) || p.lead <= 0 || p.lead > 72 || typeof p.chance !== 'number') continue;
+    const key = `${Math.round(t / 3600e3)}|${d.runDate}`; if (seen.has(key)) continue; seen.add(key);
+    const tr = truth(t, source); if (tr === undefined) continue;
+    const ok = p.chance >= 45;
+    if (tr && ok) tp++; else if (!tr && !ok) tn++;
+    else if (tr && !ok) {
+      fn++;
+      const fx = factorsOf(spot, p); if (!fx) continue; if (fx.approx) approx++;
+      const ks = ['s', 'p', 'w', 't'] as const;
+      const k = ks.reduce((a, b) => (fx[b] < fx[a] ? b : a));
+      lim[k]++;
+      if (p.chance / Math.max(0.05, fx[k]) >= 45) alone[k]++;
+    } else {
+      fp++;
+      const o = obsIdx?.get(new Date(t).toISOString().slice(0, 13));
+      if (o) {
+        const v = observedVars(o); const why: string[] = [];
+        if ((v.hs ?? 0) < DEFAULT_RULE.minWave) why.push('golf < 0,6 m');
+        if ((v.tp ?? 0) < DEFAULT_RULE.minPeriod) why.push('periode te kort');
+        if ((v.windKn ?? 0) > DEFAULT_RULE.maxOnshoreKn) why.push('te veel wind');
+        fpWhy[why.length === 1 ? why[0] : why.length ? 'meerdere' : 'overig']++;
+      }
+    }
+  }
+  const pos = tp + fn, neg = tn + fp;
+  if (pos + neg < 10) return null;
+  const pc = (a: number, b: number) => (b ? `${Math.round(100 * a / b)}%` : '–');
+  const limTxt = Object.entries(lim).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${FACTOR_NL[k]} ${pc(n, fn)} (alleen dit: ${alone[k]})`).join(', ');
+  const fpTxt = obsIdx ? Object.entries(fpWhy).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(', ') : '';
+  return `${source} tegen ${truthName}: ${pos} surfbaar, gevangen ${pc(tp, pos)}; ${neg} niet, terecht nee ${pc(tn, neg)}. Gemist (${fn}${approx ? `, ${approx} benaderd` : ''}): ${limTxt || '–'}.${fp ? ` Onterecht ja (${fp})${fpTxt ? `: meting zegt ${fpTxt}` : ''}.` : ''}`;
+}
 const all = fcSnap.docs.map(d => d.data() as AuditForecastDoc);
 const obs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
 console.log(`${all.length} verwachtingen, ${obs.length} meetdagen; wind omgerekend naar 10 m: ${obs.filter(o => o.windAt10m).length} dagen`);
@@ -80,7 +145,6 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
       bl.push(`${key} ${b.key}: ${OURS.map(cell).filter(Boolean).join(' · ')} | ${best?.label.split(' (')[0]} ${best ? f(best.mae, key === 'hs' ? 2 : 1) : ''}`);
     }
   }
-  notice(`Per looptijd ${spotId}`, bl);
 
   // Eerlijk: zelfde uren als NzSurf, één stem per meetuur, 90%-interval (zonder concept/hybride/v2-zonder).
   const fairPairs = pairs.filter(p => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(p.source));
@@ -112,5 +176,16 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
   dl.push(`hs <1 m: V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) < 1, 'hs')} · 1–2 m: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) >= 1 && (p.obsHs ?? 0) < 2, 'hs')} · ≥2 m: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) >= 2, 'hs')}`);
   dl.push(`wind ≥20 kn: V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => (p.obsWindKn ?? 0) >= 20, 'windKn')} · <20: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsWindKn ?? 0) < 20, 'windKn')}`);
   dl.push(`periode V2 vs NZ: ${vs(V2_SOURCE, 'nzsurf', () => true, 'tp')} · swellrichting d4+ V2-punten: ${pairs.filter(p => p.source === V2_SOURCE && p.param === 'dir' && (p.bucket === 'd4-5' || p.bucket === 'd6-7')).length}`);
-  notice(`Direct ${spotId}`, dl);
+  notice(`Direct ${spotId}`, [...dl, ...bl]);
+
+  const oIdx = obsIndex(obs);
+  const tObs = obsTruth(obs, DEFAULT_RULE), tRep = reportTruth(reports, spotId);
+  const nRep = reports.filter(r => r.spotId === spotId && r.userRating).length;
+  const ml = [
+    diagnose(spotId, fc, 'nzsurf', tObs, 'meting (boeiregel)', oIdx),
+    diagnose(spotId, fc, 'nzsurf-v2-live', tObs, 'meting (boeiregel)', oIdx),
+    diagnose(spotId, fc, 'nzsurf', tRep, `meldingen (${nRep})`),
+    diagnose(spotId, fc, 'nzsurf-v2-live', tRep, `meldingen (${nRep})`),
+  ].filter((x): x is string => !!x);
+  notice(`Missers ${spotId}`, ml.length ? ml : [`nog te weinig momenten (live v2 sinds ${fc.filter(d => d.source === 'nzsurf-v2-live').map(d => d.runDate).sort()[0] ?? 'nog niet'}; meldingen met oordeel: ${nRep})`]);
 }

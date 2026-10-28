@@ -54,13 +54,13 @@ export function ruleVerdict(v: Vars, rule: SurfRule): boolean | undefined {
 const SURFLINE_ORDER = ['FLAT', 'VERY_POOR', 'POOR', 'POOR_TO_FAIR', 'FAIR', 'FAIR_TO_GOOD', 'GOOD', 'VERY_GOOD', 'GOOD_TO_EPIC', 'EPIC'];
 
 /** Bronnen die zelf een oordeel geven. */
-export const OWN_VERDICT_SOURCES = new Set(['nzsurf', 'breakfinder', 'surfline', 'wompy', 'secretswell']);
+export const OWN_VERDICT_SOURCES = new Set(['nzsurf', 'nzsurf-v2-live', 'breakfinder', 'surfline', 'wompy', 'secretswell']);
 /** Wompy: OK, GOOD en EPIC = te surfen; FLAT en POOR niet. */
 const WOMPY_SURFABLE = new Set(['OK', 'GOOD', 'EPIC']);
 
 /** Oordeel van een voorspeller voor één punt; `own` = eigen oordeel van de voorspeller. */
 export function forecastVerdict(source: string, p: AuditPoint, rule: SurfRule): { ok?: boolean; own: boolean } {
-  if ((source === 'nzsurf' || source === 'breakfinder') && typeof p.chance === 'number') return { ok: p.chance >= 45, own: true };
+  if ((source === 'nzsurf' || source === 'nzsurf-v2-live' || source === 'breakfinder') && typeof p.chance === 'number') return { ok: p.chance >= 45, own: true };
   if (source === 'wompy' && p.rating) return { ok: WOMPY_SURFABLE.has(p.rating), own: true };
   // Secret Swell: groen (GO) en oranje (MAYBE) = te surfen; rood (NO-GO) niet.
   // Zonder eigen oordeel (alleen een golfbereik) beoordelen we Secret Swell niet met onze regel.

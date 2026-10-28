@@ -7,11 +7,13 @@ export interface AuditPoint {
   hs?: number; tp?: number; dir?: number; windKn?: number; windDir?: number; gustKn?: number;
   spotHs?: number; chance?: number; tide?: number; surfMin?: number; surfMax?: number; rating?: string;
   energyKj?: number; // eigen energiewaarde van de site (Surfline/surfnerd, kJ) — andere grootheid dan kW/m
+  why?: { s: number; p: number; w: number; t: number }; // NzSurf: factoren van de kans (grootte, periode, wind, getij)
 }
 export interface AuditForecastDoc {
   runAt: string; runDate: string; spotId: string;
   source: string; label: string; kind: 'nzsurf' | 'model' | 'site';
   points: AuditPoint[]; note?: string;
+  algoVersion?: string; calibrationAsOf?: string; // live v2: welke regels en welke kalibratie
 }
 export interface ObsPoint { t: string; hs?: number; tm02?: number; dir?: number; windKn?: number; windDir?: number; level?: number }
 export interface AuditObsDoc { date: string; points: ObsPoint[]; stations?: string[]; source?: string; windAt10m?: boolean }
@@ -72,7 +74,7 @@ export function auditView(docs: AuditForecastDoc[], spotId: string): AuditForeca
 // NzSurf geven ook een gemiddelde periode; die vergelijken we rechtstreeks met Tm02.
 // Sites geven een piek- of swellperiode (Surfline: dominante swell). Die is niet hetzelfde;
 // we vergelijken ze apart en alleen indicatief met Tm02 × 1,25 (gangbare verhouding Tp/Tm02).
-export const MEAN_PERIOD_SOURCES = new Set(['nzsurf', 'nzsurf-v2', 'nzsurf-concept', 'nzsurf-hybride', 'dwd', 'meteofrance', 'ecmwf', 'gfs', 'openmeteo']);
+export const MEAN_PERIOD_SOURCES = new Set(['nzsurf', 'nzsurf-v2', 'nzsurf-v2-live', 'nzsurf-concept', 'nzsurf-hybride', 'dwd', 'meteofrance', 'ecmwf', 'gfs', 'openmeteo']);
 export const periodKind = (source: string): 'mean' | 'peak' => (MEAN_PERIOD_SOURCES.has(source) ? 'mean' : 'peak');
 /** Gemeten Tm02 → piekperiode (benadering, alleen voor de indicatieve vergelijking en de surfregel). */
 export const TM02_TO_TP = 1.25;
