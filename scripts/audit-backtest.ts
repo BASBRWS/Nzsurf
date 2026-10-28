@@ -145,7 +145,6 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
       bl.push(`${key} ${b.key}: ${OURS.map(cell).filter(Boolean).join(' · ')} | ${best?.label.split(' (')[0]} ${best ? f(best.mae, key === 'hs' ? 2 : 1) : ''}`);
     }
   }
-  notice(`Per looptijd ${spotId}`, bl);
 
   // Eerlijk: zelfde uren als NzSurf, één stem per meetuur, 90%-interval (zonder concept/hybride/v2-zonder).
   const fairPairs = pairs.filter(p => ![CONCEPT_SOURCE, HYBRID_SOURCE, 'v2-zonder'].includes(p.source));
@@ -177,7 +176,7 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
   dl.push(`hs <1 m: V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) < 1, 'hs')} · 1–2 m: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) >= 1 && (p.obsHs ?? 0) < 2, 'hs')} · ≥2 m: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsHs ?? 0) >= 2, 'hs')}`);
   dl.push(`wind ≥20 kn: V2 vs NZ ${vs(V2_SOURCE, 'nzsurf', p => (p.obsWindKn ?? 0) >= 20, 'windKn')} · <20: ${vs(V2_SOURCE, 'nzsurf', p => (p.obsWindKn ?? 0) < 20, 'windKn')}`);
   dl.push(`periode V2 vs NZ: ${vs(V2_SOURCE, 'nzsurf', () => true, 'tp')} · swellrichting d4+ V2-punten: ${pairs.filter(p => p.source === V2_SOURCE && p.param === 'dir' && (p.bucket === 'd4-5' || p.bucket === 'd6-7')).length}`);
-  notice(`Direct ${spotId}`, dl);
+  notice(`Direct ${spotId}`, [...dl, ...bl]);
 
   const oIdx = obsIndex(obs);
   const tObs = obsTruth(obs, DEFAULT_RULE), tRep = reportTruth(reports, spotId);
