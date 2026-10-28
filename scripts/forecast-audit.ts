@@ -16,9 +16,10 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 import { DEFAULT_SPOTS } from '../src/constants';
 import { SPOT_CATALOG, toSurfSpot } from '../src/data/spotCatalog';
-import type { SurfSpot } from '../src/types';
+import type { ForecastData, SurfSpot } from '../src/types';
 import { fetchForecast } from '../src/services/weatherService';
-import { withAreaDefaults } from '../src/utils/spotKnowledge';
+import { chanceFactors, withAreaDefaults } from '../src/utils/spotKnowledge';
+import { applyV2WithCal, pickCalibration, type Cal } from '../src/services/v2Core';
 import { plausibleObs } from '../src/utils/forecastAudit';
 import { parseWompy } from '../src/utils/siteParsers';
 import { computeV2Calibration } from '../src/utils/forecastV2';
@@ -64,6 +65,7 @@ export interface AuditPoint {
   spotHs?: number;  // verwachte hoogte op de spot (na demping/richting)
   chance?: number;  // kans dat de spot werkt, 0–100
   tide?: number;    // waterstand, m
+  why?: { s: number; p: number; w: number; t: number }; // NzSurf: factoren van de kans
   surfMin?: number; // brekende golf (Surfline e.d.), m
   surfMax?: number;
   rating?: string;  // kwaliteitslabel van de bron
@@ -75,6 +77,8 @@ export interface SourceResult {
   kind: 'nzsurf' | 'model' | 'site';
   points: AuditPoint[];
   note?: string;
+  algoVersion?: string;      // live v2: versie van de regels
+  calibrationAsOf?: string;  // live v2: tot wanneer de kalibratie geleerd heeft
 }
 
 const runAt = new Date();
@@ -99,25 +103,48 @@ async function getJson(url: string, init?: RequestInit): Promise<any> {
 }
 
 // ── Bron: NzSurf (eigen algoritme) ──────────────────────────────────────────
+const nzPoint = (spot: SurfSpot) => (f: ForecastData) => clean<AuditPoint>({
+  t: new Date(f.timestamp).toISOString(),
+  lead: leadOf(f.timestamp),
+  hs: round(f.waveHeight),
+  tp: round(f.swellPeriod, 1),
+  dir: round(f.swellDirection, 0),
+  windKn: round(f.windSpeed, 1),
+  windDir: round(f.windDirection, 0),
+  spotHs: round(f.spotWaveHeight),
+  chance: f.surfChance,
+  tide: round(f.tideHeight),
+  why: chanceFactors(spot, f), // waarom de kans is wat hij is (voor de diagnose van missers)
+});
+
+// v1-verwachting één keer per spot ophalen; v1 en live v2 gebruiken dezelfde.
+const v1Cache = new Map<string, Promise<ForecastData[]>>();
+const v1For = (spot: SurfSpot) => { if (!v1Cache.has(spot.id)) v1Cache.set(spot.id, fetchForecast(spot)); return v1Cache.get(spot.id)!; };
+
 async function collectNzSurf(spot: SurfSpot): Promise<SourceResult> {
-  const fc = await fetchForecast(spot);
-  const points = fc
-    .map(f => clean<AuditPoint>({
-      t: new Date(f.timestamp).toISOString(),
-      lead: leadOf(f.timestamp),
-      hs: round(f.waveHeight),
-      tp: round(f.swellPeriod, 1),
-      dir: round(f.swellDirection, 0),
-      windKn: round(f.windSpeed, 1),
-      windDir: round(f.windDirection, 0),
-      spotHs: round(f.spotWaveHeight),
-      chance: f.surfChance,
-      tide: round(f.tideHeight),
-    }))
+  const fc = await v1For(spot);
+  const points = fc.map(nzPoint(spot))
     // NzSurf rekent in 3-uursblokken op NL-tijd; die liggen niet op het UTC-raster.
     .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
   return { source: 'nzsurf', label: 'NzSurf v1 (basis)', kind: 'nzsurf', points,
     note: fc[0]?.tideSource ? `getij: ${fc[0].tideSource}` : undefined };
+}
+
+// ── Bron: NzSurf v2 zoals de app hem nu toont ───────────────────────────────
+// Zelfde v1-basis, zelfde kalibratie uit Firestore (v2Calibration), zelfde functie als de
+// app (applyV2WithCal). Zo legt de audit vast wat gebruikers echt zagen, met versie en
+// kalibratiedatum; de "v2" in het rapport is achteraf nagerekend.
+export const V2_ALGO_VERSION = 'v2-l1-2026-10';
+async function collectNzSurfV2Live(spot: SurfSpot, db: Firestore | null): Promise<SourceResult | null> {
+  if (!db) return null;
+  const cals = (await db.collection('v2Calibration').get()).docs.map(d => d.data() as Cal);
+  const { cal, note } = pickCalibration(spot, cals);
+  if (!cal) { console.log(`– live v2 overgeslagen: ${note}`); return null; }
+  const res = await applyV2WithCal(spot, await v1For(spot), cal);
+  if (res.algo !== 'v2') { console.log(`– live v2 overgeslagen: ${res.note}`); return null; }
+  const points = res.data.map(nzPoint(spot)).filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
+  return { source: 'nzsurf-v2-live', label: 'NzSurf v2 (live, vastgelegd)', kind: 'model', points,
+    note: res.note, algoVersion: V2_ALGO_VERSION, calibrationAsOf: cal.asOf };
 }
 
 // ── Bron: losse modellen via Open-Meteo ─────────────────────────────────────
@@ -461,6 +488,7 @@ async function main() {
     console.log(`\n── ${spot.name} (${spot.id}) ──`);
     const SOURCES: [string, () => Promise<SourceResult | null>][] = [
       ['nzsurf', () => collectNzSurf(spot)],
+      ['nzsurf-v2-live', () => collectNzSurfV2Live(spot, db)],
       ...MODEL_FAMILIES.map(f => [f.source, () => collectModel(f, spot)] as [string, () => Promise<SourceResult>]),
       ...(cfg.stormglass ? [['stormglass', () => collectStormglass(spot)] as [string, () => Promise<SourceResult | null>]] : []),
       ['windfinder', () => collectWindfinder(`https://www.windfinder.com/forecast/${cfg.windfinder}`, 'windfinder', 'Windfinder')],

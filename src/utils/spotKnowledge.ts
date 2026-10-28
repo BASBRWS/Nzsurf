@@ -421,6 +421,16 @@ function periodFactor(p: number): number {
  * periode, wind en het getijvenster van de spot. Eén definitie voor tabel, dagscore,
  * offline AI en Gemini.
  */
+/** De vier factoren achter de kans (kans = 100 × grootte × periode × wind × getij). Voor de diagnose. */
+export function chanceFactors(spot: SurfSpot, f: ForecastData): { s: number; p: number; w: number; t: number } {
+  const exp = f.swellExposure !== undefined ? { exposure: f.swellExposure } : swellExposure(spot, f.swellDirection);
+  const spotWave = f.spotWaveHeight ?? spotWaveHeight(spot, f.waveHeight, exp.exposure);
+  const tide = f.tideFactor !== undefined ? f.tideFactor : assessTide(spot, f.tideLevel, f.tideTrend, f.swellPeriod, f.swellDirection).factor;
+  const windQ = typeof f.windQuality === 'number' ? f.windQuality : 50;
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  return { s: r2(sizeFactor(spotWave)), p: r2(periodFactor(f.swellPeriod)), w: r2(0.35 + 0.65 * (windQ / 100)), t: r2(tide) };
+}
+
 export function computeSurfChance(spot: SurfSpot, f: ForecastData): SurfChance {
   const exp = f.swellExposure !== undefined ? { exposure: f.swellExposure } : swellExposure(spot, f.swellDirection);
   const spotWave = f.spotWaveHeight ?? spotWaveHeight(spot, f.waveHeight, exp.exposure);
