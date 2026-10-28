@@ -14,6 +14,7 @@ import { DEFAULT_SPOTS } from '../src/constants';
 import { SPOT_CATALOG, toSurfSpot } from '../src/data/spotCatalog';
 import { chanceFactors, withAreaDefaults } from '../src/utils/spotKnowledge';
 import { windQualityFor } from '../src/utils/windQuality';
+import { CHANCE_VARIANTS } from '../src/utils/chanceVariants';
 import type { ForecastData, SurfSpot } from '../src/types';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -88,6 +89,55 @@ function diagnose(spotId: string, docs: AuditForecastDoc[], source: string, trut
 const all = fcSnap.docs.map(d => d.data() as AuditForecastDoc);
 const obs = cleanObservations(obsSnap.docs.map(d => d.data() as AuditObsDoc));
 console.log(`${all.length} verwachtingen, ${obs.length} meetdagen; wind omgerekend naar 10 m: ${obs.filter(o => o.windAt10m).length} dagen`);
+
+
+// ── Varianten van de kans op dezelfde momenten ──────────────────────────────
+// Elke variant krijgt precies dezelfde punten (zelfde voorspelling, zelfde factoren); alleen
+// de manier van combineren verschilt. Score = gebalanceerd (gemiddelde van gevangen en
+// terecht nee), met 90%-interval van het verschil met "huidig" (bootstrap per dag).
+function variants(spotId: string, docs: AuditForecastDoc[], source: string, truth: (t: number, s: string) => boolean | undefined, truthName: string): string[] {
+  const spot = DIAG_SPOTS[spotId];
+  const rows: { day: string; tr: boolean; f: { s: number; p: number; w: number; t: number } }[] = [];
+  const seen = new Set<string>();
+  for (const d of docs.filter(x => x.source === source)) for (const p of d.points || []) {
+    const t = Date.parse(p.t);
+    if (!isDaytime(t) || p.lead <= 0 || p.lead > 72) continue;
+    const key = `${Math.round(t / 3600e3)}|${d.runDate}`; if (seen.has(key)) continue; seen.add(key);
+    const tr = truth(t, source); if (tr === undefined) continue;
+    const fx = factorsOf(spot, p); if (!fx) continue;
+    rows.push({ day: p.t.slice(0, 10), tr, f: fx });
+  }
+  const pos = rows.filter(r => r.tr).length, neg = rows.length - pos;
+  if (pos < 5 || neg < 5) return [];
+  const score = (rs: typeof rows, v: typeof CHANCE_VARIANTS[number]) => {
+    let tp = 0, p = 0, tn = 0, n = 0;
+    for (const r of rs) { const ok = v.chance(r.f) >= v.threshold; if (r.tr) { p++; if (ok) tp++; } else { n++; if (!ok) tn++; } }
+    const rec = p ? tp / p : NaN, spec = n ? tn / n : NaN;
+    return { rec, spec, bal: p && n ? (rec + spec) / 2 : NaN };
+  };
+  const days = [...new Set(rows.map(r => r.day))];
+  const byDay = new Map(days.map(d => [d, rows.filter(r => r.day === d)]));
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const base = CHANCE_VARIANTS[0];
+  const out = [`${source} tegen ${truthName}: ${rows.length} momenten (${pos} surfbaar) over ${days.length} dagen`];
+  for (const v of CHANCE_VARIANTS) {
+    const sc = score(rows, v);
+    let ci = '';
+    if (v !== base) {
+      const ds: number[] = [];
+      for (let b = 0; b < 400; b++) {
+        const rs = Array.from({ length: days.length }, () => byDay.get(days[Math.floor(rnd() * days.length)])!).flat();
+        const a = score(rs, v).bal, c = score(rs, base).bal;
+        if (Number.isFinite(a) && Number.isFinite(c)) ds.push(a - c);
+      }
+      ds.sort((x, y) => x - y);
+      const d = sc.bal - score(rows, base).bal;
+      ci = ds.length ? ` Δ${d >= 0 ? '+' : ''}${Math.round(100 * d)} [${Math.round(100 * ds[Math.floor(ds.length * 0.05)])};${Math.round(100 * ds[Math.floor(ds.length * 0.95)])}]` : '';
+    }
+    out.push(`  ${v.label}: gevangen ${Math.round(100 * sc.rec)}%, terecht nee ${Math.round(100 * sc.spec)}%, score ${Math.round(100 * sc.bal)}%${ci}`);
+  }
+  return out;
+}
 
 for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
   const t0 = Date.now();
@@ -187,5 +237,7 @@ for (const spotId of ['ouddorp-p-noordweg', 'maasvlakte']) {
     diagnose(spotId, fc, 'nzsurf', tRep, `meldingen (${nRep})`),
     diagnose(spotId, fc, 'nzsurf-v2-live', tRep, `meldingen (${nRep})`),
   ].filter((x): x is string => !!x);
+  ml.push(...variants(spotId, fc, 'nzsurf', tObs, 'meting'), ...variants(spotId, fc, 'nzsurf-v2-live', tObs, 'meting'),
+    ...variants(spotId, fc, 'nzsurf', tRep, `meldingen (${nRep})`));
   notice(`Missers ${spotId}`, ml.length ? ml : [`nog te weinig momenten (live v2 sinds ${fc.filter(d => d.source === 'nzsurf-v2-live').map(d => d.runDate).sort()[0] ?? 'nog niet'}; meldingen met oordeel: ${nRep})`]);
 }
