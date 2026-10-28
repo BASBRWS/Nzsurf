@@ -13,7 +13,7 @@ import xarray as xr
 
 URL = "https://opendap.deltares.nl/thredds/dodsC/opendap/rijkswaterstaat/jarkus/profiles/transect.nc"
 SPOTS = {
-    "ouddorp-p-noordweg": (51.8195, 3.8875),
+    "ouddorp-p-noordweg": (51.8253, 3.8874),
     "maasvlakte": (51.9292, 3.9766),
 }
 YEARS = 3  # meest recente jaren met metingen per raai

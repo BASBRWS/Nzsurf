@@ -1,9 +1,13 @@
 name: Bodemprofielen (Jarkus)
 
 # Haalt de bodemprofielen (Jarkus, Rijkswaterstaat) bij de auditspots op en zet ze als
-# src/data/bathymetry.json in de branch waarop je hem start. Alleen handmatig.
+# src/data/bathymetry.json in de branch. Handmatig, of vanzelf als het script verandert.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - scripts/bathymetry/**
+      - .github/workflows/bathymetry.yml
 
 permissions:
   contents: write
