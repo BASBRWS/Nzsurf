@@ -105,13 +105,15 @@ service cloud.firestore {
           && request.resource.data.get('role', null) == resource.data.get('role', null))
         || (isOwnerAccount() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
           && request.resource.data.role in ['user', 'admin']);
-      allow delete: if isOwnerAccount();
+      // Eigen account verwijderen (Google Play-eis); de eigenaar kan ook anderen wissen.
+      allow delete: if isOwner(userId) || isOwnerAccount();
     }
 
     match /spotReports/{reportId} {
       allow create: if isAuthenticated() && isValidSpotReport(request.resource.data);
       allow read, list: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
     match /sharedSpots/{spotId} {

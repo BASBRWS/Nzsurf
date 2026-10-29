@@ -11,6 +11,11 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
   },
+  // Android 15+ tekent de app onder de statusbalk (edge-to-edge). 'force' laat Capacitor
+  // marges om de WebView zetten, zodat tijd en iconen niet over de app heen staan.
+  android: {
+    adjustMarginsForEdgeToEdge: 'force',
+  },
   plugins: {
     // Native Google-login: de plugin doet de sign-in buiten de WebView en levert
     // een idToken; daarmee loggen we in de Firebase JS-SDK in (signInWithCredential).

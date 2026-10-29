@@ -1,0 +1,127 @@
+name: Play Store-release (AAB)
+
+# Bouwt een ondertekende Android App Bundle (AAB) voor Google Play.
+# Handmatig starten via Actions → "Play Store-release (AAB)" → Run workflow.
+# De AAB komt als artifact bij de run (niet als publieke release); upload hem in de
+# Play Console (Testen → Gesloten test of Productie → Nieuwe release).
+#
+# Benodigde repository-secrets (Settings → Secrets and variables → Actions):
+#   UPLOAD_KEYSTORE_B64       base64 van de upload-keystore (.jks)
+#   UPLOAD_KEYSTORE_PASSWORD  wachtwoord van de keystore
+#   UPLOAD_KEY_ALIAS          alias van de sleutel
+#   UPLOAD_KEY_PASSWORD       wachtwoord van de sleutel
+# Zonder secrets maakt hij een niet-ondertekende AAB (alleen om de build te testen).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Bepaal versie
+        id: version
+        run: |
+          VN=$(node -p "require('./package.json').version")
+          # versionCode moet bij elke upload naar Play hoger zijn. Eigen reeks, ruim boven de debug-builds.
+          CODE=$((100000 + ${{ github.run_number }}))
+          echo "name=$VN" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Versie $VN (versionCode $CODE)"
+
+      - name: Build web assets (Play-variant)
+        run: bunx vite build
+        env:
+          NO_SOURCEMAP: 'true'
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_BUILD_NUMBER: ${{ steps.version.outputs.code }}
+          VITE_DISTRIBUTION: play   # geen eigen update-knop: updates via Google Play
+
+      - name: Android-project
+        run: |
+          bunx cap add android || true
+          bunx cap sync android
+
+      - name: Web-client-ID als string-resource
+        run: |
+          STR=android/app/src/main/res/values/strings.xml
+          CID="112380081133-48eq7joafhkficgm60023vmqno0o787j.apps.googleusercontent.com"
+          sed -i "s#</resources>#    <string name=\"server_client_id\">$CID</string>\n</resources>#" "$STR"
+
+      - name: Iconen en splash
+        run: bunx capacitor-assets generate --android
+
+      - name: Target-API 36 (Play-eis sinds 31-08-2026)
+        run: |
+          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 36/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 36/' android/variables.gradle
+          echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
+          grep -nE "compileSdk|targetSdk" android/variables.gradle
+
+      - name: Versienummer
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ steps.version.outputs.code }}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
+          grep -nE "versionCode|versionName" android/app/build.gradle
+
+      - name: Upload-sleutel
+        id: sign
+        env:
+          UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -z "$UPLOAD_KEYSTORE_B64" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Niet ondertekend::Geen UPLOAD_KEYSTORE_B64-secret; de AAB is niet ondertekend en kan niet naar Play."
+            exit 0
+          fi
+          echo "$UPLOAD_KEYSTORE_B64" | base64 -d > android/app/nzsurf-upload.jks
+          node scripts/inject-release-signing.mjs
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "SHA-1 van de upload-sleutel (zet ook in Firebase):"
+          keytool -list -v -keystore android/app/nzsurf-upload.jks -storepass "$UPLOAD_KEYSTORE_PASSWORD" -alias "$UPLOAD_KEY_ALIAS" 2>/dev/null | grep -E "SHA1:|SHA256:" | sed 's/^/::notice title=Upload-sleutel::/' || true
+
+      - name: Build AAB
+        env:
+          UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+          ls -la app/build/outputs/bundle/release/
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: nzsurf-play-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}${{ steps.sign.outputs.signed == 'true' && '' || '-ONGETEKEND' }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+      - name: Samenvatting
+        run: |
+          echo "::notice title=AAB klaar::versie ${{ steps.version.outputs.name }}, versionCode ${{ steps.version.outputs.code }}, ondertekend: ${{ steps.sign.outputs.signed }}. Download bij deze run onder Artifacts."
