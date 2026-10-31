@@ -54,13 +54,22 @@ async function toJpegBase64(file: File): Promise<string> {
   } finally { URL.revokeObjectURL(url); }
 }
 
-/** Eén schermafbeelding laten aflezen. */
-async function readScreenshot(file: File): Promise<SecretSwellRead> {
+/** Eén schermafbeelding (JPEG, base64) laten aflezen. */
+async function readJpeg(jpeg: string): Promise<SecretSwellRead> {
   const text = await generate({
     model: 'gemini-3.7-flash',
-    contents: [{ inlineData: { data: await toJpegBase64(file), mimeType: 'image/jpeg' } }, { text: PROMPT }],
+    contents: [{ inlineData: { data: jpeg, mimeType: 'image/jpeg' } }, { text: PROMPT }],
   });
   return JSON.parse(text.replace(/```json|```/g, '').trim()) as SecretSwellRead;
+}
+
+/**
+ * Beelden die NzSurf zelf heeft gemaakt tijdens het meekijken met de Secret Swell-app
+ * (zie secretSwellAppScan): zelfde aflezing en opslag als schermafbeeldingen.
+ */
+export async function importSecretSwellFrames(frames: { jpeg: string; at: number }[], onStep?: (s: string) => void) {
+  return importItems(frames.map((f, i) => ({ name: `beeld ${i + 1}`, at: f.at, read: () => { onStep?.(`Beeld ${i + 1} van ${frames.length} aflezen…`); return readJpeg(f.jpeg); } })),
+    { label: 'Secret Swell (meegekeken)', note: 'tijdens scrollen in de Secret Swell-app door NzSurf vastgelegd en door AI afgelezen', sequential: true });
 }
 
 /**
@@ -69,21 +78,29 @@ async function readScreenshot(file: File): Promise<SecretSwellRead> {
  * erop staat en wordt samengevoegd met wat er vandaag al voor die spot staat.
  */
 export async function importSecretSwellScreenshots(files: File[]): Promise<{ points: number; summary: string[] }> {
-  // Tijdstip van de verwachting = wanneer de (eerste) schermafbeelding gemaakt is, anders nu.
-  const first = Math.min(...files.map(f => (f.lastModified && Date.now() - f.lastModified < 36 * 3600e3 ? f.lastModified : Date.now())));
-  const shotAt = new Date(first);
-  const runDate = shotAt.toISOString().slice(0, 10);
+  return importItems(files.map(f => ({ name: f.name, at: f.lastModified, read: async () => readJpeg(await toJpegBase64(f)) })),
+    { label: 'Secret Swell (schermafbeelding)', note: 'uit schermafbeeldingen gelezen door AI (dashboard en/of uurtabel)' });
+}
 
+async function importItems(items: { name: string; at: number; read: () => Promise<SecretSwellRead> }[], meta: { label: string; note: string; sequential?: boolean }): Promise<{ points: number; summary: string[] }> {
+  // Tijdstip van de verwachting = wanneer het (eerste) beeld gemaakt is, anders nu.
+  const first = Math.min(...items.map(f => (f.at && Date.now() - f.at < 36 * 3600e3 ? f.at : Date.now())));
+  const shotAt = new Date(first);
   const summary: string[] = [];
   const bySpot = new Map<string, SecretSwellRead[]>();
-  const unknown: { file: File; read: SecretSwellRead }[] = [];
-  for (const file of files) {
-    const read = await readScreenshot(file);
+  const unknown: { file: { name: string }; read: SecretSwellRead }[] = [];
+  let lastSpot: string | undefined;
+  for (const file of items) {
+    let read: SecretSwellRead;
+    try { read = await file.read(); } catch (e) { summary.push(`✗ ${file.name}: niet af te lezen (${e instanceof Error ? e.message.slice(0, 60) : e})`); continue; }
     const spotId = secretSwellSpotOf(read);
     if (spotId === null) { summary.push(`✗ ${file.name}: "${read.spot}" is geen Ouddorp of Maasvlakte — overgeslagen`); continue; }
-    if (spotId === undefined) { unknown.push({ file, read }); continue; }
-    if (!bySpot.has(spotId)) bySpot.set(spotId, []);
-    bySpot.get(spotId)!.push(read);
+    // Beelden op volgorde (meekijken): doorgescrold zonder spotnaam = de laatst geziene spot.
+    const sid = spotId ?? (meta.sequential ? lastSpot : undefined);
+    if (sid === undefined) { unknown.push({ file, read }); continue; }
+    lastSpot = sid;
+    if (!bySpot.has(sid)) bySpot.set(sid, []);
+    bySpot.get(sid)!.push(read);
   }
   // Naam niet leesbaar (bv. doorgescrolde uurtabel): bij de spot van de rest van deze upload,
   // als dat er precies één is; anders overslaan (niet gokken).
@@ -93,7 +110,7 @@ export async function importSecretSwellScreenshots(files: File[]): Promise<{ poi
   }
   if (!bySpot.size) throw new Error(summary.join(' | ') || 'Geen bruikbare schermafbeelding.');
 
-  const r = await saveSecretSwellReads(bySpot, shotAt, { label: 'Secret Swell (schermafbeelding)', note: 'uit schermafbeeldingen gelezen door AI (dashboard en/of uurtabel)' }, summary);
+  const r = await saveSecretSwellReads(bySpot, shotAt, { label: meta.label, note: meta.note }, summary);
   if (!r) throw new Error(summary.join(' | ') || 'Geen bruikbare getallen gevonden op de schermafbeelding(en).');
   return { points: r, summary };
 }

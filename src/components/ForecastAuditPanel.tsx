@@ -7,6 +7,7 @@ import { SpotReportAudit } from './SpotReportAudit';
 import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { importSecretSwellScreenshots } from '../services/secretSwellImport';
+import { canScanApp, scanAndImportSecretSwell } from '../services/secretSwellAppScan';
 import { processSecretSwellScan, scanSecretSwell } from '../services/secretSwellScan';
 import { cn } from '../lib/utils';
 import { saveFileOrAlert, saveBinaryFile } from '../utils/saveFile';
@@ -248,6 +249,19 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
 
       {/* Secret Swell heeft alleen een app: schermafbeelding → AI → bron "secretswell". */}
       <div className="rounded-xl border border-slate-200 p-3 space-y-1.5">
+        {canScanApp() && (
+          <button disabled={swell.busy} onClick={async () => {
+            setSwell({ busy: true, lines: ['Even toestemming geven…'] });
+            try {
+              const r = await scanAndImportSecretSwell(st => setSwell({ busy: true, lines: [st] }));
+              setSwell({ busy: false, lines: [`✓ ${r.points} punten opgeslagen (meegekeken)`, ...r.summary] });
+            } catch (err: any) {
+              setSwell({ busy: false, lines: String(err?.message || err).split(' | ').map(l => (l.startsWith('✗') ? l : `✗ ${l}`)) });
+            }
+          }} className="mr-2 mb-1 text-xs font-bold px-3 py-2 rounded-xl bg-cyan-700 text-white inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+            {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />} Scan Secret Swell
+          </button>
+        )}
         {Capacitor.isNativePlatform() && (
           <>
             <button disabled={swell.busy} onClick={async () => {

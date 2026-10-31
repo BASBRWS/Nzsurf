@@ -1,0 +1,11 @@
+{
+  "name": "nzs-screen-scan",
+  "version": "0.1.0",
+  "description": "NzSurf: meekijken met een andere app via schermopname (MediaProjection), alleen Android.",
+  "private": true,
+  "main": "index.js",
+  "capacitor": {
+    "android": { "src": "android" }
+  },
+  "peerDependencies": { "@capacitor/core": ">=7.0.0" }
+}
