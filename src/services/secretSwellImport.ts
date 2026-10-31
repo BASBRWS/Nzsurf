@@ -32,6 +32,15 @@ Spotpagina met uurtabel:
 
 const generate = generateViaServer;
 
+/** Eén scherm uit de Secret Swell-webapp, als zichtbare tekst met positie en kleur (zie secretSwellScan). */
+export async function readSecretSwellScreenText(screen: string): Promise<SecretSwellRead> {
+  const text = await generate({
+    model: 'gemini-3.7-flash',
+    contents: [{ text: `Hieronder staat NIET een afbeelding maar de zichtbare inhoud van één scherm van Secret Swell (de webapp), als regels "x,y,breedte,hoogte | achtergrondkleur | tekst", van boven naar beneden. Elementen met dezelfde x horen bij dezelfde kolom; een gekleurd vak zonder tekst is een kleurbalk (rood = NO-GO, oranje/geel = MAYBE, groen = GO).\n\n${screen}\n\n` }, { text: PROMPT.replace('Dit is een schermafbeelding van de surf-app Secret Swell.', 'Lees dit scherm van Secret Swell.') }],
+  });
+  return JSON.parse(text.replace(/```json|```/g, '').trim()) as SecretSwellRead;
+}
+
 /** Afbeelding verkleinen naar JPEG (max 1600 px) en als base64 teruggeven. */
 async function toJpegBase64(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
@@ -84,6 +93,15 @@ export async function importSecretSwellScreenshots(files: File[]): Promise<{ poi
   }
   if (!bySpot.size) throw new Error(summary.join(' | ') || 'Geen bruikbare schermafbeelding.');
 
+  const r = await saveSecretSwellReads(bySpot, shotAt, { label: 'Secret Swell (schermafbeelding)', note: 'uit schermafbeeldingen gelezen door AI (dashboard en/of uurtabel)' }, summary);
+  if (!r) throw new Error(summary.join(' | ') || 'Geen bruikbare getallen gevonden op de schermafbeelding(en).');
+  return { points: r, summary };
+}
+
+/** Gelezen Secret Swell-schermen per spot opslaan als bron "secretswell" (samengevoegd met vandaag). */
+export async function saveSecretSwellReads(bySpot: Map<string, SecretSwellRead[]>, shotAt: Date, meta: { label: string; note: string }, summary: string[]): Promise<number> {
+  const first = shotAt.getTime();
+  const runDate = shotAt.toISOString().slice(0, 10);
   let total = 0;
   for (const [spotId, reads] of bySpot) {
     const sp = SECRETSWELL_SPOTS.find(x => x.spotId === spotId)!;
@@ -104,12 +122,11 @@ export async function importSecretSwellScreenshots(files: File[]): Promise<{ poi
     if (!points.length) { summary.push(`✗ ${sp.name}: geen bruikbare getallen gevonden`); continue; }
     await setDoc(ref, JSON.parse(JSON.stringify({
       runAt: runAt.toISOString(), runDate, spotId,
-      source: 'secretswell', label: 'Secret Swell (schermafbeelding)', kind: 'site', points,
-      note: 'uit schermafbeeldingen gelezen door AI (dashboard en/of uurtabel)',
+      source: 'secretswell', label: meta.label, kind: 'site', points,
+      note: meta.note,
       reads: [...(existing?.reads || []), ...reads],
     })));
     total += points.length;
   }
-  if (!total) throw new Error(summary.join(' | ') || 'Geen bruikbare getallen gevonden op de schermafbeelding(en).');
-  return { points: total, summary };
+  return total;
 }
