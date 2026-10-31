@@ -8,8 +8,8 @@ coverage/
 !.env.example
 
 # Capacitor native project (in CI geregenereerd via cap add)
-android/
-ios/
+/android/
+/ios/
 
 # Lokale preview-render (niet nodig in repo)
 preview/

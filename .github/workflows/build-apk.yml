@@ -134,6 +134,9 @@ jobs:
           path: nzsurf-latest.apk
 
       - name: Publish to latest-build release
+        # Alleen vanaf main (en de oude ontwikkelbranch): een testbuild van een andere branch
+        # mag de APK die gebruikers downloaden niet vervangen.
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/nzsurf-apk-screenshot-krz2px'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-build
