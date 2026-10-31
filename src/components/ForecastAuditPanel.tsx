@@ -1,14 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Download, Loader2, Trophy, Filter, Camera, Eye } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
 import { db } from '../lib/firebase';
 import { SpotReportAudit } from './SpotReportAudit';
 import { SurfAuditBoard } from './SurfAuditBoard';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { importSecretSwellScreenshots } from '../services/secretSwellImport';
 import { canScanApp, scanAndImportSecretSwell } from '../services/secretSwellAppScan';
-import { processSecretSwellScan, scanSecretSwell } from '../services/secretSwellScan';
 import { cn } from '../lib/utils';
 import { saveFileOrAlert, saveBinaryFile } from '../utils/saveFile';
 import { TableHelp } from './TableHelp';
@@ -262,23 +260,6 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
             {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />} Scan Secret Swell
           </button>
         )}
-        {Capacitor.isNativePlatform() && (
-          <>
-            <button disabled={swell.busy} onClick={async () => {
-              setSwell({ busy: true, lines: ['Secret Swell open: log in, open Ouddorp en de Maasvlakte en scroll rustig door de verwachting. Sluit het venster als je klaar bent.'] });
-              try {
-                const snaps = await scanSecretSwell(n => setSwell({ busy: true, lines: [`${n} scherm${n === 1 ? '' : 'en'} gezien…`] }));
-                setSwell({ busy: true, lines: [`${snaps.length} schermen gezien; aflezen…`] });
-                const r = await processSecretSwellScan(snaps, step => setSwell({ busy: true, lines: [step] }));
-                setSwell({ busy: false, lines: [`✓ ${r.points} punten opgeslagen (meegekeken)`, ...r.summary] });
-              } catch (err: any) {
-                setSwell({ busy: false, lines: String(err?.message || err).split(' | ').map(l => (l.startsWith('✗') ? l : `✗ ${l}`)) });
-              }
-            }} className="mr-2 text-xs font-bold px-3 py-2 rounded-xl bg-cyan-700 text-white inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
-              {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />} Scan Secret Swell
-            </button>
-          </>
-        )}
         <label className={cn('text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white inline-flex items-center gap-1.5 cursor-pointer', swell.busy && 'opacity-50 pointer-events-none')}>
           {swell.busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} Secret Swell: schermafbeelding(en) toevoegen
           <input type="file" accept="image/*" multiple className="hidden" onChange={async e => {
@@ -296,8 +277,7 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
           }} />
         </label>
         <p className="text-[11px] text-slate-500">
-          <b>Scan</b> (Android-app): opent de Secret Swell-webapp in NzSurf; scroll door Ouddorp en de Maasvlakte, NzSurf leest mee. Sluit het venster om op te slaan.
-          Lukt dat niet, of op de website: maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvlakte: het dashboard en/of de spotpagina met de uurtabel
+maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvlakte: het dashboard en/of de spotpagina met de uurtabel
           (doorscrollen mag; kies ze allemaal in één keer, beide spots door elkaar). De AI leest de spotnaam en de getallen en koppelt elke
           schermafbeelding aan de juiste spot; controleer ze hieronder. Andere spots worden overgeslagen. Latere uploads op dezelfde dag vullen aan.
         </p>

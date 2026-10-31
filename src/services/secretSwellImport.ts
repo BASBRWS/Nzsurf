@@ -32,14 +32,6 @@ Spotpagina met uurtabel:
 
 const generate = generateViaServer;
 
-/** Eén scherm uit de Secret Swell-webapp, als zichtbare tekst met positie en kleur (zie secretSwellScan). */
-export async function readSecretSwellScreenText(screen: string): Promise<SecretSwellRead> {
-  const text = await generate({
-    model: 'gemini-3.7-flash',
-    contents: [{ text: `Hieronder staat NIET een afbeelding maar de zichtbare inhoud van één scherm van Secret Swell (de webapp), als regels "x,y,breedte,hoogte | achtergrondkleur | tekst", van boven naar beneden. Elementen met dezelfde x horen bij dezelfde kolom; een gekleurd vak zonder tekst is een kleurbalk (rood = NO-GO, oranje/geel = MAYBE, groen = GO).\n\n${screen}\n\n` }, { text: PROMPT.replace('Dit is een schermafbeelding van de surf-app Secret Swell.', 'Lees dit scherm van Secret Swell.') }],
-  });
-  return JSON.parse(text.replace(/```json|```/g, '').trim()) as SecretSwellRead;
-}
 
 /** Afbeelding verkleinen naar JPEG (max 1600 px) en als base64 teruggeven. */
 async function toJpegBase64(file: File): Promise<string> {
