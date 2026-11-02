@@ -7,6 +7,9 @@ import { degreesToCompass16 } from '../utils/spotKnowledge';
 import { knotsToBft } from '../utils/surfMoments';
 import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../utils/forecastAudit';
 import { V2_SOURCE } from '../utils/forecastV2';
+
+const LIVE_V2 = 'nzsurf-v2-live';
+const RANK_MIN_N = 40, RANK_MIN_DAYS = 5;
 import {
   COMPONENTS, ComponentKey, DEFAULT_RULE, FULL_PARTS, OWN_VERDICT_SOURCES, SurfRule, TM02_TO_TP, TruthFn,
   balanced, combinedTruth, componentRanking, consensusTruth, fairOverallRanking, FairOverallRow, obsTruth, overallRanking, partialComparison, reportTruth, reportsAt,
@@ -85,7 +88,11 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
   const ids = sources.map(s => s.source);
   const labelOf = (id: string) => sources.find(s => s.source === id)?.label || id;
   // Gemarkeerd: alleen het live algoritme (v2). v1 blijft gewoon zichtbaar als basis.
-  const isNz = (id: string) => id === V2_SOURCE;
+  // Gemarkeerd: wat de app laat zien (live v2).
+  const isNz = (id: string) => id === LIVE_V2;
+  // Een rang pas vanaf genoeg gegevens: minstens 40 momenten én 5 ophaaldagen (zelfde grens als de eerlijke vergelijking).
+  const runDays = useMemo(() => { const m = new Map<string, Set<string>>(); for (const f of forecasts) (m.get(f.source) || m.set(f.source, new Set()).get(f.source)!).add(f.runDate); return m; }, [forecasts]);
+  const enough = (r: { source: string; n: number }) => r.n >= RANK_MIN_N && (runDays.get(r.source)?.size ?? 0) >= RANK_MIN_DAYS;
 
   const day = useMemo(() => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + dayOffset); return d; }, [dayOffset]);
   const slots = useMemo(() => daySlots(day), [day]);
@@ -118,11 +125,11 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
     const r: OverallRowLike[] = leadFilter
       ? overallRanking(scores).filter(x => x.parts >= FULL_PARTS)
       : fairOverallRanking(forecasts, observations, rule, truthFn, refId);
-    return [...r.filter(x => x.n >= MIN_N), ...r.filter(x => x.n < MIN_N)];
+    return [...r.filter(enough), ...r.filter(x => !enough(x))];
   }, [scores, leadFilter, forecasts, observations, rule, truthFn, refId]);
   const nzId = refId;
   const partial = useMemo(() => partialComparison(scores, nzId), [scores, nzId]);
-  const perComponent = useMemo(() => { const r = componentRanking(scores, rankKey); return [...r.filter(x => x.n >= MIN_N), ...r.filter(x => x.n < MIN_N)]; }, [scores, rankKey]);
+  const perComponent = useMemo(() => { const r = componentRanking(scores, rankKey); return [...r.filter(enough), ...r.filter(x => !enough(x))]; }, [scores, rankKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const perDay = useMemo(() => { const r = dayRanking(dayScores(forecasts, rule, truthFn, now, leadFilter || undefined)); return [...r.filter(x => x.n >= 8), ...r.filter(x => x.n < 8)]; },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [forecasts, rule, truthFn, leadFilter]);
@@ -366,8 +373,8 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
             {overall.length ? (
               <ol className="space-y-1">
                 {overall.map((r, i) => (
-                  <li key={r.source} className={cn('flex flex-wrap items-center gap-x-2 gap-y-0 rounded-lg px-2 py-1.5 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-slate-50', r.n < MIN_N && 'opacity-60')}>
-                    <span className="w-6 text-right font-black">{r.n < MIN_N ? '–' : i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                  <li key={r.source} className={cn('flex flex-wrap items-center gap-x-2 gap-y-0 rounded-lg px-2 py-1.5 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-slate-50', !enough(r) && 'opacity-60')}>
+                    <span className="w-6 text-right font-black">{!enough(r) ? '–' : i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
                     <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
                     <span className="tabular-nums font-black">{r.score}%</span>
                     <span className="tabular-nums text-[10px] text-slate-500 w-24 text-right whitespace-nowrap">{r.parts} onderd. · n {r.n}</span>
@@ -411,7 +418,8 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
                 <li><b>Score %</b> = gemiddeld percentage goed over alle onderdelen die de voorspeller levert (golf, periode, swellrichting, wind, windrichting, windhoek); "te surfen?" telt dubbel.</li>
                 <li><b>onderd.</b> = op hoeveel onderdelen hij is beoordeeld. Alleen voorspellers met minstens {FULL_PARTS} van de {COMPONENTS.length} onderdelen staan in de ranglijst: wie alleen wind levert, scoort anders makkelijk hoog.</li>
                 <li><b>Gedeeltelijke voorspellers</b> (alleen wind, alleen golf, …) staan eronder, met naast hun score die van NzSurf op precies dezelfde onderdelen. Groen = NzSurf minstens zo goed.</li>
-                <li><b>n</b> = aantal beoordeelde momenten. Minder dan {MIN_N}: geen rang, onderaan en vaag.</li>
+                <li><b>n</b> = aantal beoordeelde momenten. Minder dan {RANK_MIN_N} momenten of minder dan {RANK_MIN_DAYS} ophaaldagen: geen rang, onderaan en vaag.</li>
+                <li><b>NzSurf v2 (live, in de app)</b> = wat de app werkelijk liet zien (eigen kans), vastgelegd sinds 28 oktober. <b>NzSurf v2 (nagerekend)</b> = achteraf berekend met dezelfde regels, beoordeeld met de boeiregel; die gaat terug tot het begin van de audit.</li>
                 <li>Windhoek telt niet mee in de totaalscore (zelfde informatie als windrichting). Open-Meteo best match telt niet als aparte stem (kopie van Météo-France en KNMI).</li>
                 <li>Let op: elke voorspeller wordt hier op zíjn uren beoordeeld. De eerlijke vergelijking op dezelfde uren als NzSurf, met onzekerheidsmarge, staat in het rapport.</li>
                 <li>Met "Vooruitkijktijd" bovenaan zie je de stand voor bijvoorbeeld alleen verwachtingen van 3 dagen vooruit.</li>
@@ -435,8 +443,8 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
             {perComponent.length ? (
               <ol className="space-y-1">
                 {perComponent.map((r, i) => (
-                  <li key={r.source} className={cn('flex items-center gap-2 rounded-lg px-2 py-1 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-white border border-slate-100', r.n < MIN_N && 'opacity-60')}>
-                    <span className="w-6 text-right font-bold">{r.n < MIN_N ? '–' : `${i + 1}.`}</span>
+                  <li key={r.source} className={cn('flex items-center gap-2 rounded-lg px-2 py-1 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-white border border-slate-100', !enough(r) && 'opacity-60')}>
+                    <span className="w-6 text-right font-bold">{!enough(r) ? '–' : `${i + 1}.`}</span>
                     <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
                     <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${r.pct}%` }} /></div>
                     <span className="tabular-nums font-bold w-10 text-right">{r.pct}%</span>

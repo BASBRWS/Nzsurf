@@ -119,9 +119,10 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
   const sources = useMemo(() => {
     const m = new Map<string, { label: string; kind: string }>();
     // v2 is het live algoritme; v1 blijft in de audit als vast vergelijkingspunt.
-    const labelFor = (f: AuditForecastDoc) => f.kind === 'nzsurf' ? 'NzSurf v1 (basis)' : f.source === V2_SOURCE ? 'NzSurf v2 (live in de app)' : f.label;
+    // "nagerekend" = achteraf berekend met de v2-regels (boeiregel); "live" = wat de app echt liet zien (eigen kans).
+    const labelFor = (f: AuditForecastDoc) => f.kind === 'nzsurf' ? 'NzSurf v1 (basis)' : f.source === V2_SOURCE ? 'NzSurf v2 (nagerekend)' : f.source === 'nzsurf-v2-live' ? 'NzSurf v2 (live, in de app)' : f.label;
     (forecasts || []).forEach(f => m.set(f.source, { label: labelFor(f), kind: f.kind }));
-    const rank = (id: string, kind: string) => (id === V2_SOURCE ? 0 : kind === 'nzsurf' ? 1 : 2);
+    const rank = (id: string, kind: string) => (id === 'nzsurf-v2-live' ? 0 : id === V2_SOURCE ? 1 : kind === 'nzsurf' ? 2 : 3);
     return [...m.entries()].sort((a, b) => rank(a[0], a[1].kind) - rank(b[0], b[1].kind) || a[1].label.localeCompare(b[1].label));
   }, [forecasts]);
 
