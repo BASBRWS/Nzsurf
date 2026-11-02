@@ -170,7 +170,7 @@ async function main() {
     }
 
     const send = async (o: { subject: string; text: string; html: string; ics: string; method: 'REQUEST' | 'CANCEL' }) => {
-      if (DRY_RUN) { dryLog.push(`${o.method === 'CANCEL' ? 'ANNULEER' : 'UITNODIG'} ${user.email?.replace(/^(.).*@/, '$1…@')}: ${o.subject}`); throw new Error('dry-run'); }
+      if (DRY_RUN) { dryLog.push(`${o.method === 'CANCEL' ? 'ANNULEER' : 'UITNODIG'} ${user.email?.replace(/^(.).*@/, '$1…@')}: ${o.subject} — ${o.text.slice(0, 90)}`); throw new Error('dry-run'); }
       await transporter.sendMail({
         from: { name: fromName, address: senderAddress },
         sender: senderAddress,
@@ -230,6 +230,7 @@ async function main() {
       const a = d.data() as { spotId: string; spotName?: string; dateStr: string; cancelledAt?: string | null; sequence?: number; start?: string; end?: string; summary?: string; score?: number };
       if (a.cancelledAt || a.dateStr < today) continue;
       if (a.start && Date.parse(a.start) < Date.now()) continue;   // al begonnen: laten staan
+      if (!a.start && a.dateStr === today) continue;               // oude afspraak zonder tijd: vandaag niet meer annuleren
       // Andere favoriete spot dan toen: die afspraak hoort niet meer bij deze verwachting.
       const now = a.spotId === spot.id ? byDate.get(a.dateStr) : undefined;
       const worse = a.spotId !== spot.id || !now || now.ratingScore < CANCEL_THRESHOLD;
