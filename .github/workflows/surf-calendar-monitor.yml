@@ -9,7 +9,12 @@ name: Surf agenda-monitor
 on:
   schedule:
     - cron: "0 5,16 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Alleen tonen wat er zou gebeuren (geen mail, niets opslaan)"
+        type: boolean
+        default: false
 
 # Voorkom dat twee runs tegelijk mailen.
 concurrency:
@@ -41,3 +46,4 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MONITOR_DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
