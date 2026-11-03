@@ -1,0 +1,9 @@
+{
+  "name": "nzs-apk-updater",
+  "version": "0.1.0",
+  "description": "NzSurf: nieuwe APK downloaden en de installatie starten vanuit de app (Android).",
+  "private": true,
+  "main": "index.js",
+  "capacitor": { "android": { "src": "android" } },
+  "peerDependencies": { "@capacitor/core": ">=7.0.0" }
+}

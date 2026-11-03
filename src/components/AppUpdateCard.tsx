@@ -1,17 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Download, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { openExternalUrl } from '../utils/calendarUtils';
 
 /**
  * Update-knop in de app: vergelijkt het buildnummer van deze APK met de nieuwste
- * build (release `latest-build`) en downloadt de nieuwste APK direct.
- * Na het downloaden tikt de gebruiker op de melding om te installeren; de app
- * wordt bijgewerkt en alle gegevens blijven staan (zelfde ondertekening).
+ * build (release `latest-build`), downloadt de APK in de app zelf en opent het
+ * installatiescherm van Android. Alle gegevens blijven staan (zelfde ondertekening).
+ * Terugval: downloaden via de browser.
  */
 const APK_URL = 'https://github.com/BASBRWS/Nzsurf/releases/download/latest-build/nzsurf-latest.apk';
 const RELEASE_API = 'https://api.github.com/repos/BASBRWS/Nzsurf/releases/tags/latest-build';
 const CURRENT_BUILD = Number(import.meta.env.VITE_BUILD_NUMBER) || null;
+
+// Eigen plugin (plugins/nzs-apk-updater): downloaden in de app en het installatiescherm openen.
+interface ApkUpdaterPlugin {
+  canInstall(): Promise<{ allowed: boolean }>;
+  openInstallSettings(): Promise<void>;
+  downloadAndInstall(o: { url: string }): Promise<{ bytes: number }>;
+  addListener(ev: 'progress', fn: (p: { pct: number; bytes: number }) => void): Promise<{ remove: () => void }>;
+}
+const ApkUpdater = registerPlugin<ApkUpdaterPlugin>('ApkUpdater');
 
 type Latest = { build: number | null; date: string | null };
 
@@ -28,6 +37,26 @@ export function AppUpdateCard() {
   const [latest, setLatest] = useState<Latest | null>(null);
   const [state, setState] = useState<'idle' | 'checking' | 'error'>('idle');
   const [started, setStarted] = useState(false);
+  const [dl, setDl] = useState<{ pct?: number; msg?: string; busy: boolean; needPermission?: boolean }>({ busy: false });
+
+  const update = async () => {
+    setStarted(false);
+    try {
+      const { allowed } = await ApkUpdater.canInstall();
+      if (!allowed) { setDl({ busy: false, needPermission: true }); return; }
+    } catch {
+      // Oude APK zonder de plugin: via de browser zoals vroeger.
+      openExternalUrl(APK_URL); setStarted(true); return;
+    }
+    setDl({ busy: true, pct: 0, msg: 'Downloaden…' });
+    const sub = await ApkUpdater.addListener('progress', p => setDl(d => ({ ...d, pct: p.pct })));
+    try {
+      await ApkUpdater.downloadAndInstall({ url: APK_URL });
+      setDl({ busy: false, msg: 'Kies in het scherm van Android "Bijwerken". Je gegevens blijven staan.' });
+    } catch (e) {
+      setDl({ busy: false, msg: `${e instanceof Error ? e.message : e}. Probeer het opnieuw, of download via de browser hieronder.` });
+    } finally { sub.remove(); }
+  };
 
   const check = () => {
     setState('checking');
@@ -57,11 +86,23 @@ export function AppUpdateCard() {
         ? <p className="text-xs text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Je hebt de nieuwste versie.</p>
         : newer === true && <p className="text-xs font-bold text-cyan-800">Er is een nieuwe versie beschikbaar.</p>}
       <button
-        onClick={() => { openExternalUrl(APK_URL); setStarted(true); }}
-        className={`w-full text-sm font-bold px-3 py-2.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer ${newer === false ? 'bg-white border border-slate-300 text-slate-800' : 'bg-slate-900 text-white'}`}
+        onClick={update} disabled={dl.busy}
+        className={`w-full text-sm font-bold px-3 py-2.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${newer === false ? 'bg-white border border-slate-300 text-slate-800' : 'bg-slate-900 text-white'}`}
       >
-        <Download className="w-4 h-4" /> {newer === false ? 'Toch opnieuw downloaden' : 'Download nieuwste versie'}
+        {dl.busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {dl.busy ? `Downloaden… ${dl.pct && dl.pct > 0 ? `${dl.pct}%` : ''}` : newer === false ? 'Toch opnieuw installeren' : 'Bijwerken'}
       </button>
+      {dl.busy && typeof dl.pct === 'number' && dl.pct >= 0 && (
+        <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden" aria-hidden="true"><div className="h-full bg-slate-900 transition-all" style={{ width: `${dl.pct}%` }} /></div>
+      )}
+      {dl.needPermission && (
+        <div className="text-[12px] text-slate-700 space-y-1.5">
+          <p>Android vraagt eenmalig toestemming om updates te installeren vanuit NzSurf. Zet "Toestaan uit deze bron" aan en tik daarna opnieuw op Bijwerken.</p>
+          <button onClick={() => { ApkUpdater.openInstallSettings(); setDl({ busy: false }); }} className="underline underline-offset-2 font-semibold cursor-pointer">Naar de instelling</button>
+        </div>
+      )}
+      {dl.msg && !dl.busy && <p className="text-[11px] text-slate-600">{dl.msg}</p>}
+      <button onClick={() => { openExternalUrl(APK_URL); setStarted(true); }} className="text-[11px] text-slate-500 underline underline-offset-2 cursor-pointer">Lukt het niet? Download via de browser</button>
       {started && (
         <p className="text-[11px] text-slate-600">
           De download start in je browser. Tik daarna op de melding "nzsurf-latest.apk" en kies <b>Bijwerken/Installeren</b>.
