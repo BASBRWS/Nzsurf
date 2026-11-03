@@ -198,10 +198,14 @@ async function collectSurfline(session: Session, runAt: Date, site: CollectSite)
   return `${tag}: ${points.length} punten`;
 }
 
-// ── surfnerd (ronde 1: alleen ruw opslaan) ──────────────────────────────────
+// ── surfnerd ──────────────────────────────────────────────────────────────
+const SURFNERD_VIA_SERVER = true;
 
 async function collectSurfnerd(session: Session, runAt: Date, site: CollectSite): Promise<string> {
   const tag = `surfnerd${site.suffix ? ` ${site.name}` : ''}`;
+  // Sinds nov 2026 haalt de dagelijkse audit surfnerd zelf op (Markdown-pagina, geen
+  // Cloudflare); de app hoeft dat niet meer te doen.
+  if (SURFNERD_VIA_SERVER) return `${tag}: via de dagelijkse audit`;
   const html = await visitAndKeep(session, runAt, `surfnerd${site.suffix}`, `https://www.surfnerd.com/surf-forecast/${site.surfnerdSlug}`, 'html');
   if (!html) return `${tag}: ophalen mislukt (zie auditRaw)`;
   if (/<title>Just a moment/i.test(html)) return `${tag}: Cloudflare-controle (geblokkeerd)`;

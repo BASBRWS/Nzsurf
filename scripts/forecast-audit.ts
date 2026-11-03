@@ -21,7 +21,7 @@ import { fetchForecast } from '../src/services/weatherService';
 import { chanceFactors, withAreaDefaults } from '../src/utils/spotKnowledge';
 import { applyV2WithCal, pickCalibration, type Cal } from '../src/services/v2Core';
 import { plausibleObs } from '../src/utils/forecastAudit';
-import { parseWompy } from '../src/utils/siteParsers';
+import { parseSurfnerdMarkdown, parseWompy } from '../src/utils/siteParsers';
 import { computeV2Calibration } from '../src/utils/forecastV2';
 import type { AuditForecastDoc, AuditObsDoc } from '../src/utils/forecastAudit';
 
@@ -30,15 +30,15 @@ import type { AuditForecastDoc, AuditObsDoc } from '../src/utils/forecastAudit';
 // de verwachtingen per spot. Documenten: <datum>_<bron><suffix>, spotId = spot.id.
 interface AuditSpotCfg {
   spot: SurfSpot; suffix: string;
-  windfinder: string; breakfinder?: string; seaforecast?: string; wompy?: string;
+  windfinder: string; breakfinder?: string; seaforecast?: string; wompy?: string; surfnerd?: string;
   stormglass: boolean; // gratis tegoed is klein: alleen voor Ouddorp
 }
 const AUDIT_SPOTS: AuditSpotCfg[] = [
   { spot: withAreaDefaults(DEFAULT_SPOTS.find(s => s.id === 'ouddorp-p-noordweg')!), suffix: '',
-    windfinder: 'ouddorp', breakfinder: 'ouddorp', seaforecast: 'netherlands/ouddorp', wompy: 'ouddorp', stormglass: true },
+    windfinder: 'ouddorp', breakfinder: 'ouddorp', seaforecast: 'netherlands/ouddorp', wompy: 'ouddorp', surfnerd: 'ouddorp', stormglass: true },
   // Maasvlakte: rekenpunt bij de reddingspost met de webcam (surfnerd P5 / Surfline Slufter), niet bij P6.
   { spot: withAreaDefaults({ ...toSurfSpot(SPOT_CATALOG.find(s => s.id === 'maasvlakte')!), name: 'Maasvlakte (reddingspost)', lat: 51.9292, lng: 3.9766 }), suffix: '_maasvlakte',
-    windfinder: 'maasvlakte', breakfinder: 'maasvlakte', wompy: 'maasvlakte', stormglass: false },
+    windfinder: 'maasvlakte', breakfinder: 'maasvlakte', wompy: 'maasvlakte', surfnerd: 'maasvlakte-p5', stormglass: false },
 ];
 const SPOT = AUDIT_SPOTS[0].spot; // metingen en log
 const HORIZON_HOURS = 7 * 24;
@@ -238,6 +238,14 @@ async function getHtml(url: string): Promise<string> {
   return res.text();
 }
 const unescapeHtml = (t: string) => t.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+// surfnerd: sinds nov 2026 een Markdown-versie van de spotpagina (geen Cloudflare-blokkade).
+async function collectSurfnerd(slug: string): Promise<SourceResult> {
+  const res = await fetch(`https://www.surfnerd.com/surf-forecast/${slug}.md`, { headers: { 'User-Agent': UA, Accept: 'text/markdown,text/plain' }, signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} surfnerd ${slug}`);
+  const points = parseSurfnerdMarkdown(await res.text(), runAt).filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
+  return { source: 'surfnerd', label: 'surfnerd (SN Unity)', kind: 'site', points, note: 'Markdown-pagina (gratis: 3 dagen); golfhoogte = dominante golf' };
+}
 
 // Windfinder (Astro-props: "fcData":[0,{"wd":[0,186.37],"ws":[0,8.68],...,"dt":[0,"2026-10-13T00:00:00Z"]}])
 async function collectWindfinder(url: string, source: string, label: string): Promise<SourceResult> {
@@ -496,6 +504,7 @@ async function main() {
       ...(cfg.breakfinder ? [['breakfinder', () => collectBreakfinder(cfg.breakfinder!)] as [string, () => Promise<SourceResult>]] : []),
       ...(cfg.seaforecast ? [['seaforecast', () => collectSeaForecast(cfg.seaforecast!)] as [string, () => Promise<SourceResult>]] : []),
       ...(cfg.wompy ? [['wompy', () => collectWompy(cfg.wompy!)] as [string, () => Promise<SourceResult>]] : []),
+      ...(cfg.surfnerd ? [['surfnerd', () => collectSurfnerd(cfg.surfnerd!)] as [string, () => Promise<SourceResult>]] : []),
     ];
     const todo: typeof SOURCES = [];
     for (const entry of SOURCES) {

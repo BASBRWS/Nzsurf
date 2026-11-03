@@ -114,6 +114,59 @@ export function htmlToText(html: string): string {
     .replace(/\s+/g, ' ');
 }
 
+// ── surfnerd als Markdown (sinds nov 2026: https://www.surfnerd.com/surf-forecast/<spot>.md) ──
+// Per dag "### Tue 03/11" en een tabel per uur met kolomkoppen. Waarden als "1.3 m (4.4 ft)",
+// "6.9 s", "N (352°)", "34 km/h (21 mph)". Tijden lokaal (Europe/Amsterdam). Golfhoogte = de
+// dominante golf, zoals in de oude pagina; vrij: 3 dagen.
+
+/** UTC-tijd voor een lokale tijd in een tijdzone (zonder bibliotheek). */
+export function zonedToUtc(y: number, mo: number, d: number, h: number, mi: number, tz: string): Date {
+  const guess = Date.UTC(y, mo, d, h, mi);
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(new Date(guess)).reduce<Record<string, number>>((a, p) => (p.type !== 'literal' ? { ...a, [p.type]: Number(p.value) } : a), {});
+  const asLocal = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+  return new Date(guess - (asLocal - guess));
+}
+
+export function parseSurfnerdMarkdown(md: string, runAt: Date): AuditPoint[] {
+  const tz = md.match(/^timezone:\s*"?([^"\n]+)"?/m)?.[1]?.trim() || 'Europe/Amsterdam';
+  const num = (v?: string) => { const m = v?.match(/-?\d+(?:\.\d+)?/); return m ? Number(m[0]) : undefined; };
+  const deg = (v?: string) => { const m = v?.match(/\((\d+(?:\.\d+)?)°\)/); return m ? Number(m[1]) : undefined; };
+  const kmh = (v?: string) => { const n = num(v); return n === undefined ? undefined : /km\/h/.test(v!) ? n / 1.852 : /mph/.test(v!) ? n * 0.868976 : /m\/s/.test(v!) ? n * 1.943844 : n; };
+  const meters = (v?: string) => { const n = num(v); return n === undefined ? undefined : /\bft\b/.test(v!.split('(')[0]) ? n * 0.3048 : n; };
+  const points: AuditPoint[] = [];
+  let day: { d: number; m: number } | null = null;
+  let cols: string[] = [];
+  for (const line of md.split('\n')) {
+    const h = line.match(/^###\s+\w{2,3}\s+(\d{1,2})\/(\d{1,2})\s*$/);
+    if (h) { day = { d: Number(h[1]), m: Number(h[2]) - 1 }; cols = []; continue; }
+    if (!line.startsWith('|')) continue;
+    const cells = line.split('|').slice(1, -1).map(c => c.trim());
+    if (cells[0] === 'Time') { cols = cells.map(c => c.toLowerCase()); continue; }
+    if (!day || !cols.length || /^-+$/.test(cells[0])) continue;
+    const tm = cells[0].match(/^(\d{1,2}):(\d{2})$/); if (!tm) continue;
+    const get = (name: string) => { const i = cols.indexOf(name); return i < 0 ? undefined : cells[i] === '-' ? undefined : cells[i]; };
+    // Jaar: rond het ophaalmoment (jaarwissel).
+    let y = runAt.getUTCFullYear();
+    if (day.m === 0 && runAt.getUTCMonth() === 11) y++;
+    const t = zonedToUtc(y, day.m, day.d, Number(tm[1]), Number(tm[2]), tz);
+    const energies = cols.map((c, i) => (c.endsWith(' energy') && c !== 'dominant wave energy' ? num(cells[i]) : undefined)).filter((x): x is number => typeof x === 'number');
+    points.push(Object.fromEntries(Object.entries({
+      t: t.toISOString(),
+      lead: Math.round((t.getTime() - runAt.getTime()) / 3600e3),
+      hs: round(meters(get('dominant wave height'))),
+      tp: round(num(get('dominant wave period')), 1),
+      dir: round(deg(get('dominant wave direction')), 0),
+      windKn: round(kmh(get('wind speed')), 1),
+      windDir: round(deg(get('wind direction')), 0),
+      gustKn: round(kmh(get('wind gusts')), 1),
+      energyKj: energies.length ? Math.round(energies.reduce((a, b) => a + b, 0)) : undefined,
+      rating: get('quality'),
+    }).filter(([, v]) => v !== undefined)) as unknown as AuditPoint);
+  }
+  return points;
+}
+
 export function parseSurfnerd(html: string, runAt: Date): AuditPoint[] {
   const text = htmlToText(html);
   const head = text.search(/Energy\s*kJ/i);
