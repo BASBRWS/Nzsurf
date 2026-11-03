@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application>
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="nl.nzsurf.apkupdater.UpdateFileProvider"
             android:authorities="${applicationId}.nzsupdate"
             android:exported="false"
             android:grantUriPermissions="true">
