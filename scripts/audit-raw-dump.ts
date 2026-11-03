@@ -3,7 +3,7 @@
 // Alleen lezen. Draaien via de workflow "Audit: ruwe opnames bekijken".
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { parseSurfline, parseSurfnerd } from '../src/utils/siteParsers';
+import { htmlToText, parseSurfline, parseSurfnerd } from '../src/utils/siteParsers';
 
 const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
 if (!sa) throw new Error('Ontbrekende env-var: FIREBASE_SERVICE_ACCOUNT');
@@ -213,7 +213,17 @@ async function main() {
     if (pts.length > 4) console.log('    …', JSON.stringify(pts[pts.length - 1]));
   };
   const nerd = day.find(x => x.name === 'surfnerd');
-  if (nerd?.body) show('surfnerd', parseSurfnerd(nerd.body, runAtOf('surfnerd')));
+  if (nerd?.body) {
+    show('surfnerd', parseSurfnerd(nerd.body, runAtOf('surfnerd')));
+    // Diagnose als melding (logs zijn niet altijd leesbaar): wat staat er rond de tabel?
+    const txt = htmlToText(nerd.body);
+    const at = (re: RegExp) => { const i = txt.search(re); return i < 0 ? '–' : JSON.stringify(txt.slice(Math.max(0, i - 150), i + 450)).replace(/%/g, '%25'); };
+    const title = nerd.body.match(/<title>([^<]*)/i)?.[1] || '-';
+    console.log(`::notice title=surfnerd ${date}::titel: ${title} | ${txt.length} tekens | Energy: ${txt.search(/Energy/i)} | kJ: ${txt.search(/kJ/)} | punten: ${parseSurfnerd(nerd.body, runAtOf('surfnerd')).length}`);
+    console.log(`::notice title=surfnerd rond Energy::${at(/Energy/i)}`);
+    console.log(`::notice title=surfnerd rond Wind/Waves::${at(/Waves|Golven|Golf/i)}`);
+    console.log(`::notice title=surfnerd begin tekst::${JSON.stringify(txt.slice(0, 600)).replace(/%/g, '%25')}`);
+  }
   if (day.some(x => String(x.name).startsWith('surfline-'))) {
     show('Surfline', parseSurfline({ wave: json('surfline-wave'), swells: json('surfline-swells'), surf: json('surfline-surf'),
       wind: json('surfline-wind'), rating: json('surfline-rating') }, runAtOf('surfline-wind')));
