@@ -185,7 +185,10 @@ async function main() {
     const res = await fetch(want, { headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', 'Accept-Language': 'nl,en' }, signal: AbortSignal.timeout(30000) });
     const body = await res.text();
     console.log(`${want} → HTTP ${res.status}, ${body.length} tekens, ${res.headers.get('content-type')}`);
-    console.log(`::notice title=URL ${res.status}::${JSON.stringify(body.slice(0, 2500)).replace(/%/g, '%25')}`);
+    const ti = Math.max(0, body.indexOf('| Time |'));
+    console.log(`::notice title=URL ${res.status}::${JSON.stringify(body.slice(ti, ti + 3000)).replace(/%/g, '%25')}`);
+    const t2 = body.lastIndexOf('### ');
+    console.log(`::notice title=URL einde::${JSON.stringify(body.slice(t2, t2 + 1500)).replace(/%/g, '%25')} | lengte ${body.length}`);
     if (/^\s*[\[{]/.test(body)) describeJson(want, body); else describeHtml(body);
     return;
   }
