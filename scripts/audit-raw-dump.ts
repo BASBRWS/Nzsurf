@@ -185,6 +185,7 @@ async function main() {
     const res = await fetch(want, { headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36', 'Accept-Language': 'nl,en' }, signal: AbortSignal.timeout(30000) });
     const body = await res.text();
     console.log(`${want} → HTTP ${res.status}, ${body.length} tekens, ${res.headers.get('content-type')}`);
+    console.log(`::notice title=URL ${res.status}::${JSON.stringify(body.slice(0, 2500)).replace(/%/g, '%25')}`);
     if (/^\s*[\[{]/.test(body)) describeJson(want, body); else describeHtml(body);
     return;
   }
@@ -222,6 +223,8 @@ async function main() {
     console.log(`::notice title=surfnerd ${date}::titel: ${title} | ${txt.length} tekens | Energy: ${txt.search(/Energy/i)} | kJ: ${txt.search(/kJ/)} | punten: ${parseSurfnerd(nerd.body, runAtOf('surfnerd')).length}`);
     console.log(`::notice title=surfnerd rond Energy::${at(/Energy/i)}`);
     console.log(`::notice title=surfnerd rond Wind/Waves::${at(/Waves|Golven|Golf/i)}`);
+    const rowAt = txt.search(/\b\d{1,2} \w+ 20\d\d 0?0:00/);
+    console.log(`::notice title=surfnerd rijen::${rowAt < 0 ? '–' : JSON.stringify(txt.slice(rowAt, rowAt + 2500)).replace(/%/g, '%25')}`);
     console.log(`::notice title=surfnerd begin tekst::${JSON.stringify(txt.slice(0, 600)).replace(/%/g, '%25')}`);
   }
   if (day.some(x => String(x.name).startsWith('surfline-'))) {
