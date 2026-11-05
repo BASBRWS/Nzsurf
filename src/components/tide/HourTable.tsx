@@ -49,12 +49,16 @@ export const HourTable: React.FC<Props> = ({ spot, forecasts, plans, chance, per
 
   const plan = plans[sel];
   const now = new Date();
+  // Interval van de kolommen: elk uur, of elke 3 uur (06, 09, …) voor een rustiger overzicht.
+  const [step, setStep] = useState<1 | 3>(() => { try { return localStorage.getItem('nzs_hour_step') === '3' ? 3 : 1; } catch { return 1; } });
+  const pickStep = (v: 1 | 3) => { setStep(v); try { localStorage.setItem('nzs_hour_step', String(v)); } catch { /* geen opslag */ } };
   const isToday = plan ? isSameDay(plan.day, now) : false;
 
   // Alle daglichturen van de gekozen dag (ook al voorbij bij vandaag: dan zie je de hele dag).
   const items = useMemo(() => !plan ? [] : forecasts
-    .filter(f => isSameDay(parseISO(f.timestamp), plan.day) && hourOf(f) >= 6 && hourOf(f) <= 21 && f.isDaylight !== false)
-    .sort((a, b) => a.timestamp.localeCompare(b.timestamp)), [forecasts, plan]);
+    .filter(f => isSameDay(parseISO(f.timestamp), plan.day) && hourOf(f) >= 6 && hourOf(f) <= 21 && f.isDaylight !== false
+      && (step === 1 || Math.round(hourOf(f)) % 3 === 0))
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp)), [forecasts, plan, step]);
   const rows = useMemo(() => items.map(f => {
     const c = computeSurfChance(spot, f);
     return { f, k: chance(f), beach: c.spotWave };
@@ -69,7 +73,7 @@ export const HourTable: React.FC<Props> = ({ spot, forecasts, plans, chance, per
     const el = scroller.current; if (!el) return;
     const target = nowIdx >= 0 ? nowIdx : Math.max(0, rows.findIndex(r => r.k >= OK));
     el.scrollTo({ left: Math.max(0, (target - 1) * COL), behavior: 'smooth' });
-  }, [sel, rows.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sel, rows.length, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Getijlijn: tideLevel 0 (laag) – 1 (hoog) per kolom; HW/LW uit dayTideTurns als die er zijn.
   const tideH = 56;
@@ -135,6 +139,16 @@ export const HourTable: React.FC<Props> = ({ spot, forecasts, plans, chance, per
           {reasonSentence(spot, plan.peak)}
         </p>
       )}
+
+      {/* Interval */}
+      <div role="radiogroup" aria-label="Interval" className="mt-4 inline-flex rounded-full border border-[color:var(--tide-line)] p-0.5">
+        {([1, 3] as const).map(v => (
+          <button key={v} role="radio" aria-checked={step === v} onClick={() => pickStep(v)}
+            className={`min-h-[36px] px-3.5 rounded-full text-[13px] cursor-pointer ${step === v ? 'bg-[color:var(--tide-ink)] text-[color:var(--tide-sand)] font-semibold' : 'text-[color:var(--tide-sea)]'}`}>
+            {v === 1 ? 'Per uur' : 'Per 3 uur'}
+          </button>
+        ))}
+      </div>
 
       {/* Uren */}
       {rows.length ? (

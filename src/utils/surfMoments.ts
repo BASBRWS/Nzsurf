@@ -2,6 +2,7 @@ import { parseISO, format, isSameDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { ForecastData, SurfSpot } from '../types';
 import { computeSurfChance, degreesToCompass16, tideLevelLabel } from './spotKnowledge';
+import { FORECAST_STEP_MS } from './forecastStep';
 
 /**
  * Hulpfuncties voor de beginpagina: "kan ik nu surfen?" en "wanneer wel?".
@@ -98,7 +99,7 @@ export interface SurfWindow {
   items: ForecastData[];
 }
 
-const STEP_MS = 3 * 3600 * 1000; // de verwachting is per 3 uur
+const STEP_MS = FORECAST_STEP_MS; // afstand tussen twee verwachtingspunten
 
 /**
  * Aaneengesloten daglichtblokken vanaf nu met kans >= minChance.
@@ -119,7 +120,7 @@ export function findWindows(spot: SurfSpot, forecast: ForecastData[], now: Date 
     const peakIdx = chances.indexOf(Math.max(...chances));
     const start = parseISO(cur[0].timestamp);
     const lastStart = parseISO(cur[cur.length - 1].timestamp);
-    // Eind: blok + 3 uur, maar niet over de dag heen (max 21:00).
+    // Eind: laatste punt + één stap, maar niet over de dag heen (max 21:00).
     const dayEnd = new Date(lastStart); dayEnd.setHours(21, 0, 0, 0);
     const end = new Date(Math.min(lastStart.getTime() + STEP_MS, dayEnd.getTime()));
     windows.push({ start, end, peak: cur[peakIdx], peakChance: chances[peakIdx], items: cur });

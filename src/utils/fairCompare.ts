@@ -35,6 +35,23 @@ export function isDailyPoint(source: string, p: AuditPoint): boolean {
 export const DAILY_SOURCES = new Set(['wompy', 'secretswell']);
 
 /** Eigen stap van een bron in uren (1, 3, 6), uit de afstand tussen opeenvolgende punten. */
+/** Stap per ophaalronde (bron|runDate): een bron kan van stap wisselen (NzSurf: 3 → 1 uur in nov 2026). */
+export function docSteps(docs: AuditForecastDoc[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const d of docs) {
+    const ts = (d.points || []).filter(p => !isDailyPoint(d.source, p)).map(p => Date.parse(p.t)).sort((a, b) => a - b);
+    const g: number[] = [];
+    for (let i = 1; i < ts.length; i++) { const h = Math.round((ts[i] - ts[i - 1]) / 3600e3); if (h >= 1 && h <= 24) g.push(h); }
+    if (!g.length) continue;
+    g.sort((a, b) => a - b);
+    const med = g[Math.floor(g.length / 2)];
+    const st = med <= 1 ? 1 : med <= 3 ? 3 : med <= 6 ? 6 : 24;
+    const k = `${d.source}|${d.runDate}`;
+    out.set(k, Math.max(out.get(k) ?? 1, st)); // grofste stap van die dag: veilig
+  }
+  return out;
+}
+
 export function nativeSteps(docs: AuditForecastDoc[]): Map<string, number> {
   const gaps = new Map<string, number[]>();
   for (const d of docs) {
@@ -130,6 +147,11 @@ function missingLead(docs: AuditForecastDoc[], present: Set<string>, other: Set<
   return [...all].filter(s => !present.has(s) && !other.has(s)).map(s => ({ source: s, label: label(s), reason: `geen verwachting voor dag ${leadDay}` }));
 }
 
+/** Fijnste stap van een bron die in dit raster past (voor het label). */
+function stepUsed(dSteps: Map<string, number>, source: string, raster: number, steps: Map<string, number>) {
+  const fit = [...dSteps].filter(([k, v]) => k.startsWith(source + '|') && raster % v === 0).map(([, v]) => v);
+  return fit.length ? Math.min(...fit) : steps.get(source) ?? 1;
+}
 function labelsOf(docs: AuditForecastDoc[]) { const m = new Map<string, string>(); for (const d of docs) m.set(d.source, d.label); return m; }
 /**
  * Eén referentie wordt beschermd (v2 live, v2 nagerekend of v1). Per kandidaat wordt de set
@@ -151,6 +173,8 @@ const r2 = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 /** Variabelen (golfhoogte, periode, wind, …): gemiddelde afwijking op dezelfde momenten. */
 export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { param: AuditParam; leadDay: number; raster: Raster; refs: string[]; labelOf?: (s: string) => string }): FairTable {
   const steps = nativeSteps(docs);
+  const dSteps = docSteps(docs);
+  const fitted = new Set<string>();
   const labels = labelsOf(docs);
   const label = (s: string) => o.labelOf?.(s) ?? labels.get(s) ?? s;
   const dailyKeys = new Set<string>();
@@ -160,8 +184,9 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
   for (const p of pairs) {
     if (p.param !== o.param || NOT_RANKED_SOURCES.has(p.source)) continue;
     if (dailyKeys.has(`${p.source}|${p.runDate}|${p.t.slice(0, 13)}`)) continue; // dagoordeel: niet bij punten
-    const step = steps.get(p.source) ?? 1;
+    const step = dSteps.get(`${p.source}|${p.runDate}`) ?? steps.get(p.source) ?? 1;
     if (o.raster % step !== 0) { notInRaster.add(p.source); continue; }
+    fitted.add(p.source);
     const t = Date.parse(p.t);
     if (leadDayOf(p.lead) !== o.leadDay) continue;
     const b = blockOf(t, o.raster);
@@ -175,7 +200,7 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
   const ref = pickRef(included, o.refs);
   const rows: FairRow[] = included.map(s => {
     const errs = keys.map(k => series.get(s)!.get(k)!.v);
-    const row: FairRow = { source: s, label: label(s), step: steps.get(s) ?? 1, value: r2(mae(s, keys)), bias: r2(errs.reduce((a, b) => a + b, 0) / errs.length), offset: r2(keys.reduce((a, k) => a + series.get(s)!.get(k)!.offset, 0) / keys.length, 1) };
+    const row: FairRow = { source: s, label: label(s), step: stepUsed(dSteps, s, o.raster, steps), value: r2(mae(s, keys)), bias: r2(errs.reduce((a, b) => a + b, 0) / errs.length), offset: r2(keys.reduce((a, k) => a + series.get(s)!.get(k)!.offset, 0) / keys.length, 1) };
     if (ref && s !== ref) {
       row.delta = r2(row.value - mae(ref, keys));
       const ci = bootstrapDelta(keys, k => [Math.abs(series.get(s)!.get(k)!.v), Math.abs(series.get(ref)!.get(k)!.v)], ps => ps.reduce((a, [x, y]) => a + x - y, 0) / ps.length);
@@ -187,7 +212,7 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
     moments: keys.length, days, raster: o.raster, leadDay: o.leadDay, rows, ref, higherIsBetter: false,
     dropped: [
       ...dropped.map(d => ({ source: d.source, label: label(d.source), reason: `te weinig gezamenlijke momenten met de rest (${d.overlap})` })),
-      ...[...notInRaster].map(s => ({ source: s, label: label(s), reason: `eigen stap ${steps.get(s)} uur past niet in dit raster` })),
+      ...[...notInRaster].filter(x => !fitted.has(x)).map(s => ({ source: s, label: label(s), reason: `eigen stap ${steps.get(s)} uur past niet in dit raster` })),
       ...missingLead(docs, new Set(series.keys()), notInRaster, o.leadDay, label),
     ],
   };
@@ -196,6 +221,8 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
 /** Te surfen?: gebalanceerde score (gemiddelde van gevangen en terecht nee) op dezelfde momenten. */
 export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn: TruthFn, o: { leadDay: number; raster: Raster; refs: string[]; labelOf?: (s: string) => string }): FairTable {
   const steps = nativeSteps(docs);
+  const dSteps = docSteps(docs);
+  const fitted = new Set<string>();
   const labels = labelsOf(docs);
   const label = (s: string) => o.labelOf?.(s) ?? labels.get(s) ?? s;
   const series: Series<boolean> = new Map();
@@ -203,7 +230,8 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
   const noVerdict = new Set<string>();
   for (const d of docs) {
     if (NOT_RANKED_SOURCES.has(d.source)) continue;
-    const step = steps.get(d.source) ?? 1;
+    const step = dSteps.get(`${d.source}|${d.runDate}`) ?? steps.get(d.source) ?? 1;
+    if (o.raster % step === 0) fitted.add(d.source);
     for (const p of d.points || []) {
       if (isDailyPoint(d.source, p)) continue;
       if (o.raster % step !== 0) { notInRaster.add(d.source); continue; }
@@ -232,7 +260,7 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
   const ref = pickRef(included, o.refs);
   const rows: FairRow[] = included.map(s => {
     const sc = score(s, keys);
-    const row: FairRow = { source: s, label: label(s), step: steps.get(s) ?? 1, value: Math.round(100 * sc.bal), caught: Math.round(100 * sc.rec), rightNo: Math.round(100 * sc.spec), saysYes: Math.round(100 * sc.yes), offset: r2(keys.reduce((a, k) => a + series.get(s)!.get(k)!.offset, 0) / keys.length, 1) };
+    const row: FairRow = { source: s, label: label(s), step: stepUsed(dSteps, s, o.raster, steps), value: Math.round(100 * sc.bal), caught: Math.round(100 * sc.rec), rightNo: Math.round(100 * sc.spec), saysYes: Math.round(100 * sc.yes), offset: r2(keys.reduce((a, k) => a + series.get(s)!.get(k)!.offset, 0) / keys.length, 1) };
     if (ref && s !== ref) {
       row.delta = row.value - Math.round(100 * score(ref, keys).bal);
       // Bootstrap op de gebalanceerde score: per steekproef beide scores opnieuw.
@@ -255,7 +283,7 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
     moments: keys.length, days, raster: o.raster, leadDay: o.leadDay, rows, ref, higherIsBetter: true,
     dropped: [
       ...dropped.map(d => ({ source: d.source, label: label(d.source), reason: `te weinig gezamenlijke momenten met de rest (${d.overlap})` })),
-      ...[...notInRaster].map(s => ({ source: s, label: label(s), reason: `eigen stap ${steps.get(s)} uur past niet in dit raster` })),
+      ...[...notInRaster].filter(x => !fitted.has(x)).map(s => ({ source: s, label: label(s), reason: `eigen stap ${steps.get(s)} uur past niet in dit raster` })),
       ...[...noVerdict].filter(s => !series.has(s) && !notInRaster.has(s)).map(s => ({ source: s, label: label(s), reason: 'geeft geen oordeel (onderdelen ontbreken, bv. alleen wind)' })),
       ...missingLead(docs, new Set([...series.keys(), ...noVerdict]), notInRaster, o.leadDay, label),
     ],
