@@ -54,10 +54,16 @@ export function nativeSteps(docs: AuditForecastDoc[]): Map<string, number> {
 }
 
 export const leadDayOf = (leadHours: number) => Math.max(1, Math.ceil(Math.max(leadHours, 0.01) / 24));
-const hourKey = (tMs: number) => new Date(Math.round(tMs / 3600e3) * 3600e3).toISOString().slice(0, 13);
-const localDay = (key: string) => new Date(`${key}:00:00Z`).toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' });
+// Blokken op Nederlandse tijd: raster 3 = 00–03, 03–06, … uur NL-tijd. NzSurf rekent in
+// 3-uursblokken op NL-tijd, de modellen in de audit op UTC-tijden; in hetzelfde blok liggen
+// die hooguit 1 uur (winter) of 2 uur (zomer) uit elkaar. Raster 1 = exact hetzelfde uur.
+const NL = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
+function nlParts(tMs: number) { const p = NL.formatToParts(new Date(tMs)).reduce<Record<string, string>>((a, x) => ({ ...a, [x.type]: x.value }), {}); return { day: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) }; }
+/** Sleutel van het blok (NL-dag + beginuur) en de afstand tot het begin van het blok (uren). */
+export function blockOf(tMs: number, raster: Raster) { const { day, hour } = nlParts(Math.round(tMs / 3600e3) * 3600e3); const start = Math.floor(hour / raster) * raster; return { key: `${day}T${String(start).padStart(2, '0')}`, offset: hour - start, hour }; }
+const localDay = (key: string) => key.slice(0, 10);
 
-interface Cell<T> { v: T; lead: number }
+interface Cell<T> { v: T; lead: number; offset: number; truth?: boolean }
 type Series<T> = Map<string, Map<string, Cell<T>>>; // bron → uur → waarde
 
 /** Kies de grootste set bronnen met genoeg gezamenlijke momenten (bron met de minste overlap valt eerst af). */
@@ -91,6 +97,7 @@ export function commonMoments<T>(series: Series<T>, extraOk: (key: string) => bo
 
 export interface FairRow {
   source: string; label: string; step: number;
+  offset?: number;          // gemiddeld aantal uren na het begin van het blok (0 = zelfde moment)
   value: number;            // MAE (variabelen) of gebalanceerde score in % (te surfen)
   bias?: number; caught?: number; rightNo?: number; saysYes?: number;
   delta?: number; lo?: number; hi?: number; // t.o.v. de referentie (zelfde momenten)
@@ -142,19 +149,19 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
     const step = steps.get(p.source) ?? 1;
     if (o.raster % step !== 0) { notInRaster.add(p.source); continue; }
     const t = Date.parse(p.t);
-    if (new Date(t).getUTCHours() % o.raster !== 0) continue;
     if (leadDayOf(p.lead) !== o.leadDay) continue;
-    const k = hourKey(t);
+    const b = blockOf(t, o.raster);
     const m = series.get(p.source) || series.set(p.source, new Map()).get(p.source)!;
-    const cur = m.get(k);
-    if (!cur || p.lead < cur.lead) m.set(k, { v: p.err, lead: p.lead }); // laatste ronde binnen deze dag
+    const cur = m.get(b.key);
+    // Per blok één waarde: zo dicht mogelijk bij het begin van het blok, dan de laatste ophaalronde.
+    if (!cur || b.offset < cur.offset || (b.offset === cur.offset && p.lead < cur.lead)) m.set(b.key, { v: p.err, lead: p.lead, offset: b.offset });
   }
   const { included, keys, days, dropped } = commonMoments(series, () => true, o.refs);
   const mae = (s: string, ks: string[]) => ks.reduce((a, k) => a + Math.abs(series.get(s)!.get(k)!.v), 0) / ks.length;
   const ref = pickRef(included, o.refs);
   const rows: FairRow[] = included.map(s => {
     const errs = keys.map(k => series.get(s)!.get(k)!.v);
-    const row: FairRow = { source: s, label: label(s), step: steps.get(s) ?? 1, value: r2(mae(s, keys)), bias: r2(errs.reduce((a, b) => a + b, 0) / errs.length) };
+    const row: FairRow = { source: s, label: label(s), step: steps.get(s) ?? 1, value: r2(mae(s, keys)), bias: r2(errs.reduce((a, b) => a + b, 0) / errs.length), offset: r2(keys.reduce((a, k) => a + series.get(s)!.get(k)!.offset, 0) / keys.length, 1) };
     if (ref && s !== ref) {
       row.delta = r2(row.value - mae(ref, keys));
       const ci = bootstrapDelta(keys, k => [Math.abs(series.get(s)!.get(k)!.v), Math.abs(series.get(ref)!.get(k)!.v)], ps => ps.reduce((a, [x, y]) => a + x - y, 0) / ps.length);
@@ -179,7 +186,7 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
   const label = (s: string) => o.labelOf?.(s) ?? labels.get(s) ?? s;
   const series: Series<boolean> = new Map();
   const notInRaster = new Set<string>();
-  const truth = new Map<string, boolean>();
+  const noVerdict = new Set<string>();
   for (const d of docs) {
     if (NOT_RANKED_SOURCES.has(d.source)) continue;
     const step = steps.get(d.source) ?? 1;
@@ -187,30 +194,29 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
       if (isDailyPoint(d.source, p)) continue;
       if (o.raster % step !== 0) { notInRaster.add(d.source); continue; }
       const t = Date.parse(p.t);
-      if (new Date(t).getUTCHours() % o.raster !== 0 || leadDayOf(p.lead) !== o.leadDay || p.lead <= 0) continue;
-      const h = new Date(t).toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/Amsterdam' });
-      if (Number(h) < 7 || Number(h) > 20) continue; // daglicht
+      if (leadDayOf(p.lead) !== o.leadDay || p.lead <= 0) continue;
+      const b = blockOf(t, o.raster);
+      if (b.hour < 7 || b.hour > 20) continue; // daglicht
       const ok = forecastVerdict(d.source, p, rule).ok;
-      if (ok === undefined) continue;
-      const k = hourKey(t);
-      if (!truth.has(k)) { const tr = truthFn(t, ''); if (tr !== undefined) truth.set(k, tr); } // één werkelijkheid voor iedereen
+      if (ok === undefined) { noVerdict.add(d.source); continue; }
+      const tr = truthFn(Math.round(t / 3600e3) * 3600e3, ''); // werkelijkheid op het uur van deze verwachting
+      if (tr === undefined) continue;
       const m = series.get(d.source) || series.set(d.source, new Map()).get(d.source)!;
-      const cur = m.get(k);
-      if (!cur || p.lead < cur.lead) m.set(k, { v: ok, lead: p.lead });
+      const cur = m.get(b.key);
+      if (!cur || b.offset < cur.offset || (b.offset === cur.offset && p.lead < cur.lead)) m.set(b.key, { v: ok, lead: p.lead, offset: b.offset, truth: tr });
     }
   }
-  // Beide klassen nodig (anders zegt "altijd nee" niets); die eis gaat over de gezamenlijke set.
-  const { included, keys, days, dropped } = commonMoments(series, k => truth.has(k), o.refs);
+  const { included, keys, days, dropped } = commonMoments(series, () => true, o.refs);
   const score = (s: string, ks: string[]) => {
     let tp = 0, fn = 0, tn = 0, fp = 0;
-    for (const k of ks) { const f = series.get(s)!.get(k)!.v, t = truth.get(k)!; if (t) { if (f) tp++; else fn++; } else { if (f) fp++; else tn++; } }
+    for (const k of ks) { const c = series.get(s)!.get(k)!, f = c.v, t = c.truth!; if (t) { if (f) tp++; else fn++; } else { if (f) fp++; else tn++; } }
     const rec = tp + fn ? tp / (tp + fn) : NaN, spec = tn + fp ? tn / (tn + fp) : NaN;
     return { bal: (rec + spec) / 2, rec, spec, yes: (tp + fp) / Math.max(1, ks.length) };
   };
   const ref = pickRef(included, o.refs);
   const rows: FairRow[] = included.map(s => {
     const sc = score(s, keys);
-    const row: FairRow = { source: s, label: label(s), step: steps.get(s) ?? 1, value: Math.round(100 * sc.bal), caught: Math.round(100 * sc.rec), rightNo: Math.round(100 * sc.spec), saysYes: Math.round(100 * sc.yes) };
+    const row: FairRow = { source: s, label: label(s), step: steps.get(s) ?? 1, value: Math.round(100 * sc.bal), caught: Math.round(100 * sc.rec), rightNo: Math.round(100 * sc.spec), saysYes: Math.round(100 * sc.yes), offset: r2(keys.reduce((a, k) => a + series.get(s)!.get(k)!.offset, 0) / keys.length, 1) };
     if (ref && s !== ref) {
       row.delta = row.value - Math.round(100 * score(ref, keys).bal);
       // Bootstrap op de gebalanceerde score: per steekproef beide scores opnieuw.
@@ -234,7 +240,8 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
     dropped: [
       ...dropped.map(d => ({ source: d.source, label: label(d.source), reason: `te weinig gezamenlijke momenten met de rest (${d.overlap})` })),
       ...[...notInRaster].map(s => ({ source: s, label: label(s), reason: `eigen stap ${steps.get(s)} uur past niet in dit raster` })),
-      ...missingLead(docs, new Set(series.keys()), notInRaster, o.leadDay, label),
+      ...[...noVerdict].filter(s => !series.has(s) && !notInRaster.has(s)).map(s => ({ source: s, label: label(s), reason: 'geeft geen oordeel (onderdelen ontbreken, bv. alleen wind)' })),
+      ...missingLead(docs, new Set([...series.keys(), ...noVerdict]), notInRaster, o.leadDay, label),
     ],
   };
 }
@@ -264,7 +271,7 @@ export function fairDailyTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn
       const v = e.ok.filter(Boolean).length > e.ok.length / 2;
       const m = series.get(d.source) || series.set(d.source, new Map()).get(d.source)!;
       const cur = m.get(day);
-      if (!cur || e.lead < cur.lead) m.set(day, { v, lead: e.lead });
+      if (!cur || e.lead < cur.lead) m.set(day, { v, lead: e.lead, offset: 0 });
       if (!truthDay.has(day)) {
         const base = Date.parse(`${day}T00:00:00Z`);
         let yes = 0, known = 0;

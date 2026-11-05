@@ -61,7 +61,7 @@ function fairTableHtml(t: FairTable, topic: Topic, unit: string): string {
   const d = topic === 'surf' ? 0 : decimals(topic);
   const v = (x: number) => (topic === 'surf' ? `${x}%` : nl(x, d));
   const dl = (x: number) => (topic === 'surf' ? `${x > 0 ? '+' : ''}${x}` : signed(x, d));
-  const rows = t.rows.map((r, i) => `<tr class="${isOurs(r.source) ? 'ours' : ''}"><td>${i + 1}</td><td>${esc(r.label)} <small>${r.step === 1 ? 'uur' : `${r.step} u`}</small></td><td>${v(r.value)}</td>${topic === 'surf'
+  const rows = t.rows.map((r, i) => `<tr class="${isOurs(r.source) ? 'ours' : ''}"><td>${i + 1}</td><td>${esc(r.label)} <small>${r.step === 1 ? 'uur' : `${r.step} u`}${t.raster > 1 && r.offset ? ` · +${nl(r.offset, 1)} u` : ''}</small></td><td>${v(r.value)}</td>${topic === 'surf'
     ? `<td>${r.caught ?? '–'}%</td><td>${r.rightNo ?? '–'}%</td>`
     : `<td>${r.bias !== undefined ? signed(r.bias, d) : '–'}</td>`}<td>${r.source === t.ref ? '<small>referentie</small>' : r.delta !== undefined ? `<b>${dl(r.delta)}</b>${r.lo !== undefined && r.hi !== undefined ? ` <small>(${dl(r.lo)} – ${dl(r.hi)})</small>` : ''}` : '–'}</td></tr>`).join('');
   const head = topic === 'surf' ? '<th>Score</th><th>Gevangen</th><th>Terecht nee</th>' : `<th>Afwijking (${esc(unit)})</th><th>Bias</th>`;
@@ -168,7 +168,7 @@ ${daily.map(t => t.rows.length ? `<p class="meta"><b>Dag ${t.leadDay}</b> · ${t
 <p class="meta">${days} ophaaldagen · meting: ${esc(spot.buoyNote)}</p>
 <div class="sum"><p class="meta" style="margin:4px 0">Dag 1, raster elke ${REPORT_RASTER} uur, alle bronnen per regel op dezelfde momenten:</p><ul>${summary.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
 ${maturity}
-<p class="meta"><b>Zo is vergeleken:</b> per tabel één vooruitkijkdag, één raster (hier elke ${REPORT_RASTER} uur; uurbronnen en 3-uursbronnen samen, op de 3-uursmomenten) en alleen de momenten waarop álle bronnen in die tabel een verwachting hadden en de werkelijkheid bekend is. Te weinig overlap (&lt; ${FAIR_MIN_MOMENTS} momenten of &lt; ${FAIR_MIN_DAYS} dagen): de bron met de minste overlap valt af en staat onder de tabel. Dagoordelen staan apart. Δ = verschil met NzSurf v2 (live; anders nagerekend) op dezelfde momenten, met 90%-interval.</p>
+<p class="meta"><b>Zo is vergeleken:</b> per tabel één vooruitkijkdag, één raster (hier blokken van ${REPORT_RASTER} uur op NL-tijd, per bron één waarde per blok, zo dicht mogelijk bij het begin) en alleen de blokken waarin álle bronnen in die tabel een verwachting hadden en de werkelijkheid bekend is. Elke verwachting wordt getoetst aan de meting op zijn eigen uur; "+1 u" achter een naam = gemiddeld zoveel uur na het begin van het blok (oudere modeldata op UTC-tijd; sinds 5 november elk uur opgeslagen). In de bijlage dag 1 ook op het uurraster: daar exact hetzelfde uur voor iedereen. Te weinig overlap (&lt; ${FAIR_MIN_MOMENTS} momenten of &lt; ${FAIR_MIN_DAYS} dagen): de bron met de minste overlap valt af en staat onder de tabel. Dagoordelen staan apart. Δ = verschil met NzSurf v2 (live; anders nagerekend) op dezelfde momenten, met 90%-interval.</p>
 
 <div class="legend"><span><i style="background:${C.nz}"></i>NzSurf v1</span><span><i style="background:${C.hybrid}"></i>NzSurf v2</span><span><i style="background:${C.best}"></i>Beste andere bron</span><span><i style="background:${C.other}"></i>Overige</span></div>
 ${bars('hs')}

@@ -42,7 +42,9 @@ const AUDIT_SPOTS: AuditSpotCfg[] = [
 ];
 const SPOT = AUDIT_SPOTS[0].spot; // metingen en log
 const HORIZON_HOURS = 7 * 24;
-const STEP_HOURS = 3;
+// Elk uur (sinds nov 2026; daarvoor elke 3 uur UTC): zo vallen de modellen op exact dezelfde
+// uren als NzSurf (3-uursblokken op NL-tijd) en de andere bronnen, voor een eerlijke vergelijking.
+const STEP_HOURS = 1;
 const DRY_RUN = process.env.AUDIT_DRY_RUN === '1';
 const DATABASE_ID =
   process.env.FIRESTORE_DATABASE_ID ||
