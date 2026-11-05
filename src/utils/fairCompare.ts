@@ -131,8 +131,20 @@ function missingLead(docs: AuditForecastDoc[], present: Set<string>, other: Set<
 }
 
 function labelsOf(docs: AuditForecastDoc[]) { const m = new Map<string, string>(); for (const d of docs) m.set(d.source, d.label); return m; }
-/** Alleen de eerste beschikbare referentie is beschermd; v1 en de rest vallen af op overlap. */
-function primaryRef(series: Map<string, Map<string, unknown>>, refs: string[]) { const r = refs.find(x => (series.get(x)?.size ?? 0) > 0); return r ? [r] : []; }
+/**
+ * Eén referentie wordt beschermd (v2 live, v2 nagerekend of v1). Per kandidaat wordt de set
+ * bepaald; gekozen wordt de set met de meeste bronnen (gelijk: de volgorde van refs).
+ * Zo kan v2 live (pas sinds 28 oktober) niet alle andere bronnen uit de tabel duwen.
+ */
+function bestCommon<T>(series: Series<T>, refs: string[]) {
+  const cands = refs.filter(r => (series.get(r)?.size ?? 0) > 0);
+  let best = commonMoments(series, () => true, cands.length ? [cands[0]] : []);
+  for (const r of cands.slice(1)) {
+    const x = commonMoments(series, () => true, [r]);
+    if (x.included.length > best.included.length) best = x;
+  }
+  return best;
+}
 function pickRef(included: string[], refs: string[]) { return refs.find(r => included.includes(r)); }
 const r2 = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 
@@ -158,7 +170,7 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
     // Per blok één waarde: zo dicht mogelijk bij het begin van het blok, dan de laatste ophaalronde.
     if (!cur || b.offset < cur.offset || (b.offset === cur.offset && p.lead < cur.lead)) m.set(b.key, { v: p.err, lead: p.lead, offset: b.offset });
   }
-  const { included, keys, days, dropped } = commonMoments(series, () => true, primaryRef(series, o.refs));
+  const { included, keys, days, dropped } = bestCommon(series, o.refs);
   const mae = (s: string, ks: string[]) => ks.reduce((a, k) => a + Math.abs(series.get(s)!.get(k)!.v), 0) / ks.length;
   const ref = pickRef(included, o.refs);
   const rows: FairRow[] = included.map(s => {
@@ -210,7 +222,7 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
       if (!cur || b.offset < cur.offset || (b.offset === cur.offset && p.lead < cur.lead)) m.set(b.key, { v: ok, lead: p.lead, offset: b.offset, truth: tr });
     }
   }
-  const { included, keys, days, dropped } = commonMoments(series, () => true, primaryRef(series, o.refs));
+  const { included, keys, days, dropped } = bestCommon(series, o.refs);
   const score = (s: string, ks: string[]) => {
     let tp = 0, fn = 0, tn = 0, fp = 0;
     for (const k of ks) { const c = series.get(s)!.get(k)!, f = c.v, t = c.truth!; if (t) { if (f) tp++; else fn++; } else { if (f) fp++; else tn++; } }
