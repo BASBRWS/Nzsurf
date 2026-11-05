@@ -9,6 +9,7 @@ import { DayLine } from './tide/DayLine';
 import { HourTable } from './tide/HourTable';
 import { GREEN, OK, TIDE, chanceColor, dayProfile, dayTips, heightScale, hourOf, useWidth } from './tide/tide';
 import { computeSurfChance } from '../utils/spotKnowledge';
+import { FORECAST_STEP_H } from '../utils/forecastStep';
 
 /**
  * Week als zeven getijden: elke dag dezelfde lijn, onder elkaar. Licht waar het ≥ 65% is.
@@ -43,7 +44,7 @@ export const WeekView: React.FC<Props> = ({ spot, forecasts, user, isLoggedIn, o
   const lineW = Math.max(160, width - 56 - 64);
 
   // Eén hoogteschaal voor de hele week, zodat de dagen te vergelijken zijn.
-  const weekScale = useMemo(() => heightScale(Math.max(0.5, ...forecasts.filter(f => f.isDaylight !== false).slice(0, 7 * 8).map(f => computeSurfChance(spot, f).spotWave))), [forecasts, spot]);
+  const weekScale = useMemo(() => heightScale(Math.max(0.5, ...forecasts.filter(f => f.isDaylight !== false).slice(0, 7 * 24 / FORECAST_STEP_H).map(f => computeSurfChance(spot, f).spotWave))), [forecasts, spot]);
   const best = plans.filter(p => p.peak).reduce<typeof plans[number] | null>((a, b) => (!a || b.peakChance > a.peakChance ? b : a), null);
   const now = new Date();
 

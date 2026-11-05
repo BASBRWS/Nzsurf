@@ -126,7 +126,7 @@ const v1For = (spot: SurfSpot) => { if (!v1Cache.has(spot.id)) v1Cache.set(spot.
 async function collectNzSurf(spot: SurfSpot): Promise<SourceResult> {
   const fc = await v1For(spot);
   const points = fc.map(nzPoint(spot))
-    // NzSurf rekent in 3-uursblokken op NL-tijd; die liggen niet op het UTC-raster.
+    // NzSurf rekent sinds nov 2026 elk uur (daarvoor 3-uursblokken op NL-tijd).
     .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
   return { source: 'nzsurf', label: 'NzSurf v1 (basis)', kind: 'nzsurf', points,
     note: fc[0]?.tideSource ? `getij: ${fc[0].tideSource}` : undefined };

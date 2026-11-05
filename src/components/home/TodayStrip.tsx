@@ -5,6 +5,7 @@ import { ForecastData, SurfSpot } from '../../types';
 import { cn } from '../../lib/utils';
 import { chanceOf, chanceLevel, knotsToBft } from '../../utils/surfMoments';
 import { degreesToCompass16 } from '../../utils/spotKnowledge';
+import { FORECAST_STEP_MS } from '../../utils/forecastStep';
 
 interface TodayStripProps {
   spot: SurfSpot;
@@ -17,14 +18,14 @@ const tidePhase = (level?: number) =>
   level === undefined ? '' : level < 0.2 ? 'laag' : level > 0.8 ? 'hoog' : 'mid';
 
 /**
- * Vandaag per (3-)uur: kanskleur plus de ruwe cijfers (hoogte, periode, wind, getij),
+ * Vandaag per uur: kanskleur plus de ruwe cijfers (hoogte, periode, wind, getij),
  * zodat je zelf ziet wanneer en waarom het beter wordt.
  */
 export function TodayStrip({ spot, forecast, nowItem, onSelectHour }: TodayStripProps) {
   const now = new Date();
   const daylight = (f: ForecastData) => { const h = parseISO(f.timestamp).getHours(); return h >= 6 && h <= 21; };
   let items = forecast.filter(f => daylight(f) && isSameDay(parseISO(f.timestamp), now)
-    && parseISO(f.timestamp).getTime() + 3 * 3600e3 > now.getTime());
+    && parseISO(f.timestamp).getTime() + FORECAST_STEP_MS > now.getTime());
   let title = 'Vandaag per uur';
   if (items.length < 3) {
     const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);

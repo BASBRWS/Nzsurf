@@ -2,6 +2,7 @@ import { SurfSpot, ForecastData } from '../types';
 import { calculateSunscreenAdvice } from '../utils/sunscreenUtils';
 import { windQualityFor } from '../utils/windQuality';
 import { swellExposure, spotWaveHeight, assessTide, computeSurfChance, findTideTurnsByDay, TideTrend, withAreaDefaults, spotKnowledgeArea } from '../utils/spotKnowledge';
+import { FORECAST_STEP_H } from '../utils/forecastStep';
 
 // Echte waterstand (incl. getij) t.o.v. gemiddeld zeeniveau via Open-Meteo Marine.
 // Los opgehaald: als de variabele niet beschikbaar is valt de app terug op het
@@ -144,9 +145,8 @@ export async function fetchForecast(inputSpot: SurfSpot): Promise<ForecastData[]
     const tideSeries: number[] = realSeaLevel || timestamps.map(modelTide);
     const tideTurnsByDay = findTideTurnsByDay(timestamps, tideSeries);
 
-    // We want data every 3 hours to keep the grid manageable.
-    // The loop now covers all available timestamps (usually 7-10 days).
-    for (let i = 0; i < timestamps.length; i += 3) {
+    // Elk uur (FORECAST_STEP_H); daarvoor elke 3 uur. Alle beschikbare uren (7–10 dagen).
+    for (let i = 0; i < timestamps.length; i += FORECAST_STEP_H) {
       const time = timestamps[i];
       const date = new Date(time);
       const hour = date.getHours();

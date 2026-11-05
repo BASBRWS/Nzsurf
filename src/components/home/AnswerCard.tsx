@@ -6,6 +6,7 @@ import type { ForecastData, SurfSpot, UserProfile } from '../../types';
 import { personalHours } from '../../utils/surfProfile';
 import { chanceOf, reasonSentence, windTypeNl } from '../../utils/surfMoments';
 import { degreesToCompass16 } from '../../utils/spotKnowledge';
+import { FORECAST_STEP_MS } from '../../utils/forecastStep';
 
 /**
  * Het antwoord bovenaan Vandaag: kan ik surfen, wanneer, en met welk board?
@@ -13,7 +14,7 @@ import { degreesToCompass16 } from '../../utils/spotKnowledge';
  * Altijd met de cijfers erbij en een knop naar het waarom.
  */
 
-const STEP_MS = 3 * 3600e3;
+const STEP_MS = FORECAST_STEP_MS;
 const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
 
 /** Golfhoogte in surftaal. */
