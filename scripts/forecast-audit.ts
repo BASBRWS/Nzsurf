@@ -42,7 +42,9 @@ const AUDIT_SPOTS: AuditSpotCfg[] = [
 ];
 const SPOT = AUDIT_SPOTS[0].spot; // metingen en log
 const HORIZON_HOURS = 7 * 24;
-const STEP_HOURS = 3;
+// Elk uur (sinds nov 2026; daarvoor elke 3 uur UTC): zo vallen de modellen op exact dezelfde
+// uren als NzSurf (3-uursblokken op NL-tijd) en de andere bronnen, voor een eerlijke vergelijking.
+const STEP_HOURS = 1;
 const DRY_RUN = process.env.AUDIT_DRY_RUN === '1';
 const DATABASE_ID =
   process.env.FIRESTORE_DATABASE_ID ||
@@ -124,7 +126,7 @@ const v1For = (spot: SurfSpot) => { if (!v1Cache.has(spot.id)) v1Cache.set(spot.
 async function collectNzSurf(spot: SurfSpot): Promise<SourceResult> {
   const fc = await v1For(spot);
   const points = fc.map(nzPoint(spot))
-    // NzSurf rekent in 3-uursblokken op NL-tijd; die liggen niet op het UTC-raster.
+    // NzSurf rekent sinds nov 2026 elk uur (daarvoor 3-uursblokken op NL-tijd).
     .filter(p => p.lead >= -1 && p.lead <= HORIZON_HOURS);
   return { source: 'nzsurf', label: 'NzSurf v1 (basis)', kind: 'nzsurf', points,
     note: fc[0]?.tideSource ? `getij: ${fc[0].tideSource}` : undefined };

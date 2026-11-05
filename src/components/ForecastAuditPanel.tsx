@@ -4,6 +4,8 @@ import { Download, Loader2, Trophy, Filter, Camera, Eye } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { SpotReportAudit } from './SpotReportAudit';
 import { SurfAuditBoard } from './SurfAuditBoard';
+import { FairCompare } from './FairCompare';
+import { DEFAULT_RULE, obsTruth } from '../utils/surfVerdict';
 import { canCollectInApp, runAppAuditCollect } from '../services/auditCollector';
 import { importSecretSwellScreenshots } from '../services/secretSwellImport';
 import { canScanApp, scanAndImportSecretSwell } from '../services/secretSwellAppScan';
@@ -134,34 +136,12 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
   // Filters (zonder het onderdeel) — gebruikt voor de "ons algo vs de rest"-samenvatting.
   const condPairs = useMemo(() => allPairs.filter(p =>
     !hidden.has(p.source)
-    && (bucket === 'all' || p.bucket === bucket)
     && (!minWind || (p.obsWindKn ?? -1) >= minWind)
     && (!minWave || (p.obsHs ?? -1) >= minWave)
   ), [allPairs, hidden, bucket, minWind, minWave]);
   const pairs = useMemo(() => condPairs.filter(p => p.param === param), [condPairs, param]);
-  const ranking = useMemo(() => scorePairs(pairs), [pairs]);
-
-  // Matrix: MAE per bron × vooruitkijktijd voor het gekozen onderdeel (zonder bucketfilter).
-  const matrix = useMemo(() => {
-    const base = allPairs.filter(p => p.param === param && !hidden.has(p.source)
-      && (!minWind || (p.obsWindKn ?? -1) >= minWind) && (!minWave || (p.obsHs ?? -1) >= minWave));
-    const out = new Map<string, Map<string, { mae: number; n: number }>>();
-    for (const b of LEAD_BUCKETS) {
-      for (const s of scorePairs(base.filter(p => p.bucket === b.key))) {
-        if (!out.has(s.source)) out.set(s.source, new Map());
-        out.get(s.source)!.set(b.key, { mae: s.mae, n: s.n });
-      }
-    }
-    return out;
-  }, [allPairs, param, hidden, minWind, minWave]);
-
-  const summary = useMemo(() => PARAMS.map(prm => {
-    const sc = scorePairs(condPairs.filter(p => p.param === prm.key)).filter(s => s.n >= MIN_N);
-    const ours = sc.find(s => s.kind === 'nzsurf');
-    const bestOther = sc.find(s => s.kind !== 'nzsurf');
-    const rank = ours ? sc.indexOf(ours) + 1 : null;
-    return { prm, ours, bestOther, rank, total: sc.length };
-  }), [condPairs]);
+  const fairTruth = useMemo(() => obsTruth(observations, DEFAULT_RULE), [observations]);
+  const fairLabel = (id: string) => sources.find(([s]) => s === id)?.[1].label ?? id;
 
   const prm = PARAMS.find(p => p.key === param)!;
   const exportRows = (rows: Pair[]) => rows.map(p => ({
@@ -322,11 +302,10 @@ maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvla
             const rows: { name: string; value: string; set: (v: string) => void; opts: { v: string; l: string }[] }[] = [
               { name: 'Variabele', value: param, set: v => setParam(v as AuditParam), opts: PARAMS.map(p => ({ v: p.key, l: p.key === 'tpPeak' ? 'Piekperiode' : p.label })) },
               { name: 'Periode', value: String(period), set: v => setPeriod(Number(v)), opts: PERIODS.map(p => ({ v: String(p.key), l: p.label })) },
-              { name: 'Vooruit', value: bucket, set: v => setBucket(v as LeadBucket | 'all'), opts: [{ v: 'all', l: 'Alles' }, ...LEAD_BUCKETS.map(b => ({ v: b.key, l: short(b.label) }))] },
               { name: 'Wind', value: String(minWind), set: v => setMinWind(Number(v)), opts: WIND_FILTERS.map(f => ({ v: String(f.key), l: short(f.label) })) },
               { name: 'Golf', value: String(minWave), set: v => setMinWave(Number(v)), opts: WAVE_FILTERS.map(f => ({ v: String(f.key), l: short(f.label) })) },
             ];
-            const changed = period !== 30 || bucket !== 'all' || minWind !== 0 || minWave !== 0;
+            const changed = period !== 30 || minWind !== 0 || minWave !== 0;
             return (
               <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -360,98 +339,11 @@ maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvla
           {/* Is er te surfen? Verwachting, variabelen, werkelijkheid en score per voorspeller */}
           <SurfAuditBoard forecasts={forecasts} observations={observations} sources={visibleSources} reports={reports || []} spotId={AUDIT_SPOT_ID} />
 
-          {/* Ons algo vs de rest */}
-          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-3">
-            <div className="text-xs font-black uppercase text-cyan-900 mb-2">Ons algoritme vs de rest (met huidige filters)</div>
-            <ul className="space-y-1 text-[12px] text-slate-800">
-              {summary.map(({ prm: p, ours, bestOther, rank, total }) => (
-                <li key={p.key}>
-                  <strong>{p.label}:</strong>{' '}
-                  {ours
-                    ? <>NzSurf #{rank} van {total} (MAE {fmtNum(ours.mae)} {p.unit}){bestOther && bestOther.source !== ours.source ? <> · beste andere: {bestOther.label} ({fmtNum(bestOther.mae)} {p.unit})</> : null}</>
-                    : <span className="text-slate-500">nog te weinig data</span>}
-                </li>
-              ))}
-            </ul>
-            <p className="text-[11px] text-slate-600 mt-2">
-              Let op bij het lezen: NzSurf haalt zijn ruwe cijfers zelf bij Open-Meteo (golven: standaard golfmodel, wind: GFS).
-              Op golfhoogte, periode en wind volgt NzSurf dus vooral die bronnen. Wat NzSurf eigen maakt (spothoogte, getij, kans) meet de boei niet;
-              dat staat hieronder bij de spotrapporten. Gebruik de ranglijst om het beste model voor NzSurf te kiezen.
-            </p>
-            <div className="mt-2"><TableHelp title="Zo lees je dit">
-              <ul>
-                <li><b>#3 van 9</b> = NzSurf staat op plek 3 van de 9 bronnen met genoeg vergelijkingen (minstens {MIN_N}) voor dat onderdeel.</li>
-                <li><b>MAE</b> = hoeveel de verwachting gemiddeld naast de meting zat. Lager is beter.</li>
-                <li><b>Beste andere</b> = de best scorende bron die niet NzSurf is.</li>
-                <li>De filters bovenaan (periode, looptijd, wind, golf, bronnen) tellen mee.</li>
-              </ul>
-            </TableHelp></div>
-          </div>
-
-          {/* Ranglijst */}
-          <div>
-            <div className="text-xs font-black uppercase text-slate-900 mb-1">Ranglijst: {prm.label} {prm.note ? <span className="font-normal normal-case text-slate-500">({prm.note})</span> : null}</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead><tr className="text-left text-slate-500 border-b border-slate-200">
-                  <th className="py-1.5 pr-2">#</th><th className="pr-2">Bron</th><th className="pr-2 text-right">n</th>
-                  <th className="pr-2 text-right">MAE ({prm.unit})</th><th className="pr-2 text-right">Bias</th><th className="text-right">RMSE</th>
-                </tr></thead>
-                <tbody>
-                  {ranking.map((r, i) => (
-                    <tr key={r.source} className={cn('border-b border-slate-100', r.kind === 'nzsurf' && 'bg-cyan-50 font-bold', r.n < MIN_N && 'text-slate-400')}>
-                      <td className="py-1.5 pr-2">{i + 1}</td><td className="pr-2">{r.label}</td><td className="pr-2 text-right">{r.n}</td>
-                      <td className="pr-2 text-right">{fmtNum(r.mae)}</td><td className="pr-2 text-right">{r.bias > 0 ? '+' : ''}{fmtNum(r.bias)}</td><td className="text-right">{fmtNum(r.rmse)}</td>
-                    </tr>
-                  ))}
-                  {!ranking.length && <tr><td colSpan={6} className="py-3 text-slate-500">Nog geen vergelijkingen voor deze filters. De eerste uitslagen verschijnen een dag na de eerste opgeslagen verwachting.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-1.5"><TableHelp>
-              <p>Alle vergelijkingen samen, ongeacht hoe ver vooruit er voorspeld werd: het eindcijfer per voorspeller. Kies bij de filters een ander onderdeel (golfperiode, wind, …) of één looptijd.</p>
-              <ul>
-                <li><b>n</b> = aantal uren waarvoor zowel een verwachting als een meting is. Een bron die elk uur een waarde geeft (Windfinder Superforecast) heeft een hogere n dan een bron met één waarde per 3 uur.</li>
-                <li><b>MAE</b> = gemiddelde afwijking: hoeveel de verwachting gemiddeld naast de meting zat. Lager is beter; hierop is gesorteerd.</li>
-                <li><b>Bias</b> = structureel te hoog (+) of te laag (−). Zitten alle bronnen aan dezelfde kant, dan ligt dat vaak aan de meetplek: de boei ligt verder op zee dan de rekenpunten bij de kust.</li>
-                <li><b>RMSE</b> = als MAE, maar grote missers wegen zwaarder. Ligt RMSE dicht bij MAE, dan waren er geen uitschieters.</li>
-                <li><b>Grijs</b> = minder dan {MIN_N} vergelijkingen: staat erbij, maar is nog niet betrouwbaar.</li>
-                <li>Verschillen van een paar centimeter na een paar dagen zeggen weinig; pas na weken met verschillend weer wordt het een conclusie.</li>
-                <li>Dit is de golf <b>op zee</b>, niet op het strand. De spothoogte en kans van NzSurf worden onderaan getoetst met spotrapporten.</li>
-              </ul>
-            </TableHelp></div>
-          </div>
-
-          {/* Fout per vooruitkijktijd */}
-          <div>
-            <div className="text-xs font-black uppercase text-slate-900 mb-1">MAE per vooruitkijktijd: {prm.label}</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead><tr className="text-slate-500 border-b border-slate-200">
-                  <th className="text-left py-1 pr-2">Bron</th>{LEAD_BUCKETS.map(b => <th key={b.key} className="text-right pr-2">{b.label.replace(/ \(.*\)/, '')}</th>)}
-                </tr></thead>
-                <tbody>
-                  {sources.filter(([id]) => matrix.has(id)).map(([id, s]) => (
-                    <tr key={id} className={cn('border-b border-slate-100', s.kind === 'nzsurf' && 'bg-cyan-50 font-bold')}>
-                      <td className="py-1 pr-2">{s.label}</td>
-                      {LEAD_BUCKETS.map(b => {
-                        const c = matrix.get(id)?.get(b.key);
-                        return <td key={b.key} className={cn('text-right pr-2', c && c.n < MIN_N && 'text-slate-400')}>{c ? fmtNum(c.mae) : '—'}</td>;
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-1.5"><TableHelp>
-              <p>Dezelfde MAE als in de ranglijst, maar uitgesplitst naar hoe ver vooruit de verwachting is gedaan. Zo zie je hoe snel een voorspeller minder nauwkeurig wordt.</p>
-              <ul>
-                <li><b>Dag 1</b> = verwachtingen voor 0–24 uur na het ophalen, <b>Dag 2</b> = 24–48 uur vooruit, enz.</li>
-                <li>Normaal loopt de fout op van links naar rechts. Wie langer laag blijft, is verder vooruit betrouwbaar.</li>
-                <li><b>—</b> = nog niet te scoren: een verwachting voor over 5 dagen kan pas vergeleken worden als die dag voorbij en gemeten is. Deze kolommen vullen zich vanzelf.</li>
-                <li><b>Grijs</b> = minder dan {MIN_N} vergelijkingen in dat vak.</li>
-              </ul>
-            </TableHelp></div>
+          {/* Variabelen tegen de boei: eerlijk vergeleken (zelfde dag vooruit, zelfde raster, zelfde momenten). */}
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-3">
+            <FairCompare title="Op zee, tegen de boei: eerlijk vergeleken" forecasts={forecasts} observations={observations}
+              pairs={condPairs} rule={DEFAULT_RULE} truthFn={fairTruth} labelOf={fairLabel} initialTopic={param} />
+            {(minWind || minWave) ? <p className="text-[11px] text-slate-600 mt-2">Filter wind/golf actief: alleen momenten met {minWind ? `gemeten wind ≥ ${minWind} kn` : ''}{minWind && minWave ? ' en ' : ''}{minWave ? `gemeten golf ≥ ${String(minWave).replace('.', ',')} m` : ''} (geldt voor de variabelen, niet voor "Te surfen?").</p> : null}
           </div>
 
           {/* Export */}
@@ -463,13 +355,6 @@ maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvla
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-cyan-600 text-cyan-800 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><FileText className="w-3.5 h-3.5" /> Rapport (HTML)</button>
             <button onClick={() => download(`nzsurf-audit-vergelijkingen-${stamp}.csv`, toCsv(exportRows(condPairs)), 'text/csv;charset=utf-8')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Vergelijkingen (CSV, gefilterd)</button>
-            <button onClick={() => download(`nzsurf-audit-ranglijst-${param}-${stamp}.csv`, toCsv(ranking.map(r => ({ bron: r.label, onderdeel: r.param, n: r.n, mae: r.mae, bias: r.bias, rmse: r.rmse }))), 'text/csv;charset=utf-8')}
-              className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ranglijst (CSV)</button>
-            <button onClick={() => download(`nzsurf-audit-per-looptijd-${param}-${stamp}.csv`, toCsv(sources.filter(([id]) => matrix.has(id)).map(([id, s]) => Object.fromEntries([
-                ['bron', s.label],
-                ...LEAD_BUCKETS.flatMap(b => { const c = matrix.get(id)?.get(b.key); return [[`${b.label} mae`, c ? c.mae : ''], [`${b.label} n`, c ? c.n : 0]]; }),
-              ]))), 'text/csv;charset=utf-8')}
-              className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Per looptijd (CSV)</button>
             <button onClick={() => download(`nzsurf-audit-ruw-${stamp}.json`, JSON.stringify({ forecasts, observations }, null, 1), 'application/json')}
               className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"><Download className="w-3.5 h-3.5" /> Ruwe data (JSON)</button>
           </div>

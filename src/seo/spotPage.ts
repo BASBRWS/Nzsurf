@@ -173,7 +173,7 @@ function detailTable(spot: CatalogSpot, fc: ForecastData[], now: Date): string {
   const today = format(now, 'yyyy-MM-dd');
   const tomorrow = format(new Date(now.getTime() + 864e5), 'yyyy-MM-dd');
   const items = fc.filter(f => (dateKey(f) === today || dateKey(f) === tomorrow) && daytime(f)
-    && parseISO(f.timestamp).getTime() + 3 * 3600e3 > now.getTime());
+    && parseISO(f.timestamp).getHours() % 3 === 0 && parseISO(f.timestamp).getTime() + 3 * 3600e3 > now.getTime());
   if (!items.length) return '';
   const rows = items.map(f => `
         <tr>

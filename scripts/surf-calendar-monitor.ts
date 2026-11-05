@@ -7,7 +7,7 @@
 //
 // Wordt de verwachting slechter (score < 6,0, of de dag valt weg), dan volgt een
 // annulering (METHOD:CANCEL, zelfde UID): de afspraak verdwijnt uit de agenda.
-// Verschuift het beste venster ≥ 1 uur, dan een bijgewerkte uitnodiging. Wordt een
+// Verschuift het beste venster ≥ 2 uur, dan een bijgewerkte uitnodiging. Wordt een
 // geannuleerde dag weer goed, dan opnieuw een uitnodiging. Tussen 6 en 7 gebeurt
 // niets, zodat een dag niet heen en weer springt.
 //
@@ -32,7 +32,7 @@ import { applyV2WithCal, pickCalibration, type Cal } from '../src/services/v2Cor
 // ── Instellingen ────────────────────────────────────────────────────────────
 const MONITOR_THRESHOLD = 7.0; // gelijk aan de in-app knop
 const CANCEL_THRESHOLD = 6.0;  // pas annuleren als het duidelijk slechter is
-const MOVE_MIN_MS = 60 * 60e3; // venster ≥ 1 uur verschoven: bijwerken
+const MOVE_MIN_MS = 2 * 60 * 60e3; // venster ≥ 2 uur verschoven: bijwerken (verwachting is per uur; 1 uur is ruis)
 const DRY_RUN = process.env.MONITOR_DRY_RUN === '1'; // alleen melden, niets mailen of opslaan
 const dryLog: string[] = [];
 const HORIZON_DAYS = 5;
