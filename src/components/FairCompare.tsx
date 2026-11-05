@@ -67,7 +67,7 @@ export function FairCompare({ forecasts, observations, pairs, rule, truthFn, lab
 
       <p className="text-[12px] text-slate-700">
         {table.rows.length
-          ? <>Alle bronnen hieronder op <b>dezelfde {table.moments} momenten</b> ({table.days} dagen), alleen verwachtingen van <b>dag {day}</b>, op het raster <b>{raster === 1 ? 'elk uur' : `elke ${raster} uur`}</b>.{topic === 'surf' ? ' Alleen daglicht (07–20 u).' : ''}</>
+          ? <>Alle bronnen hieronder op <b>dezelfde {table.moments} momenten</b> ({table.days} dagen), alleen verwachtingen van <b>dag {day}</b>, op het raster <b>{raster === 1 ? 'elk uur' : `elke ${raster} uur`}</b>.{topic === 'surf' ? ' Alleen daglichtblokken (midden van het blok tussen 07 en 20 u).' : ''}</>
           : <>Nog geen {FAIR_MIN_MOMENTS} gezamenlijke momenten over {FAIR_MIN_DAYS} dagen voor dag {day} op dit raster.</>}
       </p>
 

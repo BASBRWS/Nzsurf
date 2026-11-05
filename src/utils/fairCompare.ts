@@ -131,6 +131,8 @@ function missingLead(docs: AuditForecastDoc[], present: Set<string>, other: Set<
 }
 
 function labelsOf(docs: AuditForecastDoc[]) { const m = new Map<string, string>(); for (const d of docs) m.set(d.source, d.label); return m; }
+/** Alleen de eerste beschikbare referentie is beschermd; v1 en de rest vallen af op overlap. */
+function primaryRef(series: Map<string, Map<string, unknown>>, refs: string[]) { const r = refs.find(x => (series.get(x)?.size ?? 0) > 0); return r ? [r] : []; }
 function pickRef(included: string[], refs: string[]) { return refs.find(r => included.includes(r)); }
 const r2 = (x: number, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
 
@@ -156,7 +158,7 @@ export function fairVariableTable(pairs: Pair[], docs: AuditForecastDoc[], o: { 
     // Per blok één waarde: zo dicht mogelijk bij het begin van het blok, dan de laatste ophaalronde.
     if (!cur || b.offset < cur.offset || (b.offset === cur.offset && p.lead < cur.lead)) m.set(b.key, { v: p.err, lead: p.lead, offset: b.offset });
   }
-  const { included, keys, days, dropped } = commonMoments(series, () => true, o.refs);
+  const { included, keys, days, dropped } = commonMoments(series, () => true, primaryRef(series, o.refs));
   const mae = (s: string, ks: string[]) => ks.reduce((a, k) => a + Math.abs(series.get(s)!.get(k)!.v), 0) / ks.length;
   const ref = pickRef(included, o.refs);
   const rows: FairRow[] = included.map(s => {
@@ -196,7 +198,9 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
       const t = Date.parse(p.t);
       if (leadDayOf(p.lead) !== o.leadDay || p.lead <= 0) continue;
       const b = blockOf(t, o.raster);
-      if (b.hour < 7 || b.hour > 20) continue; // daglicht
+      // Daglicht per blok (midden van het blok tussen 07 en 20 u), zodat elke bron dezelfde blokken houdt.
+      const mid = Number(b.key.slice(11, 13)) + o.raster / 2;
+      if (mid < 7 || mid > 20) continue;
       const ok = forecastVerdict(d.source, p, rule).ok;
       if (ok === undefined) { noVerdict.add(d.source); continue; }
       const tr = truthFn(Math.round(t / 3600e3) * 3600e3, ''); // werkelijkheid op het uur van deze verwachting
@@ -206,7 +210,7 @@ export function fairSurfTable(docs: AuditForecastDoc[], rule: SurfRule, truthFn:
       if (!cur || b.offset < cur.offset || (b.offset === cur.offset && p.lead < cur.lead)) m.set(b.key, { v: ok, lead: p.lead, offset: b.offset, truth: tr });
     }
   }
-  const { included, keys, days, dropped } = commonMoments(series, () => true, o.refs);
+  const { included, keys, days, dropped } = commonMoments(series, () => true, primaryRef(series, o.refs));
   const score = (s: string, ks: string[]) => {
     let tp = 0, fn = 0, tn = 0, fp = 0;
     for (const k of ks) { const c = series.get(s)!.get(k)!, f = c.v, t = c.truth!; if (t) { if (f) tp++; else fn++; } else { if (f) fp++; else tn++; } }
