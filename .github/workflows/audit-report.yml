@@ -1,0 +1,39 @@
+name: "Audit: rapport maken"
+
+# Maakt het volledige auditrapport (eerlijke vergelijking) uit alle opgeslagen data en zet
+# het als reports/audit-rapport.html in de branch waarop je hem start. Alleen lezen uit Firestore.
+on:
+  workflow_dispatch:
+  # Op werkbranches vanzelf, als de rapportcode verandert (om het resultaat te controleren).
+  push:
+    branches: ['claude/**']
+    paths:
+      - scripts/audit-report.ts
+      - src/utils/auditReport.ts
+      - src/utils/fairCompare.ts
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --ignore-scripts
+      - name: Rapport maken
+        run: bun run scripts/audit-report.ts
+        env:
+          TZ: Europe/Amsterdam
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID }}
+      - name: Vastleggen in de branch
+        run: |
+          git config user.name "nzsurf-bot"
+          git config user.email "nzsurf-bot@users.noreply.github.com"
+          git add reports/audit-rapport.html
+          git diff --cached --quiet && echo "geen wijziging" || (git commit -m "Auditrapport bijgewerkt" && git push)

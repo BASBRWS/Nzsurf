@@ -7,6 +7,7 @@ import { degreesToCompass16 } from '../utils/spotKnowledge';
 import { knotsToBft } from '../utils/surfMoments';
 import { AuditForecastDoc, AuditObsDoc, MIN_N, SpotReportLike, toCsv } from '../utils/forecastAudit';
 import { V2_SOURCE } from '../utils/forecastV2';
+import { FairCompare } from './FairCompare';
 
 const LIVE_V2 = 'nzsurf-v2-live';
 const RANK_MIN_N = 40, RANK_MIN_DAYS = 5;
@@ -120,19 +121,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
     [forecasts, ids.join(), rule, truthFn]);
   // Alleen voorspellers met genoeg vergelijkingen krijgen een rang; de rest staat eronder zonder nummer.
   // "alle": eerlijk per vooruitkijkdag (zie fairOverallRanking); één dag: gewoon die dag.
-  const refId = ids.includes(V2_SOURCE) ? V2_SOURCE : (sources.find(s => s.kind === 'nzsurf')?.source || 'nzsurf');
-  const overall: (OverallRowLike)[] = useMemo(() => {
-    const r: OverallRowLike[] = leadFilter
-      ? overallRanking(scores).filter(x => x.parts >= FULL_PARTS)
-      : fairOverallRanking(forecasts, observations, rule, truthFn, refId);
-    return [...r.filter(enough), ...r.filter(x => !enough(x))];
-  }, [scores, leadFilter, forecasts, observations, rule, truthFn, refId]);
-  const nzId = refId;
-  const partial = useMemo(() => partialComparison(scores, nzId), [scores, nzId]);
-  const perComponent = useMemo(() => { const r = componentRanking(scores, rankKey); return [...r.filter(enough), ...r.filter(x => !enough(x))]; }, [scores, rankKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const perDay = useMemo(() => { const r = dayRanking(dayScores(forecasts, rule, truthFn, now, leadFilter || undefined)); return [...r.filter(x => x.n >= 8), ...r.filter(x => x.n < 8)]; },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [forecasts, rule, truthFn, leadFilter]);
+
 
   const DayNav = (
     <div className="flex items-center justify-between gap-2">
@@ -359,191 +348,13 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
       {/* 4 — Score */}
       {tab === 'score' && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="text-slate-600">Vooruitkijktijd:</span>
-            <select value={leadFilter} onChange={e => setLeadFilter(Number(e.target.value))} className="border border-slate-300 rounded-lg px-2 py-1 bg-white">
-              <option value={0}>alle (eerlijk per dag)</option>
-              {[1, 2, 3, 4, 5, 6, 7].map(d => <option key={d} value={d}>{d} dag{d > 1 ? 'en' : ''} vooruit</option>)}
-            </select>
-          </div>
-          {/* Totaalranglijst */}
-          <div>
-            <div className="text-xs font-black uppercase text-slate-900 mb-1">🏆 Totaalranglijst</div>
-            <p className="text-[11px] text-slate-600 mb-1">Voorspellers die (bijna) alle {COMPONENTS.length} onderdelen leveren, op gelijke voet. Gemiddelde % goed; "te surfen?" telt dubbel.{!leadFilter && ' Bij "alle" telt elke vooruitkijkdag even zwaar en wordt gecorrigeerd voor hoe moeilijk die dag is: wie maar 3 dagen vooruitkijkt, wint niet doordat hij dag 6–7 overslaat.'}</p>
-            {overall.length ? (
-              <ol className="space-y-1">
-                {overall.map((r, i) => (
-                  <li key={r.source} className={cn('flex flex-wrap items-center gap-x-2 gap-y-0 rounded-lg px-2 py-1.5 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-slate-50', !enough(r) && 'opacity-60')}>
-                    <span className="w-6 text-right font-black">{!enough(r) ? '–' : i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
-                    <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
-                    <span className="tabular-nums font-black">{r.score}%</span>
-                    <span className="tabular-nums text-[10px] text-slate-500 w-24 text-right whitespace-nowrap">{r.parts} onderd. · n {r.n}</span>
-                    {r.days && (() => {
-                      const maxDays = Math.max(...overall.map(o => o.days?.length || 0));
-                      const short = r.days.length < maxDays;
-                      return (
-                        <span className="basis-full pl-8 text-[10px] font-normal text-slate-500">
-                          dag {r.days[0]}–{r.days[r.days.length - 1]}{short ? ` (korter vooruit)` : ''} · eigen gemiddelde {r.raw}%
-                          {short && r.ref !== null && r.ref !== undefined ? <> · <b className={r.ref >= (r.raw ?? 0) ? 'text-emerald-700' : 'text-slate-700'}>{labelOf(refId).replace(/ \(.*\)$/, '')} op dezelfde dagen {r.ref}%</b></> : null}
-                        </span>
-                      );
-                    })()}
-                  </li>
-                ))}
-              </ol>
-            ) : <p className="text-xs text-slate-500">Nog geen verwachtingen waarvan de uitkomst bekend is.</p>}
-            {partial.length > 0 && (
-              <div className="mt-2">
-                <div className="text-[11px] font-bold text-slate-700 mb-1">Gedeeltelijke voorspellers — vergeleken met {labelOf(refId)} op dezelfde onderdelen</div>
-                <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
-                  <thead><tr className="text-slate-500 border-b border-slate-200">
-                    <th className="text-left py-1 pr-2">Voorspeller</th><th className="text-left pr-2">Onderdelen</th>
-                    <th className={thCls}>Zij</th><th className={thCls}>{refId === V2_SOURCE ? 'v2' : 'NzSurf'}</th>
-                  </tr></thead>
-                  <tbody>
-                    {partial.map(r => (
-                      <tr key={r.source} className={cn('border-b border-slate-100', r.n < MIN_N && 'text-slate-400')}>
-                        <td className="py-1 pr-2">{labelOf(r.source)}</td>
-                        <td className="pr-2 text-slate-500 whitespace-normal">{r.keys.map(k => COMPONENTS.find(c => c.key === k)!.label.toLowerCase()).join(', ')}</td>
-                        <td className="text-right px-1.5 font-bold">{r.score}%</td>
-                        <td className={cn('text-right px-1.5 font-bold', r.refScore !== null && r.refScore >= r.score ? 'text-emerald-700' : 'text-slate-700')}>{r.refScore !== null ? `${r.refScore}%` : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <div className="mt-1.5"><TableHelp>
-              <ul>
-                <li><b>Score %</b> = gemiddeld percentage goed over alle onderdelen die de voorspeller levert (golf, periode, swellrichting, wind, windrichting, windhoek); "te surfen?" telt dubbel.</li>
-                <li><b>onderd.</b> = op hoeveel onderdelen hij is beoordeeld. Alleen voorspellers met minstens {FULL_PARTS} van de {COMPONENTS.length} onderdelen staan in de ranglijst: wie alleen wind levert, scoort anders makkelijk hoog.</li>
-                <li><b>Gedeeltelijke voorspellers</b> (alleen wind, alleen golf, …) staan eronder, met naast hun score die van NzSurf op precies dezelfde onderdelen. Groen = NzSurf minstens zo goed.</li>
-                <li><b>n</b> = aantal beoordeelde momenten. Minder dan {RANK_MIN_N} momenten of minder dan {RANK_MIN_DAYS} ophaaldagen: geen rang, onderaan en vaag.</li>
-                <li><b>NzSurf v2 (live, in de app)</b> = wat de app werkelijk liet zien (eigen kans), vastgelegd sinds 28 oktober. <b>NzSurf v2 (nagerekend)</b> = achteraf berekend met dezelfde regels, beoordeeld met de boeiregel; die gaat terug tot het begin van de audit.</li>
-                <li>Windhoek telt niet mee in de totaalscore (zelfde informatie als windrichting). Open-Meteo best match telt niet als aparte stem (kopie van Météo-France en KNMI).</li>
-                <li>Let op: elke voorspeller wordt hier op zíjn uren beoordeeld. De eerlijke vergelijking op dezelfde uren als NzSurf, met onzekerheidsmarge, staat in het rapport.</li>
-                <li>Met "Vooruitkijktijd" bovenaan zie je de stand voor bijvoorbeeld alleen verwachtingen van 3 dagen vooruit.</li>
-                <li><b>"alle (eerlijk per dag)"</b>: eerst per vooruitkijkdag gescoord; per dag het verschil met het gemiddelde van die dag; die verschillen gelijk gemiddeld over de dagen die de voorspeller levert. Zo telt een korte horizon niet als voordeel. <b>Eigen gemiddelde</b> = zijn dagscores zonder die correctie; bij een kortere horizon staat erachter wat {labelOf(refId)} op precies dezelfde dagen haalt.</li>
-              </ul>
-            </TableHelp></div>
-          </div>
-
-          {/* Ranglijst per onderdeel */}
-          <div>
-            <div className="text-xs font-black uppercase text-slate-900 mb-1">Per onderdeel: wie zat het vaakst goed?</div>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {COMPONENTS.map(c => (
-                <button key={c.key} onClick={() => setRankKey(c.key)}
-                  className={cn('text-[11px] px-2 py-1 rounded-full border cursor-pointer', rankKey === c.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-300 text-slate-700')}>
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-slate-500 mb-1">Goed als: {COMPONENTS.find(c => c.key === rankKey)!.rule}.</p>
-            {perComponent.length ? (
-              <ol className="space-y-1">
-                {perComponent.map((r, i) => (
-                  <li key={r.source} className={cn('flex items-center gap-2 rounded-lg px-2 py-1 text-[12px]', isNz(r.source) ? 'bg-cyan-50 font-bold' : 'bg-white border border-slate-100', !enough(r) && 'opacity-60')}>
-                    <span className="w-6 text-right font-bold">{!enough(r) ? '–' : `${i + 1}.`}</span>
-                    <span className="flex-1 min-w-0 truncate">{labelOf(r.source)}</span>
-                    <div className="w-24 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${r.pct}%` }} /></div>
-                    <span className="tabular-nums font-bold w-10 text-right">{r.pct}%</span>
-                    <span className="tabular-nums text-[10px] text-slate-500 w-10 text-right">n {r.n}</span>
-                    {rankKey === 'total' && r.caught !== undefined && (
-                      <span className="basis-full pl-8 text-[10px] font-normal text-slate-500">gevangen {r.caught}% · terecht nee {r.rightNo ?? '–'}% · zegt ja {r.saysYes ?? '–'}%</span>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            ) : <p className="text-xs text-slate-500">Geen voorspeller levert dit onderdeel, of er is nog niets gemeten.</p>}
-            <p className="text-[10px] text-slate-500 mt-1">Vaag = minder dan {MIN_N} vergelijkingen. Alleen daglicht (07–20 u).</p>
-            <div className="mt-1.5"><TableHelp>
-              <ul>
-                <li>Kies een onderdeel. De balk en het % tonen hoe vaak de voorspelling binnen de marge bleef ("goed als …" hierboven).</li>
-                <li><b>n</b> = aantal vergelijkingen. Vaag = minder dan {MIN_N}.</li>
-                <li>Anders dan bij de MAE-tabellen telt hier niet hóéveel iemand ernaast zat, alleen of het binnen de marge viel.</li>
-                <li><b>Te surfen?</b> is gebalanceerd: het gemiddelde van <i>gevangen</i> (welk deel van de surfbare momenten de voorspeller als surfbaar gaf) en <i>terecht nee</i>. Gewoon "% raak" beloont wie altijd nee zegt, omdat de meeste uren niet surfbaar zijn; zo iemand komt hier op 50%. <i>Zegt ja</i> = hoe vaak hij surfbaar gaf.</li>
-              </ul>
-            </TableHelp></div>
-          </div>
-
-          {/* Te surfen? per dag: iedereen op dagniveau (Wompy geeft één oordeel per dag) */}
-          <div>
-            <div className="text-xs font-black uppercase text-slate-900 mb-1">Te surfen? per dag</div>
-            <p className="text-[11px] text-slate-600 mb-1">
-              "Kan ik vandaag surfen?" Een dag is te surfen bij minstens {DAY_MIN_SLOTS} surfbare daglichtmomenten (om de 3 uur), voor voorspelling én werkelijkheid.
-              Alleen verwachtingen van een eerdere dag. Zo doet Wompy (één oordeel per dag) op gelijke voet mee.
-            </p>
-            {perDay.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
-                  <thead><tr className="text-slate-500 border-b border-slate-200">
-                    <th className="text-left py-1 pr-2">#</th><th className="text-left pr-2">Voorspeller</th>
-                    <th className={thCls}>Score</th><th className={thCls}>Gevangen</th><th className={thCls}>Terecht nee</th>
-                    <th className={thCls}>1 d</th><th className={thCls}>2 d</th><th className={thCls}>3 d</th><th className={thCls}>dagen</th>
-                  </tr></thead>
-                  <tbody>
-                    {perDay.map((r, i) => {
-                      const lc = (d: number) => { const x = r.byLead.find(b => b.day === d); return x?.pct !== undefined ? `${x.pct}%` : '—'; };
-                      return (
-                        <tr key={r.source} className={cn('border-b border-slate-100', isNz(r.source) && 'bg-cyan-50 font-bold', r.n < 8 && 'text-slate-400')}>
-                          <td className="py-1 pr-2">{r.n < 8 ? '–' : i + 1}</td>
-                          <td className="pr-2">{labelOf(r.source)}</td>
-                          <td className="text-right px-1.5 font-bold">{r.pct}%</td>
-                          <td className="text-right px-1.5">{r.caught ?? '–'}%</td>
-                          <td className="text-right px-1.5">{r.rightNo ?? '–'}%</td>
-                          <td className="text-right px-1.5">{lc(1)}</td><td className="text-right px-1.5">{lc(2)}</td><td className="text-right px-1.5">{lc(3)}</td>
-                          <td className="text-right px-1.5">{r.n}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : <p className="text-xs text-slate-500">Nog geen afgelopen dagen met verwachting én werkelijkheid.</p>}
-            <p className="text-[10px] text-slate-500 mt-1">Grijs = minder dan 8 dagen. Score = gebalanceerd (gevangen en terecht nee gemiddeld). Werkelijkheid: zoals bovenaan gekozen.</p>
-          </div>
-
-          <div className="text-xs font-black uppercase text-slate-900">Alle onderdelen in één tabel</div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px] tabular-nums [&_td]:whitespace-nowrap">
-              <thead><tr className="text-slate-500 border-b border-slate-200">
-                <th className="text-left py-1 pr-2 sticky left-0 bg-white">Voorspeller</th>
-                {COMPONENTS.map(c => <th key={c.key} className={thCls} title={c.rule}>{c.label}</th>)}
-                <th className={thCls}>n</th>
-              </tr></thead>
-              <tbody>
-                {scoreRows.map(({ s, r }) => (
-                  <tr key={s.source} className={cn('border-b border-slate-100', isNz(s.source) && 'bg-cyan-50')}>
-                    <td className={stickyTd(isNz(s.source))}>{s.label}{!OWN_VERDICT_SOURCES.has(s.source) && <sup className="text-slate-400"> r</sup>}</td>
-                    {COMPONENTS.map(c => (
-                      <td key={c.key} className={cn('text-right px-1.5', (r!.n[c.key] || 0) < MIN_N && 'text-slate-400', c.key === 'total' && 'font-bold')}>
-                        {c.key === 'total' && r!.cm && balanced(r!.cm) !== undefined ? `${Math.round(balanced(r!.cm)! * 100)}%` : pct(r!.hit[c.key], r!.n[c.key])}
-                      </td>
-                    ))}
-                    <td className="text-right px-1.5 text-slate-500">{r!.n.total || r!.n.hs || r!.n.wind || 0}</td>
-                  </tr>
-                ))}
-                {!scoreRows.length && <tr><td colSpan={9} className="py-2 text-slate-500">Nog geen verwachtingen waarvan de uitkomst gemeten is.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-          <ul className="text-[10px] text-slate-500 space-y-0.5">
-            {COMPONENTS.map(c => <li key={c.key}><b>{c.label}</b> goed als: {c.rule}</li>)}
-            <li>Grijs = minder dan {MIN_N} vergelijkingen. Alleen daglicht (07–20 u).</li>
-          </ul>
-          <TableHelp>
-            <ul>
-              <li>Hetzelfde als de ranglijst per onderdeel, maar alles naast elkaar: per voorspeller het % goed per onderdeel. Gesorteerd op "Te surfen?".</li>
-              <li><b>—</b> = de voorspeller levert dit onderdeel niet, of er is nog niets gemeten.</li>
-              <li><b>n</b> = aantal beoordeelde momenten. <sup>r</sup> = "te surfen?" bepaald met de regel hierboven.</li>
-            </ul>
-          </TableHelp>
+          {/* Eerlijke ranglijst: per dag vooruit, per raster, alle bronnen op dezelfde momenten (utils/fairCompare). */}
+          <FairCompare title="Ranglijst: eerlijk vergeleken" forecasts={forecasts} observations={observations} rule={rule} truthFn={truthFn} labelOf={labelOf} initialTopic="surf" />
 
           <div>
             <div className="text-xs font-black uppercase text-slate-900 mb-1">Hoe vroeg wist je het, en bleef het zo?</div>
             <p className="text-[11px] text-slate-600 mb-1">
-              % juist "te surfen?" per aantal dagen vooruit. <b>Omslag</b> = hoe vaak het oordeel veranderde tussen opeenvolgende dagen (lager = stabieler).
+              Per bron op zijn eigen momenten (geen onderlinge ranglijst; daarvoor de eerlijke vergelijking hierboven). % juist "te surfen?" per aantal dagen vooruit. <b>Omslag</b> = hoe vaak het oordeel veranderde tussen opeenvolgende dagen (lager = stabieler).
               <b> Dagen vooraf</b> = gemiddeld vanaf hoeveel dagen vooruit het oordeel juist was en niet meer veranderde.
             </p>
             <div className="overflow-x-auto">
@@ -578,18 +389,7 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
             </TableHelp></div>
           </div>
 
-          <button
-            onClick={() => {
-              const rows = scoreRows.map(({ s, r }) => Object.fromEntries([
-                ['voorspeller', s.label],
-                ...COMPONENTS.flatMap(c => [[`${c.label} %`, r!.n[c.key] ? Math.round((r!.hit[c.key] || 0) / r!.n[c.key]! * 100) : ''], [`${c.label} n`, r!.n[c.key] || 0]]),
-              ]));
-              saveFileOrAlert(`nzsurf-audit-score-${leadFilter ? `dag${leadFilter}` : 'alle'}-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
-            }}
-            className="text-xs font-bold px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-800 flex items-center gap-1.5 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" /> Score (CSV)
-          </button>
+
         </div>
       )}
     </div>
