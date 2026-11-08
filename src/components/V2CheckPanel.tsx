@@ -7,7 +7,7 @@ import { AuditForecastDoc, AuditObsDoc, AuditParam, Pair, auditView, cleanObserv
 import { WebcamMeasurement, loadWebcamMeasurements, webcamSpots } from '../services/webcamMeasure';
 import { surfWindow, SKILL_LABEL } from '../utils/surfProfile';
 import {
-  ADVICE_MIN, CHECK_DAYS, CheckDay, CheckRow, Score, buildCheckRows, missBreakdown, missReason, outcomeOf, scoreAdvice, scoreSites, seaSummary,
+  ADVICE_MIN, CHECK_DAYS, CheckDay, CheckRow, Score, buildCheckRows, missBreakdown, missReason, outcomeOf, scoreAdvice, scoreSites, seaSummary, tideCheck,
 } from '../utils/v2Check';
 import { TableHelp } from './TableHelp';
 import { cn } from '../lib/utils';
@@ -19,7 +19,8 @@ import { cn } from '../lib/utils';
  */
 
 const SITE_NAMES: Record<string, string> = { surfline: 'Surfline', breakfinder: 'Breakfinder', wompy: 'Wompy', secretswell: 'Secret Swell' };
-const SEA_PARAMS: AuditParam[] = ['hs', 'tp', 'windKn', 'windDir'];
+// Golfrichting alleen waar de boei hem betrouwbaar meet (niet bij de Maasvlakte).
+const seaParams = (spotId: string): AuditParam[] => (spotId === 'maasvlakte' ? ['hs', 'tp', 'windKn', 'windDir'] : ['hs', 'tp', 'dir', 'windKn', 'windDir']);
 const CLASS_NL = { longboard: 'longboard', mid: 'mid-length', shortboard: 'shortboard' } as const;
 const FLOAT_TO_CLASS = { veel: 'longboard', gemiddeld: 'mid', weinig: 'shortboard' } as const;
 
@@ -94,8 +95,9 @@ function Moments({ rows, day, which }: { rows: CheckRow[]; day: CheckDay; which:
   );
 }
 
-export function V2CheckPanel({ user, spots, pairs, forecasts, spotName, periodLabel }: {
-  user?: UserProfile; spots: SurfSpot[]; pairs: Pair[]; forecasts: AuditForecastDoc[] | null; spotName: string; periodLabel: string;
+export function V2CheckPanel({ user, spots, pairs, forecasts, observations, spotId, spotName, periodLabel }: {
+  user?: UserProfile; spots: SurfSpot[]; pairs: Pair[]; forecasts: AuditForecastDoc[] | null; observations: AuditObsDoc[];
+  spotId: string; spotName: string; periodLabel: string;
 }) {
   const [day, setDay] = useState<CheckDay>(1);
   const [data, setData] = useState<{ docs: AuditForecastDoc[]; obs: AuditObsDoc[]; webcam: WebcamMeasurement[] } | null>(null);
@@ -126,10 +128,11 @@ export function V2CheckPanel({ user, spots, pairs, forecasts, spotName, periodLa
   const withV2 = rows.filter(r => Object.keys(r.days).length).length;
   const labelOf = (s: string) => SITE_NAMES[s] ?? forecasts?.find(f => f.source === s)?.label ?? data?.docs.find(d => d.source === s)?.label ?? s;
   const sea = useMemo(
-    () => (forecasts ? SEA_PARAMS.map(p => seaSummary(pairs, forecasts, p, day, labelOf)) : []),
+    () => (forecasts ? seaParams(spotId).map(p => seaSummary(pairs, forecasts, p, day, labelOf)) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pairs, forecasts, day],
+    [pairs, forecasts, day, spotId],
   );
+  const tide = useMemo(() => (forecasts ? tideCheck(forecasts, observations, day) : null), [forecasts, observations, day]);
   const sites = useMemo(() => scoreSites(rows, day, labelOf), [rows, day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const boards = user?.boards?.length ? user.boards.map(b => ({ b, cls: FLOAT_TO_CLASS[surfWindow(user, b).floatClass] })) : [];
@@ -210,7 +213,7 @@ export function V2CheckPanel({ user, spots, pairs, forecasts, spotName, periodLa
             </div>
 
             <div className="space-y-2">
-              <p className="text-[12px] font-bold text-slate-800 flex items-center gap-1"><Waves className="w-3.5 h-3.5 text-cyan-600" /> b. Op zee — v2 tegen de boei ({spotName}, {periodLabel})</p>
+              <p className="text-[12px] font-bold text-slate-800 flex items-center gap-1"><Waves className="w-3.5 h-3.5 text-cyan-600" /> b. Op zee — v2 tegen de metingen ({spotName}, {periodLabel})</p>
               {!forecasts ? <p className="text-[12px] text-slate-500">Laden…</p> : (
                 <ul className="space-y-1.5">
                   {sea.map(s => {
@@ -218,7 +221,7 @@ export function V2CheckPanel({ user, spots, pairs, forecasts, spotName, periodLa
                     const d = s.param === 'hs' ? 2 : s.param === 'windDir' ? 0 : 1;
                     return (
                       <li key={s.param} className="text-[12px] text-slate-800 border-t border-slate-100 pt-1">
-                        <b>{prm.label}</b>:{' '}
+                        <b>{prm.label}</b>{s.param === 'dir' ? <span className="text-slate-500"> (indicatie)</span> : null}:{' '}
                         {typeof s.rank !== 'number' ? <span className="text-slate-500">nog te weinig momenten met v2 en andere bronnen samen</span> : (
                           <>
                             v2 zit gemiddeld <b>{fmtNum(s.v2!, d)} {prm.unit}</b> ernaast — plek <b>{s.rank} van {s.of}</b>.{' '}
@@ -231,15 +234,30 @@ export function V2CheckPanel({ user, spots, pairs, forecasts, spotName, periodLa
                       </li>
                     );
                   })}
+                  {tide && (
+                    <li className="text-[12px] text-slate-800 border-t border-slate-100 pt-1">
+                      <b>Getij</b>:{' '}
+                      {!tide.n ? <span className="text-slate-500">nog geen momenten met v2 en een gemeten waterstand</span> : (
+                        <>
+                          v2 zit gemiddeld <b>{fmtNum(tide.mae!, 2)} m</b> ernaast. Daarvan is <b>{fmtNum(Math.abs(tide.offset!), 2)} m</b> een vaste verschuiving
+                          (v2 structureel {tide.offset! < 0 ? 'lager' : 'hoger'}); zonder die verschuiving nog {fmtNum(tide.shapeMae!, 2)} m.
+                          {tide.phaseN > 0 && <> De fase (laag, midden of hoog water) klopte <b>{tide.phaseOk} van {tide.phaseN} keer</b> ({pct(tide.phaseOk, tide.phaseN)}).</>}
+                          <span className="text-slate-500"> Alleen v2 heeft een getij, dus geen plek tussen bronnen.</span>
+                        </>
+                      )}
+                    </li>
+                  )}
                 </ul>
               )}
               <TableHelp title="Zo lees je dit">
                 <ul>
-                  <li><b>Ernaast</b> = gemiddelde afwijking van de meting (boei Maasgeul 2 voor golven, Europlatform voor wind), {day === 1 ? '1 dag' : `${day} dagen`} vooruit.</li>
+                  <li><b>Ernaast</b> = gemiddelde afwijking van de meting (boei Maasgeul 2 voor golven, Europlatform voor wind, Goeree voor de waterstand), {day === 1 ? '1 dag' : `${day} dagen`} vooruit.</li>
                   <li><b>Plek</b> = rang tussen alle bronnen op precies dezelfde momenten (per 3 uur). 1 = het dichtst bij de meting.</li>
                   <li><b>Echt beter/slechter</b>: het verschil met v2 is groter dan toeval (90% zeker). <b>Gelijk</b>: het verschil kan toeval zijn.</li>
                   <li>Bij de golfhoogte doen Surfline, surfnerd, Breakfinder, Secret Swell en Wompy niet mee: die geven de hoogte aan het strand of alleen de swell, een andere grootheid dan de boei meet.</li>
-                  <li>Golfperiode: gemiddelde periode tegen de gemeten Tm02. Golfrichting staat er niet bij: die is voor de Maasvlakte niet betrouwbaar te meten.</li>
+                  <li>Golfperiode: gemiddelde periode tegen de gemeten Tm02.</li>
+                  <li>Golfrichting: alleen bij Ouddorp, en als indicatie: de boei ligt 20 km verderop. Bij de Maasvlakte meet de boei de richting niet betrouwbaar. Sites die alleen een swellrichting geven doen niet mee.</li>
+                  <li>Getij: tegen de waterstand bij Goeree. De verwachting rekent vanaf gemiddeld zeeniveau en zonder opwaaiing, de meting vanaf NAP mét opwaaiing; dat geeft een vaste verschuiving. De kans in de app gebruikt alleen de fase (laag, midden of hoog binnen de getijslag), dus die verschuiving telt daar niet mee. Fase: laag = onderste 20% van de slag over ±7 uur, hoog = bovenste 20%.</li>
                 </ul>
               </TableHelp>
             </div>

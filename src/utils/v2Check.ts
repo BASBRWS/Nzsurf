@@ -33,6 +33,7 @@ const OWN_VERDICT_SITES = ['surfline', 'breakfinder', 'wompy', 'secretswell'];
 export const BEACH_HEIGHT_SOURCES = new Set(['breakfinder', 'surfnerd', 'secretswell', 'wompy', 'surfline']);
 
 const HOUR = 3600e3;
+const nlHour = (t: number) => Number(new Date(t).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hour: '2-digit', hourCycle: 'h23' }));
 const nlDay = (t: number) => new Date(t).toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' });
 
 /**
@@ -214,7 +215,8 @@ export interface SeaSummary {
  * alleen swell geven (dat is een andere grootheid dan de boei meet).
  */
 export function seaSummary(pairs: Pair[], docs: AuditForecastDoc[], param: AuditParam, day: number, labelOf: (s: string) => string): SeaSummary {
-  const drop = (s: string) => s === 'nzsurf' || s === V2_SOURCE || NOT_RANKED_SOURCES.has(s) || (param === 'hs' && BEACH_HEIGHT_SOURCES.has(s));
+  // Golfrichting van die sites is de swellrichting: een andere grootheid dan de gemiddelde richting van de boei.
+  const drop = (s: string) => s === 'nzsurf' || s === V2_SOURCE || NOT_RANKED_SOURCES.has(s) || ((param === 'hs' || param === 'dir') && BEACH_HEIGHT_SOURCES.has(s));
   const table = fairVariableTable(pairs.filter(p => !drop(p.source)), docs.filter(d => !drop(d.source)),
     { param, leadDay: day, raster: 3, refs: [LIVE], labelOf });
   const i = table.rows.findIndex(r => r.source === LIVE);
@@ -226,4 +228,60 @@ export function seaSummary(pairs: Pair[], docs: AuditForecastDoc[], param: Audit
     worse: others.filter(r => typeof r.lo === 'number' && r.lo > 0).map(r => r.label),
     same: others.filter(r => !(typeof r.hi === 'number' && r.hi < 0) && !(typeof r.lo === 'number' && r.lo > 0)).map(r => r.label),
   };
+}
+
+// ── Getij: v2 tegen de gemeten waterstand (Goeree) ──────────────────────────
+
+export interface TideCheck {
+  n: number;
+  mae?: number;        // gemiddeld ernaast (m)
+  offset?: number;     // vaste verschuiving: gemiddeld te hoog (+) of te laag (−)
+  shapeMae?: number;   // ernaast na aftrek van die verschuiving
+  phaseN: number; phaseOk: number; // fase laag/midden/hoog gelijk
+}
+
+/** Fase binnen de getijslag (0 = laagwater, 1 = hoogwater) over ±7 uur, zoals de app hem gebruikt. */
+function phaseAt(series: { t: number; v: number }[], t: number): number | undefined {
+  const win = series.filter(x => Math.abs(x.t - t) <= 7 * HOUR);
+  if (win.length < 4) return undefined;
+  const at = win.find(x => x.t === t);
+  if (!at) return undefined;
+  const lo = Math.min(...win.map(x => x.v)), hi = Math.max(...win.map(x => x.v));
+  return hi - lo < 0.2 ? 0.5 : (at.v - lo) / (hi - lo);
+}
+const phaseClass = (x: number) => (x < 0.2 ? 'laag' : x > 0.8 ? 'hoog' : 'midden');
+
+/**
+ * Het getij van v2 tegen de gemeten waterstand, per 3 uur op NL-tijd (zelfde blokken als de
+ * vergelijking op zee; zelfde gewicht vóór en na de overstap naar uurwaarden). De absolute hoogte heeft een ander nulpunt (zeeniveau vs NAP) en
+ * mist opwaaiing; de kans gebruikt alleen de fase. Daarom: fout, vaste verschuiving en fase.
+ */
+export function tideCheck(docs: AuditForecastDoc[], observations: AuditObsDoc[], day: number): TideCheck {
+  const obs: { t: number; v: number }[] = [];
+  for (const d of observations) for (const p of d.points || []) if (typeof p.level === 'number') obs.push({ t: Date.parse(p.t), v: p.level });
+  obs.sort((a, b) => a.t - b.t);
+  const obsAt = new Map(obs.map(x => [x.t, x.v]));
+  // Per doelmoment het punt met de kortste vooruitkijktijd binnen deze dag.
+  const pick = new Map<number, { v: number; lead: number; series: { t: number; v: number }[] }>();
+  for (const d of docs.filter(x => x.source === LIVE)) {
+    const series = (d.points || []).filter(p => typeof p.tide === 'number').map(p => ({ t: Date.parse(p.t), v: p.tide! }));
+    for (const p of d.points || []) {
+      const t = Date.parse(p.t);
+      if (typeof p.tide !== 'number' || leadDayOf(p.lead) !== day || p.lead <= 0 || nlHour(t) % 3 !== 0 || !obsAt.has(t)) continue;
+      const cur = pick.get(t);
+      if (!cur || p.lead < cur.lead) pick.set(t, { v: p.tide, lead: p.lead, series });
+    }
+  }
+  const errs: number[] = [];
+  let phaseN = 0, phaseOk = 0;
+  for (const [t, x] of pick) {
+    errs.push(x.v - obsAt.get(t)!);
+    const pf = phaseAt(x.series, t), po = phaseAt(obs, t);
+    if (typeof pf === 'number' && typeof po === 'number') { phaseN++; if (phaseClass(pf) === phaseClass(po)) phaseOk++; }
+  }
+  if (!errs.length) return { n: 0, phaseN, phaseOk };
+  const mean = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
+  const offset = mean(errs);
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  return { n: errs.length, mae: r2(mean(errs.map(Math.abs))), offset: r2(offset), shapeMae: r2(mean(errs.map(e => Math.abs(e - offset)))), phaseN, phaseOk };
 }

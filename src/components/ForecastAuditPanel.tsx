@@ -207,7 +207,7 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
       </div>
 
       {/* Klopt NzSurf v2? Persoonlijk advies en algemene voorspelling, alleen v2 live, in gewone taal. */}
-      <V2CheckPanel user={user} spots={spots} pairs={allPairs} forecasts={forecasts} spotName={auditSpot.name}
+      <V2CheckPanel user={user} spots={spots} pairs={allPairs} forecasts={forecasts} observations={observations} spotId={spotId} spotName={auditSpot.name}
         periodLabel={PERIODS.find(p => p.key === period)?.label === 'Alles' ? 'alle data' : `laatste ${PERIODS.find(p => p.key === period)?.label}`} />
 
       {/* Surfline en surfnerd weren de GitHub-servers; de app op de telefoon haalt ze op. */}
