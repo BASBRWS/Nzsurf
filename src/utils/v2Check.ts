@@ -285,3 +285,33 @@ export function tideCheck(docs: AuditForecastDoc[], observations: AuditObsDoc[],
   const r2 = (v: number) => Math.round(v * 100) / 100;
   return { n: errs.length, mae: r2(mean(errs.map(Math.abs))), offset: r2(offset), shapeMae: r2(mean(errs.map(e => Math.abs(e - offset)))), phaseN, phaseOk };
 }
+
+// ── Telling: waar vallen webcammetingen af? ──────────────────────────────────
+
+export interface Funnel {
+  total: number;          // alle webcammetingen
+  beforeLive: number;     // vóór de eerste v2-live-ophaalronde (+ deze dag vooruit)
+  noRun: number;          // later, maar geen v2-verwachting precies zoveel dagen eerder
+  incomplete: number;     // wel een verwachting, maar zonder golf/periode (geen kans te berekenen)
+  unusable: number;       // webcambeeld onbruikbaar (donker, mist, storing)
+  noVerdict: number;      // beeld bruikbaar, maar geen oordeel en geen surfers/plat/closeout
+  matig: number;          // matig: telt niet als goed of fout
+  counted: number;        // getoetst (= n van de score)
+}
+
+/** Waar de metingen afvallen, in dezelfde volgorde als de toets ze filtert. */
+export function funnelOf(rows: CheckRow[], docs: AuditForecastDoc[], day: CheckDay, which: 'personal' | 'general'): Funnel {
+  const live = docs.filter(d => d.source === LIVE).map(d => Date.parse(d.runAt));
+  const first = live.length ? Math.min(...live) : Infinity;
+  const f: Funnel = { total: rows.length, beforeLive: 0, noRun: 0, incomplete: 0, unusable: 0, noVerdict: 0, matig: 0, counted: 0 };
+  for (const r of rows) {
+    const c = r.days[day];
+    if (!c) { if (r.at < first + (day - 1) * 24 * HOUR) f.beforeLive++; else f.noRun++; continue; }
+    const chance = which === 'personal' ? c.personal : c.general;
+    if (typeof chance !== 'number') { f.incomplete++; continue; }
+    const truth = which === 'personal' ? r.truthMe : r.truthGen;
+    if (!truth) { if (!r.m.result || r.m.result.framesUsable === 0) f.unusable++; else f.noVerdict++; continue; }
+    if (truth.y === 0.5) f.matig++; else f.counted++;
+  }
+  return f;
+}

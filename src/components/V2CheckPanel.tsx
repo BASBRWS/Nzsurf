@@ -7,7 +7,7 @@ import { AuditForecastDoc, AuditObsDoc, AuditParam, Pair, auditView, cleanObserv
 import { WebcamMeasurement, loadWebcamMeasurements, webcamSpots } from '../services/webcamMeasure';
 import { surfWindow, SKILL_LABEL } from '../utils/surfProfile';
 import {
-  ADVICE_MIN, CHECK_DAYS, CheckDay, CheckRow, Score, buildCheckRows, missBreakdown, missReason, outcomeOf, scoreAdvice, scoreSites, seaSummary, tideCheck,
+  ADVICE_MIN, CHECK_DAYS, CheckDay, CheckRow, Funnel, Score, buildCheckRows, funnelOf, missBreakdown, missReason, outcomeOf, scoreAdvice, scoreSites, seaSummary, tideCheck,
 } from '../utils/v2Check';
 import { TableHelp } from './TableHelp';
 import { cn } from '../lib/utils';
@@ -34,7 +34,26 @@ function sampleNote(n: number) {
   return { text: `${n} momenten: genoeg om iets te zeggen.`, cls: 'text-emerald-800' };
 }
 
-function ScoreBlock({ s, what }: { s: Score; what: string }) {
+function FunnelLine({ f, day }: { f: Funnel; day: CheckDay }) {
+  const steps: [number, string][] = [
+    [f.beforeLive, 'vóór v2 live (28 okt)'],
+    [f.noRun, `geen v2-verwachting ${day === 1 ? '1 dag' : `${day} dagen`} eerder`],
+    [f.incomplete, 'verwachting onvolledig'],
+    [f.unusable, 'beeld onbruikbaar'],
+    [f.noVerdict, 'geen oordeel van de webcam'],
+    [f.matig, 'matig'],
+  ];
+  const out = steps.filter(([n]) => n > 0);
+  return (
+    <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+      <b>Telling:</b> {f.total} webcammetingen
+      {out.map(([n, l]) => <span key={l}> → <span className="whitespace-nowrap">−{n} {l}</span></span>)}
+      {' '}= <b>{f.counted} getoetst</b>
+    </p>
+  );
+}
+
+function ScoreBlock({ s, what, funnel, day }: { s: Score; what: string; funnel: Funnel; day: CheckDay }) {
   const note = sampleNote(s.n);
   return (
     <div className="space-y-1">
@@ -48,6 +67,7 @@ function ScoreBlock({ s, what }: { s: Score; what: string }) {
           {s.matig > 0 && <li><b>{s.matig}×</b> was het matig: telt niet als goed of fout</li>}
         </ul>
       )}
+      <FunnelLine f={funnel} day={day} />
       <p className={cn('text-[11px]', note.cls)}>{note.text}</p>
     </div>
   );
@@ -175,7 +195,7 @@ export function V2CheckPanel({ user, spots, pairs, forecasts, observations, spot
                   berekend op de v2-verwachting van {day === 1 ? '1 dag' : `${day} dagen`} van tevoren.
                   Gaan = jouw kans {ADVICE_MIN}% of meer. Getoetst aan wat de webcam zag voor jouw beste board.
                 </p>
-                <ScoreBlock s={scoreAdvice(rows, day, 'personal')} what="je advies zei" />
+                <ScoreBlock s={scoreAdvice(rows, day, 'personal')} what="je advies zei" funnel={funnelOf(rows, data.docs, day, 'personal')} day={day} />
                 <Reasons rows={rows} day={day} which="personal" />
                 <Moments rows={rows} day={day} which="personal" />
               </>
@@ -188,7 +208,7 @@ export function V2CheckPanel({ user, spots, pairs, forecasts, observations, spot
 
             <div className="space-y-2">
               <p className="text-[12px] font-bold text-slate-800">a. Te surfen? — de algemene kans in de app tegen de webcam (gemiddeld board)</p>
-              <ScoreBlock s={scoreAdvice(rows, day, 'general')} what="v2 zei" />
+              <ScoreBlock s={scoreAdvice(rows, day, 'general')} what="v2 zei" funnel={funnelOf(rows, data.docs, day, 'general')} day={day} />
               <Reasons rows={rows} day={day} which="general" />
               {sites.length > 0 && (
                 <div className="space-y-1">
