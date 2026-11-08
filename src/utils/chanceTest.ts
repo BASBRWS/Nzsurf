@@ -37,10 +37,15 @@ export function userBoardClasses(user: UserProfile): ('longboard' | 'mid' | 'sho
 }
 
 export function truthFor(m: WebcamMeasurement, user: UserProfile): Truth | undefined {
+  return truthForClasses(m, userBoardClasses(user));
+}
+
+/** Zelfde waarheid voor gegeven boardsoorten (het beste board telt). 'mid' = de algemene surfer. */
+export function truthForClasses(m: WebcamMeasurement, classes: ('longboard' | 'mid' | 'shortboard')[]): Truth | undefined {
   const r = m.result;
   if (!r || r.framesUsable === 0) return undefined;
   if (r.verdict) {
-    const vals = userBoardClasses(user).map(c => r.verdict?.[c]).filter((v): v is WebcamVerdict => !!v);
+    const vals = classes.map(c => r.verdict?.[c]).filter((v): v is WebcamVerdict => !!v);
     if (vals.length) {
       const best = vals.reduce((a, b) => (Y[b] > Y[a] ? b : a));
       return { y: Y[best], label: best, source: 'oordeel' };

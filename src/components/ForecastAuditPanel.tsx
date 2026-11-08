@@ -20,6 +20,7 @@ import { WebcamPanel } from './WebcamPanel';
 import { loadWebcamMeasurements } from '../services/webcamMeasure';
 import { SurfSpot, UserProfile } from '../types';
 import { ChanceTestPanel } from './ChanceTestPanel';
+import { V2CheckPanel } from './V2CheckPanel';
 import {
   AuditForecastDoc, AuditObsDoc, AuditParam, auditView, cleanObservations, SpotReportLike, PARAMS, LEAD_BUCKETS, LeadBucket, MIN_N,
   buildPairs, scorePairs, toCsv, Pair,
@@ -205,6 +206,10 @@ export function ForecastAuditPanel({ spots = [], user }: { spots?: SurfSpot[]; u
         </p>
       </div>
 
+      {/* Klopt NzSurf v2? Persoonlijk advies en algemene voorspelling, alleen v2 live, in gewone taal. */}
+      <V2CheckPanel user={user} spots={spots} pairs={allPairs} forecasts={forecasts} spotName={auditSpot.name}
+        periodLabel={PERIODS.find(p => p.key === period)?.label === 'Alles' ? 'alle data' : `laatste ${PERIODS.find(p => p.key === period)?.label}`} />
+
       {/* Surfline en surfnerd weren de GitHub-servers; de app op de telefoon haalt ze op. */}
       {canCollectInApp() ? (
         <div className="rounded-xl border border-slate-200 p-3 space-y-1.5">
@@ -268,9 +273,6 @@ maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvla
       {/* Webcam Maasvlakte: golf aan het strand naast de boei Maasgeul 2. */}
       <WebcamPanel observations={observations} onDownload={download} enabled={canCollectInApp()} spots={spots} />
 
-      {/* Kans tegen werkelijkheid: NzSurf nu, test (persoonlijk) en NzSurf v2 tegen het webcamoordeel. */}
-      {user && <ChanceTestPanel user={user} spots={spots} audit={forecasts || []} />}
-
       {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">Kon de auditdata niet laden: {error}</p>}
       {!forecasts && !error && <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden…</div>}
 
@@ -279,6 +281,13 @@ maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvla
           <p className="text-[11px] font-mono text-slate-500">
             {new Set(forecasts.map(f => f.runDate)).size} ophaaldagen · {forecasts.length} verwachtingen · {observations.length} meetdagen · {allPairs.length} vergelijkingen
           </p>
+
+          {/* Uitgebreid: alle bronnen, v1 en v2-nagerekend. Voor analyse; het antwoord staat hierboven. */}
+          <details className="rounded-2xl border border-slate-300 p-3 [&[open]]:space-y-5">
+            <summary className="text-sm font-black text-slate-800 cursor-pointer">Uitgebreid: alle bronnen en tabellen (ook v1 en v2-nagerekend)</summary>
+
+          {/* Kans tegen werkelijkheid: NzSurf nu, test (persoonlijk) en NzSurf v2 tegen het webcamoordeel. */}
+          {user && <ChanceTestPanel user={user} spots={spots} audit={forecasts || []} />}
 
           {/* Status laatste ophaalronde per bron (kapotte uitlezer valt hier op) */}
           {(() => {
@@ -345,6 +354,8 @@ maak 's ochtends in Secret Swell schermafbeeldingen van Ouddorp en/of de Maasvla
               pairs={condPairs} rule={DEFAULT_RULE} truthFn={fairTruth} labelOf={fairLabel} initialTopic={param} />
             {(minWind || minWave) ? <p className="text-[11px] text-slate-600 mt-2">Filter wind/golf actief: alleen momenten met {minWind ? `gemeten wind ≥ ${minWind} kn` : ''}{minWind && minWave ? ' en ' : ''}{minWave ? `gemeten golf ≥ ${String(minWave).replace('.', ',')} m` : ''} (geldt voor de variabelen, niet voor "Te surfen?").</p> : null}
           </div>
+
+          </details>
 
           {/* Export */}
           <div className="flex flex-wrap gap-2">

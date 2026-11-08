@@ -348,6 +348,13 @@ export function SurfAuditBoard({ forecasts, observations, sources, reports = [],
       {/* 4 — Score */}
       {tab === 'score' && (
         <div className="space-y-3">
+          {truthMode === 'reports' && ratedReports === 0 && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-2.5 text-[12px] text-amber-900">
+              Werkelijkheid staat op <b>"Alleen surfers"</b>, maar er zijn nog geen spotrapporten met een oordeel voor deze spot.
+              Daarom blijven de "te surfen?"-scores leeg (—).{' '}
+              <button onClick={() => setTruthMode('combined')} className="underline font-bold cursor-pointer">Zet op "Surfers, dan metingen"</button>
+            </div>
+          )}
           {/* Eerlijke ranglijst: per dag vooruit, per raster, alle bronnen op dezelfde momenten (utils/fairCompare). */}
           <FairCompare title="Ranglijst: eerlijk vergeleken" forecasts={forecasts} observations={observations} rule={rule} truthFn={truthFn} labelOf={labelOf} initialTopic="surf" />
 

@@ -32,7 +32,7 @@ export interface SurfWindow {
 
 const SKILL_MAX: Record<SkillLevel, number> = { beginner: 1.0, intermediate: 1.8, advanced: 2.6, pro: 3.5 };
 const SKILL_ONSHORE: Record<SkillLevel, number> = { beginner: 0.6, intermediate: 0.45, advanced: 0.4, pro: 0.35 };
-const SKILL_LABEL: Record<SkillLevel, string> = { beginner: 'beginner', intermediate: 'gemiddeld niveau', advanced: 'gevorderd', pro: 'pro' };
+export const SKILL_LABEL: Record<SkillLevel, string> = { beginner: 'beginner', intermediate: 'gemiddeld niveau', advanced: 'gevorderd', pro: 'pro' };
 // De algemene kans rekent met deze tolerantie (0,35 + 0,65 × windkwaliteit).
 const GENERIC_ONSHORE = 0.35;
 
